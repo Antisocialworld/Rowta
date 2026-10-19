@@ -2,7 +2,6 @@
 // DO NOT EDIT BY HAND. Values are COPIED from the CSS: only var() references are resolved,
 // rem spacing is converted to px numbers (16px root) and px strings inside type styles become numbers.
 // Colours are 8-digit #rrggbbaa (alpha last; React Native accepts alpha last). Light theme only (Q9 open).
-/* eslint-disable */
 export const colors = {
   "color-primary-key-color": "#3e43cfff",
   "color-secondary-color": "#262a80ff",
