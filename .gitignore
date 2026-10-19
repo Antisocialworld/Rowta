@@ -1,0 +1,54 @@
+# ---- Secrets: NEVER commit (rules S1, S2, S3) ----
+.env
+.env.*
+!.env.example
+# owner's one-shot name-fix script (contains .env handling; never committed)
+fix-env-name.mjs
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+credentials.json
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+secrets/
+
+# ---- Dependencies and builds ----
+node_modules/
+dist/
+build/
+out/
+coverage/
+.expo/
+.expo-shared/
+android/
+ios/
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# ---- Hosting and tooling ----
+.vercel/
+.eas/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ---- Local data ----
+docker-data/
+*.sqlite
+*.dump
+k6-results/
+load-tests/.local/
+load-tests/results/*.json
+
+# ---- Keep the lockfile (rule S12) ----
+!package-lock.json
+rowta-old-backup/
+rowta-scaffold*

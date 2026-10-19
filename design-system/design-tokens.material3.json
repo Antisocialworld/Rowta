@@ -1,0 +1,648 @@
+{
+  "additional key colors": {
+    "warning color": {
+      "type": "color",
+      "value": "#ffc107ff",
+      "extensions": {
+        "material3": {
+          "source": "Material amber 500; source of the warning tonal palette"
+        }
+      }
+    },
+    "success color": {
+      "type": "color",
+      "value": "#4caf50ff",
+      "extensions": {
+        "material3": {
+          "source": "Material green 500; source of the success tonal palette"
+        }
+      }
+    }
+  },
+  "warning color": {
+    "warning 0": {
+      "type": "color",
+      "value": "#000000ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 0"
+        }
+      }
+    },
+    "warning 10": {
+      "type": "color",
+      "value": "#261a00ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 10"
+        }
+      }
+    },
+    "warning 20": {
+      "type": "color",
+      "value": "#3f2e00ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 20"
+        }
+      }
+    },
+    "warning 30": {
+      "type": "color",
+      "value": "#5b4300ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 30"
+        }
+      }
+    },
+    "warning 40": {
+      "type": "color",
+      "value": "#795900ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 40"
+        }
+      }
+    },
+    "warning 50": {
+      "type": "color",
+      "value": "#977100ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 50"
+        }
+      }
+    },
+    "warning 60": {
+      "type": "color",
+      "value": "#b78a00ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 60"
+        }
+      }
+    },
+    "warning 70": {
+      "type": "color",
+      "value": "#d8a300ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 70"
+        }
+      }
+    },
+    "warning 80": {
+      "type": "color",
+      "value": "#fabd00ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 80"
+        }
+      }
+    },
+    "warning 90": {
+      "type": "color",
+      "value": "#ffdf9dff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 90"
+        }
+      }
+    },
+    "warning 95": {
+      "type": "color",
+      "value": "#ffefd4ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 95"
+        }
+      }
+    },
+    "warning 98": {
+      "type": "color",
+      "value": "#fff8f2ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 98"
+        }
+      }
+    },
+    "warning 99": {
+      "type": "color",
+      "value": "#fffbfaff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 99"
+        }
+      }
+    },
+    "warning 100": {
+      "type": "color",
+      "value": "#ffffffff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #ffc107 (Google Material amber/green 500), hue 86.1, chroma 60.5, tone 100"
+        }
+      }
+    }
+  },
+  "warning color role": {
+    "warning": {
+      "type": "color",
+      "value": "#795900ff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 40"
+        }
+      }
+    },
+    "on warning": {
+      "type": "color",
+      "value": "#ffffffff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 100"
+        }
+      }
+    },
+    "warning container": {
+      "type": "color",
+      "value": "#ffdf9dff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 90"
+        }
+      }
+    },
+    "on warning container": {
+      "type": "color",
+      "value": "#5b4300ff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 30"
+        }
+      }
+    }
+  },
+  "success color": {
+    "success 0": {
+      "type": "color",
+      "value": "#000000ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 0"
+        }
+      }
+    },
+    "success 10": {
+      "type": "color",
+      "value": "#002204ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 10"
+        }
+      }
+    },
+    "success 20": {
+      "type": "color",
+      "value": "#00390aff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 20"
+        }
+      }
+    },
+    "success 30": {
+      "type": "color",
+      "value": "#005313ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 30"
+        }
+      }
+    },
+    "success 40": {
+      "type": "color",
+      "value": "#006e1cff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 40"
+        }
+      }
+    },
+    "success 50": {
+      "type": "color",
+      "value": "#22892fff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 50"
+        }
+      }
+    },
+    "success 60": {
+      "type": "color",
+      "value": "#41a447ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 60"
+        }
+      }
+    },
+    "success 70": {
+      "type": "color",
+      "value": "#5dc05eff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 70"
+        }
+      }
+    },
+    "success 80": {
+      "type": "color",
+      "value": "#78dc77ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 80"
+        }
+      }
+    },
+    "success 90": {
+      "type": "color",
+      "value": "#94f990ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 90"
+        }
+      }
+    },
+    "success 95": {
+      "type": "color",
+      "value": "#c8ffc0ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 95"
+        }
+      }
+    },
+    "success 98": {
+      "type": "color",
+      "value": "#ecffe4ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 98"
+        }
+      }
+    },
+    "success 99": {
+      "type": "color",
+      "value": "#f6fff0ff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 99"
+        }
+      }
+    },
+    "success 100": {
+      "type": "color",
+      "value": "#ffffffff",
+      "extensions": {
+        "material3": {
+          "source": "tonal palette from #4caf50 (Google Material amber/green 500), hue 145.9, chroma 61.2, tone 100"
+        }
+      }
+    }
+  },
+  "success color role": {
+    "success": {
+      "type": "color",
+      "value": "#006e1cff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 40"
+        }
+      }
+    },
+    "on success": {
+      "type": "color",
+      "value": "#ffffffff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 100"
+        }
+      }
+    },
+    "success container": {
+      "type": "color",
+      "value": "#94f990ff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 90"
+        }
+      }
+    },
+    "on success container": {
+      "type": "color",
+      "value": "#005313ff",
+      "extensions": {
+        "material3": {
+          "source": "owner error-role pattern: tone 30"
+        }
+      }
+    }
+  },
+  "additional color role": {
+    "background": {
+      "type": "color",
+      "value": "#fafafaff",
+      "extensions": {
+        "material3": {
+          "source": "M3: background = surface (neutral 98)"
+        }
+      }
+    },
+    "on background": {
+      "type": "color",
+      "value": "#191919ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: on background = on surface (neutral 10)"
+        }
+      }
+    },
+    "surface bright": {
+      "type": "color",
+      "value": "#fafafaff",
+      "extensions": {
+        "material3": {
+          "source": "M3: surface bright = neutral 98"
+        }
+      }
+    },
+    "surface dim": {
+      "type": "color",
+      "value": "#dadadaff",
+      "extensions": {
+        "material3": {
+          "source": "M3: surface dim = neutral tone 87 (computed; the owner ramp has no tone 87)"
+        }
+      }
+    },
+    "inverse primary": {
+      "type": "color",
+      "value": "#adafebff",
+      "extensions": {
+        "material3": {
+          "source": "M3: inverse primary = primary 80"
+        }
+      }
+    },
+    "scrim": {
+      "type": "color",
+      "value": "#000000ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: scrim = neutral 0"
+        }
+      }
+    },
+    "shadow": {
+      "type": "color",
+      "value": "#000000ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: shadow = neutral 0"
+        }
+      }
+    },
+    "primary fixed": {
+      "type": "color",
+      "value": "#d6d7f5ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: primary fixed = primary 90"
+        }
+      }
+    },
+    "primary fixed dim": {
+      "type": "color",
+      "value": "#adafebff",
+      "extensions": {
+        "material3": {
+          "source": "M3: primary fixed dim = primary 80"
+        }
+      }
+    },
+    "on primary fixed": {
+      "type": "color",
+      "value": "#0a0b29ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: on primary fixed = primary 10"
+        }
+      }
+    },
+    "on primary fixed variant": {
+      "type": "color",
+      "value": "#1e227bff",
+      "extensions": {
+        "material3": {
+          "source": "M3: on primary fixed variant = primary 30"
+        }
+      }
+    },
+    "secondary fixed": {
+      "type": "color",
+      "value": "#d8d9f3ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: secondary fixed = secondary 90"
+        }
+      }
+    },
+    "secondary fixed dim": {
+      "type": "color",
+      "value": "#b8baeaff",
+      "extensions": {
+        "material3": {
+          "source": "M3: secondary fixed dim = secondary 80"
+        }
+      }
+    },
+    "on secondary fixed": {
+      "type": "color",
+      "value": "#0c0d27ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: on secondary fixed = secondary 10"
+        }
+      }
+    },
+    "on secondary fixed variant": {
+      "type": "color",
+      "value": "#232776ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: on secondary fixed variant = secondary 30"
+        }
+      }
+    },
+    "tertiary fixed": {
+      "type": "color",
+      "value": "#d6d7f5ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: tertiary fixed = tertiary 90"
+        }
+      }
+    },
+    "tertiary fixed dim": {
+      "type": "color",
+      "value": "#acafecff",
+      "extensions": {
+        "material3": {
+          "source": "M3: tertiary fixed dim = tertiary 80"
+        }
+      }
+    },
+    "on tertiary fixed": {
+      "type": "color",
+      "value": "#0a0b29ff",
+      "extensions": {
+        "material3": {
+          "source": "M3: on tertiary fixed = tertiary 10"
+        }
+      }
+    },
+    "on tertiary fixed variant": {
+      "type": "color",
+      "value": "#1d217cff",
+      "extensions": {
+        "material3": {
+          "source": "M3: on tertiary fixed variant = tertiary 30"
+        }
+      }
+    }
+  },
+  "shape": {
+    "corner none": {
+      "type": "dimension",
+      "value": 0,
+      "extensions": {
+        "material3": {
+          "source": "M3 shape scale (Flutter gen_defaults shape.json); full is circular, 9999 is this file's way to say so"
+        }
+      }
+    },
+    "corner extra small": {
+      "type": "dimension",
+      "value": 4,
+      "extensions": {
+        "material3": {
+          "source": "M3 shape scale (Flutter gen_defaults shape.json); full is circular, 9999 is this file's way to say so"
+        }
+      }
+    },
+    "corner small": {
+      "type": "dimension",
+      "value": 8,
+      "extensions": {
+        "material3": {
+          "source": "M3 shape scale (Flutter gen_defaults shape.json); full is circular, 9999 is this file's way to say so"
+        }
+      }
+    },
+    "corner medium": {
+      "type": "dimension",
+      "value": 12,
+      "extensions": {
+        "material3": {
+          "source": "M3 shape scale (Flutter gen_defaults shape.json); full is circular, 9999 is this file's way to say so"
+        }
+      }
+    },
+    "corner large": {
+      "type": "dimension",
+      "value": 16,
+      "extensions": {
+        "material3": {
+          "source": "M3 shape scale (Flutter gen_defaults shape.json); full is circular, 9999 is this file's way to say so"
+        }
+      }
+    },
+    "corner extra large": {
+      "type": "dimension",
+      "value": 28,
+      "extensions": {
+        "material3": {
+          "source": "M3 shape scale (Flutter gen_defaults shape.json); full is circular, 9999 is this file's way to say so"
+        }
+      }
+    },
+    "corner full": {
+      "type": "dimension",
+      "value": 9999,
+      "extensions": {
+        "material3": {
+          "source": "M3 shape scale (Flutter gen_defaults shape.json); full is circular, 9999 is this file's way to say so"
+        }
+      }
+    }
+  },
+  "state layer": {
+    "hover": {
+      "type": "number",
+      "value": 0.08,
+      "extensions": {
+        "material3": {
+          "source": "M3 state opacity (Flutter gen_defaults state.json; disabled from button_filled.json)"
+        }
+      }
+    },
+    "focus": {
+      "type": "number",
+      "value": 0.1,
+      "extensions": {
+        "material3": {
+          "source": "M3 state opacity (Flutter gen_defaults state.json; disabled from button_filled.json)"
+        }
+      }
+    },
+    "pressed": {
+      "type": "number",
+      "value": 0.1,
+      "extensions": {
+        "material3": {
+          "source": "M3 state opacity (Flutter gen_defaults state.json; disabled from button_filled.json)"
+        }
+      }
+    },
+    "dragged": {
+      "type": "number",
+      "value": 0.16,
+      "extensions": {
+        "material3": {
+          "source": "M3 state opacity (Flutter gen_defaults state.json; disabled from button_filled.json)"
+        }
+      }
+    },
+    "disabled container": {
+      "type": "number",
+      "value": 0.12,
+      "extensions": {
+        "material3": {
+          "source": "M3 state opacity (Flutter gen_defaults state.json; disabled from button_filled.json)"
+        }
+      }
+    },
+    "disabled content": {
+      "type": "number",
+      "value": 0.38,
+      "extensions": {
+        "material3": {
+          "source": "M3 state opacity (Flutter gen_defaults state.json; disabled from button_filled.json)"
+        }
+      }
+    }
+  }
+}

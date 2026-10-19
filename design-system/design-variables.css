@@ -1,0 +1,433 @@
+/**
+ * ============================================================================
+ * DESIGN SYSTEM CSS VARIABLES
+ * Auto-generated from design tokens.
+ * ============================================================================
+ */
+
+:root {
+  /* ---------------------------------------- */
+  /* Primitive / Reference Colors             */
+  /* Foundational colors not used directly.   */
+  /* ---------------------------------------- */
+  --color-primary-key-color: #3e43cfff;
+  --color-secondary-color: #262a80ff;
+  --color-tertiary-color: #7a7ee0ff;
+  --color-neutral-color: #000000ff;
+  --color-neutral-variant: #737373ff;
+  --color-error-color: #dc3545ff;
+  --color-primary-0: #000000ff;
+  --color-pry-10: #0a0b29ff;
+  --color-pry-20: #141652ff;
+  --color-pry-30: #1e227bff;
+  --color-pry-40: #292da3ff;
+  --color-pry-50: #3338ccff;
+  --color-pry-60: #5c60d6ff;
+  --color-pry-70: #8488e1ff;
+  --color-pry-80: #adafebff;
+  --color-pry-90: #d6d7f5ff;
+  --color-pry-95: #ebebfaff;
+  --color-pry-98: #f7f7fdff;
+  --color-pry-99: #fbfbfeff;
+  --color-pry-100: #ffffffff;
+  --color-secondary-0: #000000ff;
+  --color-secondary-10: #0c0d27ff;
+  --color-secondary-40: #2f349dff;
+  --color-secondary-50: #3a41c5ff;
+  --color-secondary-60: #c062d0ff;
+  --color-secondary-80: #b8baeaff;
+  --color-secondary-90: #d8d9f3ff;
+  --color-secondary-30: #232776ff;
+  --color-secondary-20: #171a4fff;
+  --color-secondary-70: #898ddcff;
+  --color-secondary-95: #ebecf9ff;
+  --color-secondary-98: #f7f7fdff;
+  --color-secondary-99: #fbfbfeff;
+  --color-secondary-100: #ffffffff;
+  --color-tertiary-0: #000000ff;
+  --color-tertiary-10: #0a0b29ff;
+  --color-tertiary-20: #131653ff;
+  --color-tertiary-30: #1d217cff;
+  --color-tertiary-40: #272ca5ff;
+  --color-tertiary-50: #3036cfff;
+  --color-tertiary-60: #5a5fd8ff;
+  --color-tertiary-70: #8387e2ff;
+  --color-tertiary-80: #acafecff;
+  --color-tertiary-90: #d6d7f5ff;
+  --color-tertiary-95: #eaebfaff;
+  --color-tertiary-98: #f7f7fdff;
+  --color-tertiary-99: #fbfbfeff;
+  --color-tertiary-100: #ffffffff;
+  --color-neutral-0: #000000ff;
+  --color-neutral-10: #191919ff;
+  --color-neutral-20: #000000ff;
+  --color-neutral-30: #4c4c4cff;
+  --color-neutral-40: #666666ff;
+  --color-neutral-50: #808080ff;
+  --color-neutral-60: #999999ff;
+  --color-neutral-70: #b3b3b3ff;
+  --color-neutral-80: #ccccccff;
+  --color-neutral-90: #e6e6e6ff;
+  --color-neutral-95: #f2f2f2ff;
+  --color-neutral-98: #fafafaff;
+  --color-neutral-99: #fcfcfcff;
+  --color-neutral-100: #ffffffff;
+  --color-neutral-variant-0: #000000ff;
+  --color-neutral-variant-10: #191919ff;
+  --color-neutral-variant-20: #333333ff;
+  --color-neutral-variant-30: #4c4c4cff;
+  --color-neutral-variant-40: #666666ff;
+  --color-neutral-variant-50: #808080ff;
+  --color-neutral-variant-60: #999999ff;
+  --color-neutral-variant-70: #b3b3b3ff;
+  --color-neutral-variant-80: #ccccccff;
+  --color-neutral-variant-90: #e6e6e6ff;
+  --color-neutral-variant-95: #f2f2f2ff;
+  --color-neutral-variant-98: #fafafaff;
+  --color-neutral-variant-99: #fcfcfcff;
+  --color-neutral-variant-100: #ffffffff;
+  --color-error-0: #000000ff;
+  --color-error-10: #2b080bff;
+  --color-error-20: #570f16ff;
+  --color-error-30: #821721ff;
+  --color-error-40: #ae1e2cff;
+  --color-error-50: #d92637ff;
+  --color-error-60: #e1515fff;
+  --color-error-70: #e87d87ff;
+  --color-error-80: #f0a8afff;
+  --color-error-90: #f7d4d7ff;
+  --color-error-95: #fbe9ebff;
+  --color-error-98: #fdf6f7ff;
+  --color-error-99: #fefbfbff;
+  --color-error-100: #ffffffff;
+  --color-warning-color: #ffc107ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-color: #4caf50ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-0: #000000ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-10: #261a00ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-20: #3f2e00ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-30: #5b4300ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-40: #795900ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-50: #977100ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-60: #b78a00ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-70: #d8a300ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-80: #fabd00ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-90: #ffdf9dff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-95: #ffefd4ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-98: #fff8f2ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-99: #fffbfaff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-100: #ffffffff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-0: #000000ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-10: #002204ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-20: #00390aff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-30: #005313ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-40: #006e1cff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-50: #22892fff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-60: #41a447ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-70: #5dc05eff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-80: #78dc77ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-90: #94f990ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-95: #c8ffc0ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-98: #ecffe4ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-99: #f6fff0ff; /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-100: #ffffffff; /* + Material 3 (see design-tokens.material3.json) */
+
+  /* ---------------------------------------- */
+  /* Color Rules / Roles                      */
+  /* Applied directly to UI components.       */
+  /* ---------------------------------------- */
+  --color-primary: var(--color-pry-40); /* mapped from foundational color: #292da3ff */
+  --color-on-primary: var(--color-pry-100); /* mapped from foundational color: #ffffffff */
+  --color-primary-container: var(--color-pry-90); /* mapped from foundational color: #d6d7f5ff */
+  --color-on-primary-container: var(--color-pry-30); /* mapped from foundational color: #1e227bff */
+  --color-secondary: var(--color-secondary-40); /* mapped from foundational color: #2f349dff */
+  --color-on-secondary: var(--color-secondary-100); /* mapped from foundational color: #ffffffff */
+  --color-secondary-container: var(--color-secondary-90); /* mapped from foundational color: #d8d9f3ff */
+  --color-on-secondary-container: var(--color-secondary-30); /* mapped from foundational color: #232776ff */
+  --color-tertiary: var(--color-tertiary-40); /* mapped from foundational color: #272ca5ff */
+  --color-on-tertiary: var(--color-tertiary-100); /* mapped from foundational color: #ffffffff */
+  --color-tertiary-container: var(--color-tertiary-30); /* mapped from foundational color: #1d217cff */
+  --color-on-tertiary-container: var(--color-primary-key-color); /* mapped from foundational color: #3e43cfff */
+  --color-error: var(--color-error-40); /* mapped from foundational color: #ae1e2cff */
+  --color-on-error: var(--color-error-100); /* mapped from foundational color: #ffffffff */
+  --color-error-container: var(--color-error-90); /* mapped from foundational color: #f7d4d7ff */
+  --color-on-error-container: var(--color-error-30); /* mapped from foundational color: #821721ff */
+  --color-surface: var(--color-neutral-98); /* mapped from foundational color: #fafafaff */
+  --color-on-surface: var(--color-neutral-10); /* mapped from foundational color: #191919ff */
+  --color-surface-variant: var(--color-neutral-variant-90); /* mapped from foundational color: #e6e6e6ff */
+  --color-on-surface-variant: var(--color-neutral-variant-30); /* mapped from foundational color: #4c4c4cff */
+  --color-surface-container-highest: var(--color-neutral-90); /* mapped from foundational color: #e6e6e6ff */
+  --color-surface-container-high: #ebebebff; /* direct value (no primitive match) */
+  --color-surface-container: #f0f0f0ff; /* direct value (no primitive match) */
+  --color-surface-container-low: #f5f5f5ff; /* direct value (no primitive match) */
+  --color-surface-container-lowest: var(--color-neutral-100); /* mapped from foundational color: #ffffffff */
+  --color-outline: var(--color-neutral-variant-50); /* mapped from foundational color: #808080ff */
+  --color-outline-variant: var(--color-neutral-variant-80); /* mapped from foundational color: #ccccccff */
+  --color-inverse-surface: var(--color-neutral-variant-20); /* mapped from foundational color: #333333ff */
+  --color-inverse-on-surface: var(--color-neutral-95); /* mapped from foundational color: #f2f2f2ff */
+  --color-surface-tint: var(--color-pry-40); /* mapped from foundational color: #292da3ff */
+  --color-surface-tint-color: var(--color-pry-40); /* mapped from foundational color: #292da3ff */
+  --color-warning: var(--color-warning-40); /* mapped from foundational color: #795900ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-warning: var(--color-warning-100); /* mapped from foundational color: #ffffffff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-warning-container: var(--color-warning-90); /* mapped from foundational color: #ffdf9dff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-warning-container: var(--color-warning-30); /* mapped from foundational color: #5b4300ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-success: var(--color-success-40); /* mapped from foundational color: #006e1cff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-success: var(--color-success-100); /* mapped from foundational color: #ffffffff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-success-container: var(--color-success-90); /* mapped from foundational color: #94f990ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-success-container: var(--color-success-30); /* mapped from foundational color: #005313ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-background: var(--color-neutral-98); /* mapped from foundational color: #fafafaff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-background: var(--color-neutral-10); /* mapped from foundational color: #191919ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-surface-bright: var(--color-neutral-98); /* mapped from foundational color: #fafafaff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-surface-dim: #dadadaff; /* direct value (no primitive match) */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-inverse-primary: var(--color-pry-80); /* mapped from foundational color: #adafebff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-scrim: var(--color-neutral-0); /* mapped from foundational color: #000000ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-shadow: var(--color-neutral-0); /* mapped from foundational color: #000000ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-primary-fixed: var(--color-pry-90); /* mapped from foundational color: #d6d7f5ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-primary-fixed-dim: var(--color-pry-80); /* mapped from foundational color: #adafebff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-primary-fixed: var(--color-pry-10); /* mapped from foundational color: #0a0b29ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-primary-fixed-variant: var(--color-pry-30); /* mapped from foundational color: #1e227bff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-secondary-fixed: var(--color-secondary-90); /* mapped from foundational color: #d8d9f3ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-secondary-fixed-dim: var(--color-secondary-80); /* mapped from foundational color: #b8baeaff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-secondary-fixed: var(--color-secondary-10); /* mapped from foundational color: #0c0d27ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-secondary-fixed-variant: var(--color-secondary-30); /* mapped from foundational color: #232776ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-tertiary-fixed: var(--color-tertiary-90); /* mapped from foundational color: #d6d7f5ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-tertiary-fixed-dim: var(--color-tertiary-80); /* mapped from foundational color: #acafecff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-tertiary-fixed: var(--color-tertiary-10); /* mapped from foundational color: #0a0b29ff */ /* + Material 3 (see design-tokens.material3.json) */
+  --color-on-tertiary-fixed-variant: var(--color-tertiary-30); /* mapped from foundational color: #1d217cff */ /* + Material 3 (see design-tokens.material3.json) */
+
+  /* ---------------------------------------- */
+  /* Font Families                             */
+  /* ---------------------------------------- */
+  --font-family-primary: Poppins;
+  --font-family-secondary: Poppins;
+
+  /* ---------------------------------------- */
+  /* Typography                               */
+  /* ---------------------------------------- */
+  --font-display-large-fontsize: 62px;
+  --font-display-large-textdecoration: none;
+  --font-display-large-fontfamily: Poppins;
+  --font-display-large-fontweight: 600;
+  --font-display-large-fontstyle: normal;
+  --font-display-large-fontstretch: normal;
+  --font-display-large-letterspacing: -2.48px;
+  --font-display-large-lineheight: 93px;
+  --font-display-large-paragraphindent: 0;
+  --font-display-large-paragraphspacing: 0;
+  --font-display-large-textcase: none;
+  --font-display-medium-fontsize: 48px;
+  --font-display-medium-textdecoration: none;
+  --font-display-medium-fontfamily: Poppins;
+  --font-display-medium-fontweight: 500;
+  --font-display-medium-fontstyle: normal;
+  --font-display-medium-fontstretch: normal;
+  --font-display-medium-letterspacing: -0.48px;
+  --font-display-medium-lineheight: 72px;
+  --font-display-medium-paragraphindent: 0;
+  --font-display-medium-paragraphspacing: 0;
+  --font-display-medium-textcase: none;
+  --font-display-small-fontsize: 40px;
+  --font-display-small-textdecoration: none;
+  --font-display-small-fontfamily: Poppins;
+  --font-display-small-fontweight: 500;
+  --font-display-small-fontstyle: normal;
+  --font-display-small-fontstretch: normal;
+  --font-display-small-letterspacing: -0.88px;
+  --font-display-small-lineheight: 60px;
+  --font-display-small-paragraphindent: 0;
+  --font-display-small-paragraphspacing: 0;
+  --font-display-small-textcase: none;
+  --font-headline-large-fontsize: 32px;
+  --font-headline-large-textdecoration: none;
+  --font-headline-large-fontfamily: Poppins;
+  --font-headline-large-fontweight: 500;
+  --font-headline-large-fontstyle: normal;
+  --font-headline-large-fontstretch: normal;
+  --font-headline-large-letterspacing: -0.499px;
+  --font-headline-large-lineheight: 48px;
+  --font-headline-large-paragraphindent: 0;
+  --font-headline-large-paragraphspacing: 0;
+  --font-headline-large-textcase: none;
+  --font-headline-medium-fontsize: 28px;
+  --font-headline-medium-textdecoration: none;
+  --font-headline-medium-fontfamily: Poppins;
+  --font-headline-medium-fontweight: 500;
+  --font-headline-medium-fontstyle: normal;
+  --font-headline-medium-fontstretch: normal;
+  --font-headline-medium-letterspacing: -0.364px;
+  --font-headline-medium-lineheight: 42px;
+  --font-headline-medium-paragraphindent: 0;
+  --font-headline-medium-paragraphspacing: 0;
+  --font-headline-medium-textcase: none;
+  --font-headline-small-fontsize: 24px;
+  --font-headline-small-textdecoration: none;
+  --font-headline-small-fontfamily: Poppins;
+  --font-headline-small-fontweight: 500;
+  --font-headline-small-fontstyle: normal;
+  --font-headline-small-fontstretch: normal;
+  --font-headline-small-letterspacing: -0.24px;
+  --font-headline-small-lineheight: 36px;
+  --font-headline-small-paragraphindent: 0;
+  --font-headline-small-paragraphspacing: 0;
+  --font-headline-small-textcase: none;
+  --font-title-large-fontsize: 22px;
+  --font-title-large-textdecoration: none;
+  --font-title-large-fontfamily: Poppins;
+  --font-title-large-fontweight: 500;
+  --font-title-large-fontstyle: normal;
+  --font-title-large-fontstretch: normal;
+  --font-title-large-letterspacing: -0.22px;
+  --font-title-large-lineheight: 33px;
+  --font-title-large-paragraphindent: 0;
+  --font-title-large-paragraphspacing: 0;
+  --font-title-large-textcase: none;
+  --font-title-medium-fontsize: 16px;
+  --font-title-medium-textdecoration: none;
+  --font-title-medium-fontfamily: Poppins;
+  --font-title-medium-fontweight: 500;
+  --font-title-medium-fontstyle: normal;
+  --font-title-medium-fontstretch: normal;
+  --font-title-medium-letterspacing: -0.136px;
+  --font-title-medium-lineheight: 24px;
+  --font-title-medium-paragraphindent: 0;
+  --font-title-medium-paragraphspacing: 0;
+  --font-title-medium-textcase: none;
+  --font-subtitle-large-fontsize: 20px;
+  --font-subtitle-large-textdecoration: none;
+  --font-subtitle-large-fontfamily: Poppins;
+  --font-subtitle-large-fontweight: 500;
+  --font-subtitle-large-fontstyle: normal;
+  --font-subtitle-large-fontstretch: normal;
+  --font-subtitle-large-letterspacing: -0.2px;
+  --font-subtitle-large-lineheight: 30px;
+  --font-subtitle-large-paragraphindent: 0;
+  --font-subtitle-large-paragraphspacing: 0;
+  --font-subtitle-large-textcase: none;
+  --font-subtitle-small-fontsize: 18px;
+  --font-subtitle-small-textdecoration: none;
+  --font-subtitle-small-fontfamily: Poppins;
+  --font-subtitle-small-fontweight: 500;
+  --font-subtitle-small-fontstyle: normal;
+  --font-subtitle-small-fontstretch: normal;
+  --font-subtitle-small-letterspacing: -0.18px;
+  --font-subtitle-small-lineheight: 27px;
+  --font-subtitle-small-paragraphindent: 0;
+  --font-subtitle-small-paragraphspacing: 0;
+  --font-subtitle-small-textcase: none;
+  --font-title-small-fontsize: 14px;
+  --font-title-small-textdecoration: none;
+  --font-title-small-fontfamily: Poppins;
+  --font-title-small-fontweight: 600;
+  --font-title-small-fontstyle: normal;
+  --font-title-small-fontstretch: normal;
+  --font-title-small-letterspacing: -0.105px;
+  --font-title-small-lineheight: 21px;
+  --font-title-small-paragraphindent: 0;
+  --font-title-small-paragraphspacing: 0;
+  --font-title-small-textcase: none;
+  --font-body-large-fontsize: 16px;
+  --font-body-large-textdecoration: none;
+  --font-body-large-fontfamily: Poppins;
+  --font-body-large-fontweight: 500;
+  --font-body-large-fontstyle: normal;
+  --font-body-large-fontstretch: normal;
+  --font-body-large-letterspacing: -0.128px;
+  --font-body-large-lineheight: 24px;
+  --font-body-large-paragraphindent: 0;
+  --font-body-large-paragraphspacing: 0;
+  --font-body-large-textcase: none;
+  --font-body-medium-fontsize: 14px;
+  --font-body-medium-textdecoration: none;
+  --font-body-medium-fontfamily: Poppins;
+  --font-body-medium-fontweight: 500;
+  --font-body-medium-fontstyle: normal;
+  --font-body-medium-fontstretch: normal;
+  --font-body-medium-letterspacing: -0.098px;
+  --font-body-medium-lineheight: 21px;
+  --font-body-medium-paragraphindent: 0;
+  --font-body-medium-paragraphspacing: 0;
+  --font-body-medium-textcase: none;
+  --font-body-small-fontsize: 12px;
+  --font-body-small-textdecoration: none;
+  --font-body-small-fontfamily: Poppins;
+  --font-body-small-fontweight: 500;
+  --font-body-small-fontstyle: normal;
+  --font-body-small-fontstretch: normal;
+  --font-body-small-letterspacing: -0.084px;
+  --font-body-small-lineheight: 18px;
+  --font-body-small-paragraphindent: 0;
+  --font-body-small-paragraphspacing: 0;
+  --font-body-small-textcase: none;
+  --font-label-large-fontsize: 14px;
+  --font-label-large-textdecoration: none;
+  --font-label-large-fontfamily: Poppins;
+  --font-label-large-fontweight: 500;
+  --font-label-large-fontstyle: normal;
+  --font-label-large-fontstretch: normal;
+  --font-label-large-letterspacing: -0.126px;
+  --font-label-large-lineheight: 21px;
+  --font-label-large-paragraphindent: 0;
+  --font-label-large-paragraphspacing: 0;
+  --font-label-large-textcase: none;
+  --font-label-medium-fontsize: 12px;
+  --font-label-medium-textdecoration: none;
+  --font-label-medium-fontfamily: Poppins;
+  --font-label-medium-fontweight: 500;
+  --font-label-medium-fontstyle: normal;
+  --font-label-medium-fontstretch: normal;
+  --font-label-medium-letterspacing: -0.108px;
+  --font-label-medium-lineheight: 18px;
+  --font-label-medium-paragraphindent: 0;
+  --font-label-medium-paragraphspacing: 0;
+  --font-label-medium-textcase: none;
+  --font-label-small-fontsize: 11px;
+  --font-label-small-textdecoration: none;
+  --font-label-small-fontfamily: Poppins;
+  --font-label-small-fontweight: 500;
+  --font-label-small-fontstyle: normal;
+  --font-label-small-fontstretch: normal;
+  --font-label-small-letterspacing: -0.088px;
+  --font-label-small-lineheight: 16.5px;
+  --font-label-small-paragraphindent: 0;
+  --font-label-small-paragraphspacing: 0;
+  --font-label-small-textcase: none;
+
+  /* ---------------------------------------- */
+  /* Spacing                                  */
+  /* ---------------------------------------- */
+  --spacing-no-spacing: 0;
+  --spacing-extra-small-spacing: 0.25rem;
+  --spacing-small-spacing: 0.5rem;
+  --spacing-medium: 0.75rem;
+  --spacing-base-spacing: 1rem;
+  --spacing-large-spacing: 1.25rem;
+  --spacing-extra-large: 1.5rem;
+  --spacing-very-large: 2rem;
+
+  /* ---------------------------------------- */
+  /* Shape (corner radius)                    */
+  /* ---------------------------------------- */
+  --shape-corner-none: 0; /* + Material 3 (see design-tokens.material3.json) */
+  --shape-corner-extra-small: 4px; /* + Material 3 (see design-tokens.material3.json) */
+  --shape-corner-small: 8px; /* + Material 3 (see design-tokens.material3.json) */
+  --shape-corner-medium: 12px; /* + Material 3 (see design-tokens.material3.json) */
+  --shape-corner-large: 16px; /* + Material 3 (see design-tokens.material3.json) */
+  --shape-corner-extra-large: 28px; /* + Material 3 (see design-tokens.material3.json) */
+  --shape-corner-full: 9999px; /* + Material 3 (see design-tokens.material3.json) */
+
+  /* ---------------------------------------- */
+  /* State layers (opacity)                   */
+  /* ---------------------------------------- */
+  --state-hover: 0.08; /* + Material 3 (see design-tokens.material3.json) */
+  --state-focus: 0.1; /* + Material 3 (see design-tokens.material3.json) */
+  --state-pressed: 0.1; /* + Material 3 (see design-tokens.material3.json) */
+  --state-dragged: 0.16; /* + Material 3 (see design-tokens.material3.json) */
+  --state-disabled-container: 0.12; /* + Material 3 (see design-tokens.material3.json) */
+  --state-disabled-content: 0.38; /* + Material 3 (see design-tokens.material3.json) */
+
+  /* ---------------------------------------- */
+  /* Effects & Shadows                        */
+  /* ---------------------------------------- */
+  --shadow-hard-shadow: 6px 5px 7px 0 #00000045;
+  --shadow-medium: 2px 4px 4px 0 #00000047;
+  --shadow-soft: 2px 2px 20px 0 #0000001f;
+}
