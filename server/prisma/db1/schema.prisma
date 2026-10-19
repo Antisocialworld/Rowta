@@ -1,0 +1,193 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/db1"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model activity_events {
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id       String                   @db.Uuid
+  kind          String
+  actor_user_id String?                  @db.Uuid
+  subject_id    String?                  @db.Uuid
+  data          Json                     @default("{}")
+  created_at    DateTime                 @default(now()) @db.Timestamptz(6)
+  search        Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, ((COALESCE(kind, ''::text) || ' '::text) || COALESCE((data ->> 'label'::text), ''::text)))"))
+  teams         teams                    @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([team_id, created_at(sort: Desc), id(sort: Desc)], map: "activity_feed_idx")
+  @@index([search], map: "activity_search_idx", type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model idempotency_keys {
+  scope               String
+  key                 String
+  request_fingerprint String
+  state               String   @default("in_flight")
+  status_code         Int?
+  response            Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([scope, key])
+  @@index([created_at], map: "idempotency_created_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model invites {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id       String    @db.Uuid
+  email         String
+  role          String
+  selector      String    @unique
+  verifier_hash String
+  invited_by    String    @db.Uuid
+  expires_at    DateTime  @db.Timestamptz(6)
+  accepted_at   DateTime? @db.Timestamptz(6)
+  revoked_at    DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  teams         teams     @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([team_id, email], map: "invites_one_open_idx", where: raw("((accepted_at IS NULL) AND (revoked_at IS NULL))"))
+  @@index([expires_at], map: "invites_expires_idx", where: raw("((accepted_at IS NULL) AND (revoked_at IS NULL))"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ledger_entries {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id         String    @db.Uuid
+  subscription_id String?   @db.Uuid
+  kind            String
+  amount_minor    BigInt
+  currency        String
+  reason          String
+  provider_ref    String?   @unique(map: "ledger_provider_ref_idx", where: raw("(provider_ref IS NOT NULL)"))
+  idempotency_key String?
+  period_start    DateTime? @db.Timestamptz(6)
+  period_end      DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([team_id, idempotency_key], map: "ledger_idem_idx", where: raw("(idempotency_key IS NOT NULL)"))
+  @@index([team_id, created_at(sort: Desc)], map: "ledger_team_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model memberships {
+  id                                                              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id                                                         String          @unique(map: "memberships_one_owner_idx", where: raw("((role = 'owner'::text) AND (removed_at IS NULL))")) @db.Uuid
+  user_id                                                         String          @db.Uuid
+  role                                                            String
+  removed_at                                                      DateTime?       @db.Timestamptz(6)
+  created_at                                                      DateTime        @default(now()) @db.Timestamptz(6)
+  teams                                                           teams           @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shifts                                                          shifts[]
+  swap_requests_swap_requests_team_id_requested_byTomemberships   swap_requests[] @relation("swap_requests_team_id_requested_byTomemberships")
+  swap_requests_swap_requests_team_id_target_user_idTomemberships swap_requests[] @relation("swap_requests_team_id_target_user_idTomemberships")
+
+  @@unique([team_id, user_id], map: "memberships_team_user_key")
+  @@index([user_id], map: "memberships_user_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model purge_log {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job        String
+  table_name String
+  row_count  Int
+  dry_run    Boolean
+  ran_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([ran_at(sort: Desc)])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model shifts {
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id          String                   @db.Uuid
+  assigned_user_id String                   @db.Uuid
+  starts_at        DateTime                 @db.Timestamptz(6)
+  ends_at          DateTime                 @db.Timestamptz(6)
+  label            String
+  notes            String?
+  created_by       String                   @db.Uuid
+  deleted_at       DateTime?                @db.Timestamptz(6)
+  deleted_by       String?                  @db.Uuid
+  created_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  search           Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, ((COALESCE(label, ''::text) || ' '::text) || COALESCE(notes, ''::text)))"))
+  memberships      memberships              @relation(fields: [team_id, assigned_user_id], references: [team_id, user_id], onDelete: NoAction, onUpdate: NoAction, map: "shifts_assignee_fk")
+  teams            teams                    @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  swap_requests    swap_requests[]
+
+  @@unique([team_id, id], map: "shifts_team_id_key")
+  @@index([team_id, assigned_user_id, starts_at], map: "shifts_assignee_idx", where: raw("(deleted_at IS NULL)"))
+  @@index([team_id, starts_at], map: "shifts_calendar_idx", where: raw("(deleted_at IS NULL)"))
+  @@index([deleted_at], map: "shifts_deleted_idx", where: raw("(deleted_at IS NOT NULL)"))
+  @@index([search], type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model subscriptions {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id                    String    @unique(map: "subscriptions_team_key") @db.Uuid
+  plan                       String
+  seats                      Int
+  status                     String    @default("active")
+  currency                   String
+  period_start               DateTime  @db.Timestamptz(6)
+  period_end                 DateTime  @db.Timestamptz(6)
+  scheduled_plan             String?
+  scheduled_seats            Int?
+  grace_ends_at              DateTime? @db.Timestamptz(6)
+  provider_customer_ref      String?
+  provider_authorization_ref String?
+  created_at                 DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime  @default(now()) @db.Timestamptz(6)
+  teams                      teams     @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([grace_ends_at], map: "subscriptions_grace_idx", where: raw("(status = 'past_due'::text)"))
+  @@index([period_end], map: "subscriptions_renewal_idx", where: raw("(status = 'active'::text)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model swap_requests {
+  id                                                            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id                                                       String       @db.Uuid
+  shift_id                                                      String       @unique(map: "swaps_one_pending_idx", where: raw("(status = 'pending'::text)")) @db.Uuid
+  requested_by                                                  String       @db.Uuid
+  target_user_id                                                String?      @db.Uuid
+  status                                                        String       @default("pending")
+  decided_by                                                    String?      @db.Uuid
+  decided_at                                                    DateTime?    @db.Timestamptz(6)
+  created_at                                                    DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at                                                    DateTime     @default(now()) @db.Timestamptz(6)
+  teams                                                         teams        @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  memberships_swap_requests_team_id_requested_byTomemberships   memberships  @relation("swap_requests_team_id_requested_byTomemberships", fields: [team_id, requested_by], references: [team_id, user_id], onDelete: NoAction, onUpdate: NoAction, map: "swaps_requester_fk")
+  shifts                                                        shifts       @relation(fields: [team_id, shift_id], references: [team_id, id], onDelete: NoAction, onUpdate: NoAction, map: "swaps_shift_fk")
+  memberships_swap_requests_team_id_target_user_idTomemberships memberships? @relation("swap_requests_team_id_target_user_idTomemberships", fields: [team_id, target_user_id], references: [team_id, user_id], onDelete: NoAction, onUpdate: NoAction, map: "swaps_target_fk")
+
+  @@index([team_id, status, created_at(sort: Desc)], map: "swaps_team_status_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model teams {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime          @default(now()) @db.Timestamptz(6)
+  deletion_requested_at DateTime?         @db.Timestamptz(6)
+  deleted_at            DateTime?         @db.Timestamptz(6)
+  activity_events       activity_events[]
+  invites               invites[]
+  memberships           memberships[]
+  shifts                shifts[]
+  subscriptions         subscriptions?
+  swap_requests         swap_requests[]
+
+  @@index([deleted_at], map: "teams_deleted_idx", where: raw("(deleted_at IS NOT NULL)"))
+}

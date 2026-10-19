@@ -48,6 +48,10 @@ k6-results/
 load-tests/.local/
 load-tests/results/*.json
 
+# ---- Prisma: generated clients only (regenerate with `npm run generate --workspace @rowta/server`) ----
+# The schema of record is server/prisma/sql/*.sql; prisma/schema.prisma is pulled from the live database.
+server/prisma/generated/
+
 # ---- Keep the lockfile (rule S12) ----
 !package-lock.json
 rowta-old-backup/

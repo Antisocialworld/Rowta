@@ -1,0 +1,21 @@
+{
+  "name": "@rowta/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Rowta API, worker and cron. Prisma here is the query client only: the schema of record is server/prisma/sql/*.sql (PRD 7, 9.1).",
+  "scripts": {
+    "db:pull:db0": "node ../scripts/prisma-pull.mjs db0",
+    "db:pull:db1": "node ../scripts/prisma-pull.mjs db1",
+    "db:pull": "node ../scripts/prisma-pull.mjs",
+    "generate": "prisma generate --config prisma/db0/prisma.config.ts && prisma generate --config prisma/db1/prisma.config.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "prisma": "7.10.1"
+  }
+}

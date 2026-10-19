@@ -77,4 +77,10 @@ The folders already exist (marked by `.gitkeep`); fill them, do not rename them.
 
 ## Current state
 
-Phase: not started. Scaffold is in place (folders, .env.example, empty .env, docker-compose.yml, setup script, README, docs skeleton). Full-build mode. Payments: Flutterwave test mode plus the dev-only simulator. Email: nodemailer over SMTP. Nothing blocks the build: decisions Q1 to Q8 are settled or defaulted in PRD section 15. Update this line at the end of each phase.
+Phase: 0 in progress — part A done (two PostgreSQL databases applied and self-tested as owner and app role; Prisma set
+up as the query client only with two clients, proven by `node scripts/prisma-smoke.mjs`), part B not started (server
+skeleton, BullMQ worker, health, logger, shard routing, Zod env validation, ESLint). Full-build mode. Payments:
+Flutterwave test mode plus the dev-only simulator. Email: nodemailer over SMTP. Evidence: `docs/gates/phase-0.md`;
+resume from `docs/BUILD-PROGRESS.md`. Decisions 0001 (npm workspaces) and 0002 (Prisma query client only) are in
+`docs/decisions/`. Run `npm run db:pull --workspace @rowta/server`, never a bare `npx prisma db pull`. Update this
+line at the end of each phase.

@@ -55,7 +55,7 @@ services:
 
   mail:
     # Local mail catcher (nodemailer talks SMTP to this in development). Nothing leaves your computer.
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.6
     ports:
       - "127.0.0.1:${SMTP_PORT:?}:1025"
       - "127.0.0.1:${MAILPIT_UI_PORT:?}:8025"

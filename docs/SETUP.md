@@ -38,8 +38,31 @@ docker compose ps              # all four should be "healthy" or "running"
 - Mail sent in development is caught by Mailpit; open `http://localhost:8025` (port from `MAILPIT_UI_PORT`) to read it. Nothing leaves your computer.
 - Every port binds to 127.0.0.1 only.
 - Do NOT run `docker compose config` and paste the output anywhere: it prints your secrets.
-- The compose file was syntax-checked and its variable guard tested, but the containers have not been started (not verified). The server, worker and app start commands are added when Phase 0 is complete.
+- The compose file was syntax-checked and its variable guard tested. Verified 2026-10-19: all four containers start and report healthy (two PostgreSQL 16, Redis 7, Mailpit v1.31.6). The server, worker and app start commands are added in the later phases.
 
-## 4. What you do, what the agent does
+## 4. Databases (schema, self-tests, Prisma)
+
+The SQL in `server/prisma/sql/` is the schema of record (PRD 7). Prisma is the query client only — it never writes
+the schema. After `docker compose up -d`:
+
+```
+node scripts/db-apply.mjs              # applies 000/010/020/030 to both databases as the owner; safe to re-run
+node scripts/db-as-app.mjs             # selftest-app.sql as the app role (12 checks per database)
+node scripts/db-as-app.mjs --ledger    # proves the app role can append to the ledger but not update or delete
+
+npm install                            # once: workspaces /app /server /shared
+npm run db:pull --workspace @rowta/server       # introspects both live databases (read-only)
+npm run generate --workspace @rowta/server      # builds the two query clients
+node scripts/prisma-smoke.mjs          # proves both clients connect and the ledger rules hold
+```
+
+- `db-apply.mjs` never drops, truncates or deletes anything. Tables that already exist are skipped, so re-running is safe.
+- `db pull` overwrites `server/prisma/db0/schema.prisma` and `server/prisma/db1/schema.prisma`. Do not hand-edit those two
+  files; `scripts/prisma-pull.mjs` repairs one known introspection mistake after every pull (see `docs/decisions/0002`).
+- `server/prisma/generated/` is git-ignored. Re-create it with `npm run generate --workspace @rowta/server`.
+- Nothing here prints a connection string, password or URL. If a command fails, paste the error text — the scripts mask
+  credentials, but check before pasting.
+
+## 5. What you do, what the agent does
 
 The agent builds and verifies. You do every `git add`, `commit` and `push`, every deploy (Vercel, API host), the Android build, the logo, the demo video and the LinkedIn post. See `OWNER-CHECKLIST.md` at the end of the build.
