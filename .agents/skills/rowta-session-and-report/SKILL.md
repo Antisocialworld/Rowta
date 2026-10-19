@@ -34,7 +34,7 @@ GATES:        <section 5 results>
 NOT DONE / NOT VERIFIED: <list, with the reason>
 OPEN ITEMS BLOCKING THE NEXT STEP: <list or none>
 SUGGESTED (text only):  branch <name> | commit "<Conventional Commits message>" | PR description
-CONFIRMATION: no git write command run; no secret written or printed; no .env file opened; nothing deployed.
+CONFIRMATION: no git write command run except branch create/switch (branch: rowta-1); no secret written or printed; no .env file opened; nothing deployed.
 ```
 
 ## 7. When blocked or unsure

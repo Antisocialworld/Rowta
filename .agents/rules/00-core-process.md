@@ -19,7 +19,9 @@ These rules are restated here on purpose. Do not assume you already know them.
 P1. **No git writes, no publishing, no deploys.** NEVER run `git add`, `commit`, `push`, `merge`, `tag`,
     `stash`, `reset`, `checkout` that changes files, or any publish or deploy command (Vercel, `eas submit`,
     any host). Read-only git (`status`, `diff`, `log`, `ls-files`, `check-ignore`) is allowed. The owner does
-    every commit and push. At the end of a phase you may SUGGEST a branch name, a Conventional Commits
+    every commit and push. ONE EXCEPTION [DECISION, owner, 19 Oct 2026]: the agent creates and switches branches with
+    `git switch -c rowta-1` and `git switch rowta-1` ONLY, and always works on the feature branch `rowta-1`, never on `main`: if the
+    current branch is `main` (or `master`), create or switch to `rowta-1` before the first edit; if already on `rowta-1`, stay on it. Every other git write stays forbidden. At the end of a phase you may SUGGEST a branch name, a Conventional Commits
     message (for example `feat: add cursor pagination to activity feed`) and a pull request description (with the screenshots to attach, per brief 2.5), as text. Suggest one feature branch per phase.
 P2. **Phases run in order, and every gate must pass before the next phase starts.** Full-build mode (the owner asked
     for the whole app in one run, 18 Oct 2026): you do not wait for "go" between phases, but you MUST (a) run the
