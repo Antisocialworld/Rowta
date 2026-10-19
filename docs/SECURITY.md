@@ -23,6 +23,7 @@ State: skeleton. Each section is filled with evidence as its phase is completed.
 | Item | Guard | Status |
 |---|---|---|
 | Payment simulator (`PAYMENT_SIMULATOR_ENABLED`) | startup check | not built |
+| Phase 1 session stub (`app/src/state/session.ts`) | throws at import when `__DEV__ === false` (React Native release builds set it false — the app-side equivalent of this rule's `NODE_ENV=production`); proven by `npm exec --workspace @rowta/app -- tsx scripts/test-session-guard.ts` | built in Phase 1 step 3; **Phase 2 replaces it** with the real server session (secure-store + TanStack Query, server decides — S5). It authenticates nothing and must never ship in a release build. |
 
 ## 4. The 8 threats
 

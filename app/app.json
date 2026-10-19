@@ -2,16 +2,17 @@
   "expo": {
     "name": "Rowta",
     "slug": "rowta",
-    "platforms": ["android"],
+    "platforms": ["android", "web"],
     "icon": "./assets/app-icon-1024.png",
     "android": {
+      "package": "app.rowta",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundColor": "#292da3"
       }
     },
     "plugins": [
-      ["expo-splash-screen", { "image": "./assets/splash.png" }],
+      ["expo-splash-screen", { "image": "./assets/splash.png", "backgroundColor": "#292da3" }],
       ["expo-notifications", { "icon": "./assets/notification-icon.png" }]
     ]
   }

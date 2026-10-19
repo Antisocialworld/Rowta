@@ -1,7 +1,8 @@
 # 0005. Design direction — how the owner's design system is applied in the app
 
-Date: 2026-10-19 · Status: **PROPOSED — the owner approves this before any screen is built** (U6, PRD 6.2:
-"The agent proposes; it does not impose") · Phase 1, step 4
+Date: 2026-10-19 · Status: **ACCEPTED — the owner approved Direction A (card-first comfortable), with the two
+type-scale borrowings from B named in "Choice", on 19 Oct 2026** (U6, PRD 6.2: "The agent proposes; it does not
+impose") · Phase 1, part A step 4 / part B
 
 ## Problem
 
@@ -206,6 +207,8 @@ infinite cursor query rather than shrinking rows.
    178, spacing 8, shape 7, state 6, shadow 3. The durations quoted in every direction above (100/160/180/240 ms,
    1200 ms skeleton) are therefore **proposals, not design-system values**; they need the owner's approval or real
    tokens before use. Nothing was invented into `tokens.ts`.
+   *Owner decision 19 Oct 2026: these durations are **accepted** and live in `app/src/theme/motion.ts` — a
+   non-colour file that this ADR references; `design-system/` and the colours in `tokens.ts` are untouched.*
 2. **Poppins is not in the repository.** No `.ttf`/`.otf`/`.woff` file exists anywhere in the repo (glob, 2026-10-19).
    `expo-font` 58.0.9 is in the dependency tree but only as a transitive dependency — it is not declared in
    `@rowta/app`. U11(g) requires the font before first paint with a fallback to the system font, so the font files
