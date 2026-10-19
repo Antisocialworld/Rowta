@@ -77,10 +77,17 @@ The folders already exist (marked by `.gitkeep`); fill them, do not rename them.
 
 ## Current state
 
-Phase: 0 in progress — part A done (two PostgreSQL databases applied and self-tested as owner and app role; Prisma set
-up as the query client only with two clients, proven by `node scripts/prisma-smoke.mjs`), part B not started (server
-skeleton, BullMQ worker, health, logger, shard routing, Zod env validation, ESLint). Full-build mode. Payments:
-Flutterwave test mode plus the dev-only simulator. Email: nodemailer over SMTP. Evidence: `docs/gates/phase-0.md`;
-resume from `docs/BUILD-PROGRESS.md`. Decisions 0001 (npm workspaces) and 0002 (Prisma query client only) are in
-`docs/decisions/`. Run `npm run db:pull --workspace @rowta/server`, never a bare `npx prisma db pull`. Update this
-line at the end of each phase.
+Phase: 0 done — part A (two PostgreSQL databases applied and self-tested as owner and app role; Prisma set up as the
+query client only with two clients, proven by `node scripts/prisma-smoke.mjs`) and part B (Hono server with the full
+middleware order, Zod env validation with the P7 boot guard, pino logger with redaction, request-ID middleware, one
+error handler, public and deep health routes, shard routing via blake2b512 with a 1,000-ID split proof, a data-access
+module that is the only importer of the generated clients, BullMQ 6 with a separate worker process and an end-to-end
+test job, node-cron 4 with a Redis SET NX EX lock, a nodemailer test through Mailpit, ESLint flat config with the
+floating-promise gate, and 55 passing tests). Full-build mode. Payments: Flutterwave test mode plus the dev-only
+simulator. Email: nodemailer over SMTP. Evidence: `docs/gates/phase-0.md` and `docs/gates/phase-0-b.md`; resume from
+`docs/BUILD-PROGRESS.md`. Decisions 0001 (npm workspaces), 0002 (Prisma query client only), 0003 (TypeScript pinned to
+6.0.3 for the typescript-eslint peer range) and 0004 (server runtime/toolchain) are in `docs/decisions/`. Run
+`npm run db:pull --workspace @rowta/server`, never a bare `npx prisma db pull`. TypeScript, ESLint and every server
+dependency are pinned exactly; bump only with a re-run of typecheck, lint and tests. Next: Phase 1 (design system and
+app shell) or the Phase 2 auth slice — owner's choice. Work happens on branch `rowta-1`; the owner does all git writes.
+Update this line at the end of each phase.

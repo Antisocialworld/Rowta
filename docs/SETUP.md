@@ -38,7 +38,7 @@ docker compose ps              # all four should be "healthy" or "running"
 - Mail sent in development is caught by Mailpit; open `http://localhost:8025` (port from `MAILPIT_UI_PORT`) to read it. Nothing leaves your computer.
 - Every port binds to 127.0.0.1 only.
 - Do NOT run `docker compose config` and paste the output anywhere: it prints your secrets.
-- The compose file was syntax-checked and its variable guard tested. Verified 2026-10-19: all four containers start and report healthy (two PostgreSQL 16, Redis 7, Mailpit v1.31.6). The server, worker and app start commands are added in the later phases.
+- The compose file was syntax-checked and its variable guard tested. Verified 2026-10-19: all four containers start and report healthy (two PostgreSQL 16, Redis 7, Mailpit v1.31.6).
 
 ## 4. Databases (schema, self-tests, Prisma)
 
@@ -63,6 +63,45 @@ node scripts/prisma-smoke.mjs          # proves both clients connect and the led
 - Nothing here prints a connection string, password or URL. If a command fails, paste the error text — the scripts mask
   credentials, but check before pasting.
 
-## 5. What you do, what the agent does
+## 5. Running the server and worker (Phase 0 part B and later)
+
+With the containers from §3 running and `.env` in place:
+
+```
+npm install                            # once, if you have not already (workspaces /app /server /shared)
+
+# API (Hono). Listens on API_PORT (default 3000).
+npm run start --workspace @rowta/server
+
+# Worker (BullMQ + node-cron). Separate process; run it in a second terminal.
+npm run worker --workspace @rowta/server
+
+# Development with auto-reload
+npm run dev --workspace @rowta/server          # API
+npm run worker:dev --workspace @rowta/server   # worker
+```
+
+- `GET http://localhost:3000/health` reports the process is up.
+- `GET http://localhost:3000/health/deep` additionally pings Redis and both databases, returning
+  pass/fail per dependency. In production this route should sit behind the load balancer only.
+- Email proof (requires Mailpit from §3): `node scripts/mail-test.mjs` — sends one message through
+  SMTP and confirms it arrived in Mailpit, printing only the subject match and recipient count.
+- Server smoke test (boots the real HTTP server in-process, no background process left behind):
+  `npx tsx scripts/server-smoke.mjs`.
+
+## 6. Checks the agent runs before reporting
+
+```
+npm run typecheck --workspace @rowta/server
+npm run lint      --workspace @rowta/server
+npm test          --workspace @rowta/server
+node scripts/setup-env.mjs --check
+node scripts/setup-env.mjs --audit-example
+node scripts/scan-name.mjs
+node design-system/verifyTokens.js
+node scripts/check-ui-tokens.mjs
+```
+
+## 7. What you do, what the agent does
 
 The agent builds and verifies. You do every `git add`, `commit` and `push`, every deploy (Vercel, API host), the Android build, the logo, the demo video and the LinkedIn post. See `OWNER-CHECKLIST.md` at the end of the build.
