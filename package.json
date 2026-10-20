@@ -9,7 +9,10 @@
     "shared"
   ],
   "scripts": {
-    "icons": "node scripts/build-icons.mjs"
+    "icons": "node scripts/build-icons.mjs",
+    "web:build": "node web/build.mjs",
+    "web:serve": "node web/serve.mjs",
+    "web:test": "node web/tests/test-metadata.mjs && node web/tests/test-content-safety.mjs && node web/tests/test-links.mjs"
   },
   "devDependencies": {
     "png-to-ico": "3.0.2",

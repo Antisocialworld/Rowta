@@ -88,6 +88,10 @@ simulator. Email: nodemailer over SMTP. Evidence: `docs/gates/phase-0.md` and `d
 `docs/BUILD-PROGRESS.md`. Decisions 0001 (npm workspaces), 0002 (Prisma query client only), 0003 (TypeScript pinned to
 6.0.3 for the typescript-eslint peer range) and 0004 (server runtime/toolchain) are in `docs/decisions/`. Run
 `npm run db:pull --workspace @rowta/server`, never a bare `npx prisma db pull`. TypeScript, ESLint and every server
-dependency are pinned exactly; bump only with a re-run of typecheck, lint and tests. Next: Phase 1 (design system and
-app shell) or the Phase 2 auth slice — owner's choice. Work happens on branch `rowta-1`; the owner does all git writes.
-Update this line at the end of each phase.
+dependency are pinned exactly; bump only with a re-run of typecheck, lint and tests. Phase 1 done (design tokens,
+component kit, app shell and the auth-page rework — one AuthPage, evidence `docs/gates/phase-1.md`). Phase 11 done
+(web surface: static pre-render landing + 8 legal pages generated from `docs/legal/*.md`, owner copy lock of
+20 Oct 2026, `npm run web:build` / `npm run web:test` / `web/scripts/web-checks.mjs` 18/18, axe-core 0 violations,
+Lighthouse 100 a11y, evidence `docs/gates/phase-11.md`, ADR 0006; owner inputs and open decisions live in
+`docs/legal/OWNER-INPUTS.md`). Next: Phase 2 (auth slice) — owner's choice. Work happens on branch `rowta-1`;
+the owner does all git writes. Update this line at the end of each phase.
