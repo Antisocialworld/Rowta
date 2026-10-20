@@ -2,6 +2,9 @@
 
 Shift scheduling for small teams: owners publish shifts, staff swap them, everyone is notified, and the business pays per seat.
 
+## Logo
+The Rowta logo was designed by the owner. The concept (a closed book with R O W over T A in cells) was drawn by hand on paper by the owner. The final SVG files were generated from those sketches with AI assistance following the owner's direction, and refined over many rounds of the owner's feedback. The owner approved every proportion, colour and size rule. Source files are in brand-source/.
+
 Repository: https://github.com/Antisocialworld/Rowta (the owner commits and pushes; the build agent never does).
 
 > **Status: not built yet.** The repository holds the specification, the rules and the empty project structure. See [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md) for the real state. Nothing below is claimed as working until its phase gate has evidence in `docs/gates/`.

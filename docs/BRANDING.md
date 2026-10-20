@@ -4,6 +4,9 @@ Owner-supplied artwork, the one script that turns it into every icon Rowta needs
 rules each output satisfies. Nothing here may be recoloured or re-proportioned by hand — change the
 source SVG, re-run the script.
 
+## Logo
+The Rowta logo was designed by the owner. The concept (a closed book with R O W over T A in cells) was drawn by hand on paper by the owner. The final SVG files were generated from those sketches with AI assistance following the owner's direction, and refined over many rounds of the owner's feedback. The owner approved every proportion, colour and size rule. Source files are in brand-source/.
+
 ## 1. Sources (read-only)
 
 | File | Intrinsic size | What it is |
