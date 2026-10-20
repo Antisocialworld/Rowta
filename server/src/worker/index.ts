@@ -14,6 +14,8 @@ import { logger } from '../lib/logger.ts';
 import { closeAllDatabases } from '../db/clients.ts';
 import { closeAllQueues, createRedisConnection, getQueue, QUEUE_NAMES, type QueueName } from '../jobs/queues.ts';
 import { startCron } from '../cron/registry.ts';
+import { processEmailJob } from '../jobs/email/processor.ts';
+import type { EmailJobData } from '../jobs/email/types.ts';
 
 const log = logger.child({ process: 'worker' });
 
@@ -54,7 +56,10 @@ const PROCESSORS: Record<QueueName, (job: Job) => Promise<unknown>> = {
   },
   push: acknowledgeOnly,
   webhook: acknowledgeOnly,
-  email: acknowledgeOnly,
+  // The email processor GENERATES the 6-digit code / link token itself and stores its Argon2id
+  // hash, so no secret ever sits in a job payload (J3, C2). It also decides send vs no-send
+  // (A6): the request path only enqueues.
+  email: (job) => processEmailJob(job as Job<EmailJobData>),
   renewal: acknowledgeOnly,
   purge: acknowledgeOnly,
 };

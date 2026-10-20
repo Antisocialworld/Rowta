@@ -24,6 +24,8 @@ import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { timeout } from 'hono/timeout';
 import { env } from './config/env.ts';
+import { createAuthRouter } from './auth/routes.ts';
+import { getDummyHash } from './security/argon2.ts';
 import { createRedisConnection } from './jobs/queues.ts';
 import { createHealthRoutes } from './health/router.ts';
 import { createErrorHandler, createNotFoundHandler } from './middleware/error.ts';
@@ -88,10 +90,13 @@ export function createApp(deps: AppDeps): Hono {
     }),
   );
 
-  // 7. Per-route rate limit — Phase 2. Slot reserved here so the order above stays authoritative.
-  // 8. Authentication + policy function — Phase 2. Slot reserved here.
+  // 7./8. Per-route rate limits and authentication are registered PER ROUTE by
+  //       src/http/routes.ts (each route declares its limit ids; auth runs after body parsing).
+  //       The chain inside a route is always limits -> body -> auth -> handler (skill
+  //       rowta-rate-limiting-recipes; walk test in tests/route-limits.test.ts).
 
   // 9. Routes.
+  app.route('/', createAuthRouter());
   app.route('/health', createHealthRoutes({ redis: deps.redis }));
 
   // 10. ONE error handler, plus the 404 handler. Nothing else formats an error body.
@@ -103,6 +108,9 @@ export function createApp(deps: AppDeps): Hono {
 
 async function main(): Promise<void> {
   const log = logger.child({ process: 'api' });
+  // Build the dummy Argon2id hash once at boot (A7): the first unknown-email sign-in then never
+  // pays an extra Argon2 run while real ones are still warming up (timing parity by construction).
+  await getDummyHash();
   const redis = createRedisConnection(false);
   const app = createApp({ log, redis });
 

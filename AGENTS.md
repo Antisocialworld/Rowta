@@ -93,5 +93,15 @@ component kit, app shell and the auth-page rework — one AuthPage, evidence `do
 (web surface: static pre-render landing + 8 legal pages generated from `docs/legal/*.md`, owner copy lock of
 20 Oct 2026, `npm run web:build` / `npm run web:test` / `web/scripts/web-checks.mjs` 18/18, axe-core 0 violations,
 Lighthouse 100 a11y, evidence `docs/gates/phase-11.md`, ADR 0006; owner inputs and open decisions live in
-`docs/legal/OWNER-INPUTS.md`). Next: Phase 2 (auth slice) — owner's choice. Work happens on branch `rowta-1`;
+`docs/legal/OWNER-INPUTS.md`). Phase 2 in progress — SERVER SLICE (Prompt 6 + 2b fixes) done: all 13 `/auth/*` endpoints
+(sign-up with code, sign-in with dummy-hash A7 timing, refresh rotation with family revoke on reuse, logout and
+logout-all, forgot/verify/reset, magic link at the owner's 5-minute override), 17 rate limits with C/O fail modes,
+shared Zod schemas and catalog messages, job-side code/token generation; suite **16 files / 114 tests / 114 passed**.
+Phase 2b: A7 timing reworked to failure-path pairs (unknown vs known+WRONG on sign-in, verify-code, reset-code),
+strict ratio ≤ 1.25 with ≥5 ms floors, n=55/side alternating, discard-5 — all three pairs pass (1.00/1.17/1.17)
+because the unknown branches now mirror the attempts-guard statement (ADR 0010); 9 concurrency tests × 10 rounds
+(magic/reset/verify/refresh/logout-all races — no double-success found); failure-modes table in the gate file.
+ADRs 0007, 0008, 0009, 0010; `docs/SECURITY.md` threats 1/2/7 + §5 timing rewritten; evidence `docs/gates/phase-2.md`.
+Next: Phase 2 app views (Prompt 7 — AuthGate on the real API, secure-store, TanStack Query) and the `/magic`
+fallback page; the Phase 1 P7-guarded session stub still guards the app side. Work happens on branch `rowta-1`;
 the owner does all git writes. Update this line at the end of each phase.

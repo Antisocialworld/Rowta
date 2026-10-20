@@ -13,7 +13,9 @@ import { HTTPException } from 'hono/http-exception';
 import { logger, type AppLogger } from '../lib/logger.ts';
 
 export interface ErrorBody {
-  error: { code: string; message: string; requestId: string };
+  // `fields` appears only on 422: field-level codes per V3 (the rest of the envelope is exactly
+  // PRD 9.3). Values are CATALOG KEYS or `validation.*` codes, never raw Zod text (V3, V5).
+  error: { code: string; message: string; requestId: string; fields?: Record<string, string> };
 }
 
 export interface SuccessBody<T> {
@@ -21,12 +23,16 @@ export interface SuccessBody<T> {
   meta?: Record<string, unknown>;
 }
 
-/** An error a handler can throw with a known status and a catalog code. */
+/** An error a handler can throw with a known status and a catalog code. Optional response headers
+ *  cover the standards that need one, e.g. `Retry-After` on 429 (PRD 9.7); optional field codes
+ *  carry the per-field detail of a 422 (V3). */
 export class HttpError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
     message: string,
+    readonly headers?: Record<string, string>,
+    readonly fields?: Record<string, string>,
   ) {
     super(message);
     this.name = 'HttpError';
@@ -37,8 +43,13 @@ export function ok<T>(data: T, meta?: Record<string, unknown>): SuccessBody<T> {
   return meta === undefined ? { data } : { data, meta };
 }
 
-export function errorBody(code: string, message: string, requestId: string): ErrorBody {
-  return { error: { code, message, requestId } };
+export function errorBody(
+  code: string,
+  message: string,
+  requestId: string,
+  fields?: Record<string, string>,
+): ErrorBody {
+  return fields === undefined ? { error: { code, message, requestId } } : { error: { code, message, requestId, fields } };
 }
 
 function requestIdOf(c: Context): string {
@@ -71,7 +82,7 @@ export function createErrorHandler(log: AppLogger = logger) {
 
     if (err instanceof HttpError) {
       log.warn({ requestId, code: err.code, status: err.status }, 'request failed');
-      return c.json(errorBody(err.code, err.message, requestId), err.status as never);
+      return c.json(errorBody(err.code, err.message, requestId, err.fields), err.status as never, err.headers);
     }
 
     // Hono's timeout middleware throws HTTPException(504) and body-limit throws HTTPException(413);

@@ -31,9 +31,14 @@ function buildClient(shard: Shard): AnyPrismaClient {
     : (new GeneratedDb1({ adapter }) as AnyPrismaClient);
 }
 
-/** The database that holds the global tables AND shard 0 (PRD 7.1). */
-export function globalDb(): AnyPrismaClient {
-  return writeDb(0);
+/**
+ * The database that holds the global tables AND shard 0 (PRD 7.1). The return type is the
+ * CONCRETE DB0 client (not the union): every global table (users, sessions, codes) exists only
+ * in the DB0 schema (ADR 0002), so auth flows and jobs use named models and $transaction's
+ * callback form without narrowing by hand. writeDb() keeps the union for generic calls.
+ */
+export function globalDb(): GeneratedDb0 {
+  return writeDb(0) as GeneratedDb0;
 }
 
 /** Route a query to the team's shard. Every team-scoped call in the app goes through this. */
