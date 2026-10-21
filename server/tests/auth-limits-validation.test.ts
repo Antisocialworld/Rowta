@@ -2,12 +2,12 @@
 // rowta-rate-limiting-recipes). Covers: the route registry cannot grow a limit-less route, the
 // exact 30-per-IP walk to 429 with Retry-After, counters shared across two app instances,
 // X-Forwarded-For behaviour vs TRUST_PROXY_HOPS, fail-closed and fail-open Redis-outage modes,
-// and 422 with field-level codes (never raw Zod text) on every one of the 13 auth routes.
+// and 422 with field-level codes (never raw Zod text) on every one of the 15 auth routes.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { Redis } from 'ioredis';
-import { AUTH_MESSAGES } from '@rowta/shared';
+import { AUTH_MESSAGES, countryListResponseSchema } from '@rowta/shared';
 import { env } from '../src/config/env.ts';
 import { registerPost, registeredRoutes } from '../src/http/routes.ts';
 import { LIMITS, limitDef } from '../src/security/limits.ts';
@@ -26,6 +26,7 @@ import {
 } from './helpers/auth-test.ts';
 
 const AUTH_PATHS = [
+  '/auth/countries',
   '/auth/forgot',
   '/auth/forgot/resend',
   '/auth/forgot/verify',
@@ -33,6 +34,7 @@ const AUTH_PATHS = [
   '/auth/logout-all',
   '/auth/magic/consume',
   '/auth/magic/request',
+  '/auth/me',
   '/auth/reset',
   '/auth/signin',
   '/auth/signup',
@@ -55,17 +57,19 @@ afterAll(async () => {
 });
 
 describe('route registry (S14)', () => {
-  it('exactly the 13 auth routes are registered, each with at least one limit id', () => {
+  it('exactly the 15 auth routes are registered, each with at least one limit id', () => {
     const routes = registeredRoutes().filter((r) => r.path.startsWith('/auth/'));
     expect(routes.map((r) => r.path).sort()).toEqual(AUTH_PATHS);
     for (const route of routes) {
-      expect(route.method).toBe('POST');
+      // The two reads (me, countries) are GET; every other auth route is POST.
+      const isGet = route.path === '/auth/me' || route.path === '/auth/countries';
+      expect(route.method).toBe(isGet ? 'GET' : 'POST');
       expect(route.limitIds.length).toBeGreaterThanOrEqual(1);
       for (const id of route.limitIds) expect(limitDef(id)).toBeDefined();
     }
-    // Only the two session-ending routes carry a user-keyed limit, and both require auth.
+    // Only the session-ending routes and the profile read carry a user-keyed limit; all require auth.
     const userKeyed = routes.filter((r) => r.limitIds.some((id) => limitDef(id).key === 'user'));
-    expect(userKeyed.map((r) => r.path).sort()).toEqual(['/auth/logout', '/auth/logout-all']);
+    expect(userKeyed.map((r) => r.path).sort()).toEqual(['/auth/logout', '/auth/logout-all', '/auth/me']);
     for (const route of userKeyed) expect(route.auth).toBe(true);
     // Every limit id used anywhere exists in the one config file.
     const declared = new Set(routes.flatMap((r) => r.limitIds));
@@ -94,6 +98,8 @@ describe('validation (V1 to V3)', () => {
     const authHeader = { authorization: `Bearer ${accessToken}` };
 
     for (const path of AUTH_PATHS) {
+      // GETs have no body by construction; me's auth behaviour is asserted in auth-sessions.test.ts.
+      if (path === '/auth/me' || path === '/auth/countries') continue;
       // logout-all's only input is the access token: with a real one, an empty body is VALID (200).
       if (path === '/auth/logout-all') {
         const ok = await post(app, path, {}, authHeader);
@@ -198,6 +204,20 @@ describe('validation (V1 to V3)', () => {
     });
     expect(res.status).toBe(400);
     expect((await errorOf(res)).code).toBe('request.malformed');
+  });
+});
+
+describe('reference data (PRD 8.1, S5)', () => {
+  it('GET /auth/countries is public and lists exactly what the server offers', async () => {
+    const res = await app.request('/auth/countries', { method: 'GET' }); // no authorization header
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: unknown };
+    const list = countryListResponseSchema.parse(body.data);
+    // The fixture country seeded in beforeAll is offered; the response matches the shared schema
+    // (shape, uppercase code, bounded name) and is ordered by name exactly as the service queries.
+    expect(list).toContainEqual({ code: 'ZZ', name: 'Test country' });
+    const names = list.map((item) => item.name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
   });
 });
 

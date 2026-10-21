@@ -43,6 +43,10 @@ export const LIMITS: readonly LimitDef[] = [
   { id: 'refresh.ip', key: 'ip', max: 120, windowSec: 60, failMode: 'C', reason: 'stolen-token abuse, client loops' },
   { id: 'refresh.device', key: 'deviceId', field: 'deviceId', max: 30, windowSec: 60, failMode: 'C', reason: 'stolen-token abuse, client loops' },
   { id: 'logout.user', key: 'user', max: 10, windowSec: 60, failMode: 'O', reason: 'cheap, low risk' },
+  // GET /auth/me: cheap authenticated profile read for session restore (Phase 2 app views).
+  { id: 'me.user', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap profile read; fail open like logout' },
+  // GET /auth/countries: public sign-up reference read (PRD 8.1 country list).
+  { id: 'countries.read', key: 'ip', max: 120, windowSec: 60, failMode: 'O', reason: 'public sign-up reference read; fail open like me' },
 
   // Forgot group: email bombing and enumeration (the response is uniform either way, A6).
   { id: 'forgot.email', key: 'emailHash', max: 5, windowSec: 3_600, failMode: 'C', reason: 'email bombing, enumeration' },

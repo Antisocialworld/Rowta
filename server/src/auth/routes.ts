@@ -24,7 +24,7 @@ import {
   signUpSchema,
   verifyCodeSchema,
 } from '@rowta/shared';
-import { registerPost } from '../http/routes.ts';
+import { registerGet, registerPost } from '../http/routes.ts';
 import { HttpError, ok } from '../middleware/error.ts';
 import * as service from './service.ts';
 
@@ -149,6 +149,18 @@ export function createAuthRouter(): Hono {
   registerPost(router, '/auth/logout-all', { limits: ['logout.user'], auth: true }, async (c) => {
     const result = await service.logoutAll(requireUserId(c));
     return c.json(ok(result));
+  });
+
+  // ---- Profile (session restore for the app; S5: the server owns the display name) ---------------
+  registerGet(router, '/auth/me', { limits: ['me.user'], auth: true }, async (c) => {
+    const profile = await service.me(requireUserId(c));
+    return c.json(ok(profile));
+  });
+
+  // ---- Sign-up reference data (PRD 8.1; public: the server owns the offered list, S5) -----------
+  registerGet(router, '/auth/countries', { limits: ['countries.read'] }, async (c) => {
+    const countries = await service.listCountries();
+    return c.json(ok(countries));
   });
 
   // ---- Forgot password --------------------------------------------------------------------------

@@ -2,6 +2,7 @@
   "expo": {
     "name": "Rowta",
     "slug": "rowta",
+    "scheme": "rowta",
     "platforms": ["android", "web"],
     "icon": "./assets/app-icon-1024.png",
     "android": {

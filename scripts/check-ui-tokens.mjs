@@ -6,6 +6,12 @@
 // web/src exception (copy/layout lock, owner 20 Oct 2026): plain CSS layout in px is the owner's locked
 // sizing (200px logo, 40px/32px gaps, 1100px max width) — the two px-LAYOUT patterns are skipped for web
 // files only; colours, font sizes, shadows and opacities stay enforced everywhere.
+// server/src/mail exception (AGENT DECISION, 20 Oct 2026, FOR OWNER RATIFICATION): email HTML cannot
+// use the design system — px is the only length unit mail clients render reliably — and rule U5 covers
+// component files only. Only the 'css px in stylesheet' pattern is skipped for files under
+// server/src/mail/; colours, font sizes, shadows, opacities and every other pattern stay enforced
+// there (proved by scripts/test-ui-tokens-gate.mjs). U5's wording may need an owner edit to name the
+// email surface explicitly.
 // Run: node scripts/check-ui-tokens.mjs   (exit 1 = gate failed)
 
 import fs from 'node:fs';
@@ -61,11 +67,13 @@ for (const dir of SCAN_DIRS) {
     scanned++;
     const rel = path.relative(ROOT, file).replaceAll('\\', '/');
     const isWeb = rel.startsWith('web/');
+    const isServerMail = rel.startsWith('server/src/mail/');
     const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
     lines.forEach((line, i) => {
       if (line.includes('eslint-disable') || line.trim().startsWith('//') || line.trim().startsWith('*') || line.trim().startsWith('/*')) return;
       for (const { name, re } of patterns) {
         if (isWeb && WEB_LAYOUT_PX_PATTERNS.has(name)) continue;
+        if (isServerMail && name === 'css px in stylesheet') continue;
         if (re.test(line)) {
           hits.push(rel + ':' + (i + 1) + ' [' + name + ']');
           break;

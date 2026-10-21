@@ -23,14 +23,14 @@ import {
   Toast,
 } from '../components';
 import { t, type MessageKey } from '../i18n/en';
-import { useSessionStore } from '../state/session';
+import { useAuthSession } from '../state/auth-session';
 import { colors, spacing } from '../theme/tokens';
 import { GALLERY_PEOPLE, GALLERY_SHIFTS } from './gallery-data';
 
 const AVATAR_SIZES = ['sm', 'md', 'lg'] as const;
 
 export function GalleryScreen() {
-  const closeGallery = useSessionStore((state) => state.closeGallery);
+  const closeGallery = useAuthSession((state) => state.closeGallery);
   const { width, height, fontScale } = useWindowDimensions();
   const firstShift = GALLERY_SHIFTS[0]!;
   const firstPerson = GALLERY_PEOPLE[0]!;

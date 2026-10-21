@@ -56,13 +56,14 @@ export const AUTH_VIEWS = {
   acceptInvite: { title: 'auth.view.acceptInvite.title', heading: 'auth.view.acceptInvite.heading', focus: 'heading' },
 } as const satisfies Record<AuthView, { title: MessageKey; heading: MessageKey; focus: 'input' | 'heading' }>;
 
-/** Deep-link entry points (PRD verified links; the Phase 2 routes call store.enter() with these).
- *  Route mapping is documented in docs/gates/phase-1.md; the reducer actions are what the tests exercise. */
+/** Deep-link entry points (PRD verified links; lib/deep-links.ts parses a URL into one of these and
+ *  the App.tsx Linking listener calls store.enter()). Proven by app/scripts/test-auth-entry-paths.ts. */
 export const AUTH_ENTRY = {
   /** Password-reset link from email -> reset password state, history starts at signIn. */
   resetLink: { view: 'resetPassword', base: 'signIn' },
-  /** Team invite link -> the create-account form (invite create-account). */
-  invite: { view: 'createAccount', base: 'signIn' },
+  /** Team invite link -> the accept-invite state (its text links lead to create-account / sign-in;
+   *  Phase 3 attaches the stored invite token to the create-account request). */
+  invite: { view: 'acceptInvite', base: 'signIn' },
   /** Sign-in (magic) link token -> email-link confirm, one button, root-like history (no back chrome). */
   magicToken: { view: 'magicConfirm', base: 'root' },
 } as const satisfies Record<string, { view: AuthView; base: 'signIn' | 'root' }>;

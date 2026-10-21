@@ -22,7 +22,6 @@ export interface RouteRegistration {
   readonly limitIds: readonly string[];
   readonly auth: boolean;
 }
-
 const registry = new Map<string, RouteRegistration>();
 
 /** Every registered route, keyed by `METHOD path`. Health routes are exempt by design (skill 3). */
@@ -83,6 +82,41 @@ export function registerPost(
   router.post(path, ...chain);
   registry.set(`POST ${path}`, {
     method: 'POST',
+    path,
+    limitIds: [...options.limits],
+    auth: wantsAuth,
+  });
+}
+
+/**
+ * Register a GET route with the same chain shape as POST (pre limits -> [auth] -> post limits ->
+ * handler; GETs carry no body, so there is no body-parse or body-key phase). Re-registering the
+ * same path replaces the entry.
+ */
+export function registerGet(
+  router: Hono,
+  path: string,
+  options: RouteOptions,
+  handler: Handler,
+): void {
+  if (options.limits.length === 0) {
+    throw new Error(`route GET ${path} has no rate limit id (rule S14)`);
+  }
+  const wantsAuth = options.auth === true;
+  const usesUserKey = options.limits.some((id) => limitDef(id).key === 'user');
+  if (usesUserKey && !wantsAuth) {
+    throw new Error(`route GET ${path} uses a user-keyed limit but does not require auth`);
+  }
+
+  const chain: [MiddlewareHandler, ...MiddlewareHandler[]] = [limitFor(options.limits, 'pre')];
+  if (wantsAuth) {
+    chain.push(requireAuth, limitFor(options.limits, 'post'));
+  }
+  chain.push(handler as MiddlewareHandler);
+
+  router.get(path, ...chain);
+  registry.set(`GET ${path}`, {
+    method: 'GET',
     path,
     limitIds: [...options.limits],
     auth: wantsAuth,

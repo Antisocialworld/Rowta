@@ -35,6 +35,7 @@ import { signAccessToken } from '../security/access-token.ts';
 import { cooldownSeconds, startCooldown } from '../security/rate-limit.ts';
 import { createTokenParts, formatToken, splitToken } from '../security/tokens.ts';
 import { enqueueEmail } from '../jobs/email/enqueue.ts';
+import { timingDecoys } from './timing-decoy.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Generic failures: status + catalog code + catalog text, no reason attached (A5, A6).
@@ -179,13 +180,16 @@ export async function verifyCode(input: VerifyCodeInput): Promise<TokensData> {
   const pending = await db.pending_signups.findUnique({ where: { email: input.email } });
   if (pending === null) {
     // Unknown email: one real Argon2id verify (A7), preceded by the SAME attempts-guard statement
-    // the known path runs — against a random id, so it matches zero rows and writes nothing, but
-    // costs the identical database round-trip. Without it the missing row was ~14 ms faster than
-    // the known path, a measurable existence oracle (timing evidence: docs/SECURITY.md section 5).
+    // the known path runs — against the seeded decoy row so the write costs the same (ADR 0010
+    // escalation; a zero-row mirror matched the round-trip but not the ~8 ms write), falling back
+    // to a random id (zero rows, no write) when the seed cannot run. Without a mirror at all the
+    // missing row was ~14 ms faster than the known path, a measurable existence oracle (timing
+    // evidence: docs/SECURITY.md section 5).
+    const decoys = await timingDecoys();
     await db.$queryRaw<Array<{ id: string }>>`
       UPDATE pending_signups
-      SET attempts = attempts + 1
-      WHERE id = ${randomUUID()} AND attempts < ${CODE_MAX_ATTEMPTS} AND expires_at > now()
+      SET attempts = CASE WHEN attempts + 1 >= ${CODE_MAX_ATTEMPTS} THEN 0 ELSE attempts + 1 END
+      WHERE id = ${decoys?.pendingId ?? randomUUID()} AND attempts < ${CODE_MAX_ATTEMPTS} AND expires_at > now()
       RETURNING id`;
     await verifySecret(dummy, input.code);
     throw codeInvalid();
@@ -362,6 +366,31 @@ export async function refresh(input: RefreshInput): Promise<TokensData> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Profile (GET /auth/me; Phase 2 app views — the server owns the display name, S5)
+// ---------------------------------------------------------------------------------------------
+
+/** Load the signed-in user's id and display name. A valid token whose user row is gone is the
+ *  same generic 401 as any other authentication problem (A5). */
+export async function me(userId: string): Promise<{ userId: string; displayName: string }> {
+  const db = globalDb();
+  const user = await db.users.findUnique({ where: { id: userId }, select: { id: true, display_name: true } });
+  if (user === null) throw new HttpError(401, 'auth.not_authenticated', 'Not authenticated.');
+  return { userId: user.id, displayName: user.display_name };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reference data (GET /auth/countries; PRD 8.1 sign-up country list)
+// ---------------------------------------------------------------------------------------------
+
+/** The offered countries for the sign-up form, ordered by name. `countries` only holds rows
+ *  whose currency is sold (docs/DATABASE.md), so this list IS the offer — the app must not
+ *  keep its own copy (S5). Public read, no user data (P6: rows are reference data). */
+export async function listCountries(): Promise<{ code: string; name: string }[]> {
+  const db = globalDb();
+  return db.countries.findMany({ select: { code: true, name: true }, orderBy: { name: 'asc' } });
+}
+
+// ---------------------------------------------------------------------------------------------
 // Log out / log out of all devices (PRD 8.1, A11)
 // ---------------------------------------------------------------------------------------------
 
@@ -414,12 +443,14 @@ export async function verifyResetCode(input: ResetCodeInput): Promise<{ grant: s
 
   const user = await db.users.findUnique({ where: { email: input.email } });
   if (user === null) {
-    // A7 parity: the known path below pays one guard round-trip, so the unknown email pays the
-    // SAME statement shape against a random id (zero rows, no write) before the dummy verify.
+    // A7 parity: the known path below pays one guard round-trip AND one matched write, so the
+    // unknown email pays the SAME statement against the seeded decoy row (ADR 0010 escalation),
+    // falling back to a random id (zero rows, no write) when the seed cannot run.
+    const decoys = await timingDecoys();
     await db.$queryRaw<Array<{ id: string }>>`
       UPDATE password_resets
-      SET attempts = attempts + 1
-      WHERE id = ${randomUUID()} AND consumed_at IS NULL AND expires_at > now() AND attempts < ${CODE_MAX_ATTEMPTS}
+      SET attempts = CASE WHEN attempts + 1 >= ${CODE_MAX_ATTEMPTS} THEN 0 ELSE attempts + 1 END
+      WHERE id = ${decoys?.resetId ?? randomUUID()} AND consumed_at IS NULL AND expires_at > now() AND attempts < ${CODE_MAX_ATTEMPTS}
       RETURNING id`;
     await verifySecret(dummy, input.code);
     throw codeInvalid();
@@ -427,12 +458,14 @@ export async function verifyResetCode(input: ResetCodeInput): Promise<{ grant: s
 
   const row = await db.password_resets.findFirst({ where: { user_id: user.id, consumed_at: null } });
   if (row === null) {
-    // Same parity for "account exists but no active code": this path then runs the same guard
-    // round-trip as the known-with-row path (zero rows, no write).
+    // Same parity for "account exists but no active code": this path already paid the findFirst
+    // the known-with-row path pays, and now runs the same guard statement against the seeded
+    // decoy row (ADR 0010 escalation), falling back to a random id when the seed cannot run.
+    const decoys = await timingDecoys();
     await db.$queryRaw<Array<{ id: string }>>`
       UPDATE password_resets
-      SET attempts = attempts + 1
-      WHERE id = ${randomUUID()} AND consumed_at IS NULL AND expires_at > now() AND attempts < ${CODE_MAX_ATTEMPTS}
+      SET attempts = CASE WHEN attempts + 1 >= ${CODE_MAX_ATTEMPTS} THEN 0 ELSE attempts + 1 END
+      WHERE id = ${decoys?.resetId ?? randomUUID()} AND consumed_at IS NULL AND expires_at > now() AND attempts < ${CODE_MAX_ATTEMPTS}
       RETURNING id`;
     await verifySecret(dummy, input.code);
     throw codeInvalid();

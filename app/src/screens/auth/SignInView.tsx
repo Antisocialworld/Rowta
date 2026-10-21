@@ -1,22 +1,30 @@
-// SignInView — the SIGN IN form of the one AuthPage card (PRD 6.1 "sign in"; Phase 1 rework item 1: the three
-// forms are conditional renderings inside ONE card — this component is the content, no chrome of its own).
+// SignInView — the SIGN IN form of the one AuthPage card (PRD 6.1 "sign in"; Phase 2: the real API).
 // U7: the email field takes focus on mount (and again whenever the state switches back to signIn).
-// X14: the primary button is ready only when the email looks like an address and the password is non-empty;
-// when not ready it stays focusable, is dimmed, exposes accessibilityState disabled, and onNotReady moves focus
-// back to the email field with the reason announced. Secondary actions are text links (item 3): Create account,
-// Forgot password, and "Email me a sign-in link" (item 4) which keeps the magic-link flow reachable.
+// X14: ready only when the email looks like an address and the password is non-empty; not-ready keeps
+// the button focusable and moves focus back to the email field with the reason announced.
+// Phase 2: submit calls POST /auth/signin (shared schema validates first, V1). Tokens go to the
+// session store (A11); the uniform unverified prompt carries the server's remaining-SECONDS meta and
+// lands on verifyCode with the PRD-11 line (A9). Failures map codes to catalog keys — the server's
+// words never appear (V5) — and a 429 shows the fixed line plus the Retry-After countdown (S14i).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
-import { Button, Input, LinkButton } from '../../components';
+import { Button, Input, LinkButton, LiveRegion, Text } from '../../components';
+import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
+import { authApi } from '../../lib/api';
 import { isEmailLike } from '../../lib/validation';
+import { useAuthFlow } from '../../state/auth-context';
+import { useAuthForm } from '../../state/auth-form';
+import { useAuthSession } from '../../state/auth-session';
 import { useAuthViewStore } from '../../state/auth-view';
-import { useSessionStore } from '../../state/session';
 import { spacing } from '../../theme/tokens';
 
 export function SignInView() {
   const switchTo = useAuthViewStore((state) => state.switchTo);
   const go = useAuthViewStore((state) => state.go);
+  const setFlow = useAuthFlow((state) => state.setFlow);
+  const signInWithTokens = useAuthSession((state) => state.signInWithTokens);
+  const form = useAuthForm();
   const emailRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,21 +34,49 @@ export function SignInView() {
     focusOn(emailRef.current);
   }, []);
 
+  const submitSignIn = async (): Promise<void> => {
+    const result = await form.submit(() => authApi.signIn({ email, password }));
+    if (result === null) {
+      focusOn(emailRef.current);
+      return;
+    }
+    if (result.kind === 'tokens') {
+      await signInWithTokens(result.tokens);
+      return;
+    }
+    // Unverified account: the uniform prompt with the server's code timers (PRD 8.1, A9).
+    setFlow({ email, codeMeta: result.meta });
+    go('verifyCode', 'auth.signUp.submitted');
+  };
+
   return (
     <View style={styles.stack}>
-      <Input ref={emailRef} label="field.email" variant="email" value={email} onChangeText={setEmail} />
-      <Input label="field.password" variant="password" value={password} onChangeText={setPassword} />
+      <Input ref={emailRef} label="field.email" variant="email" value={email} onChangeText={setEmail} errorKey={form.fieldError('email')} />
+      <Input
+        label="field.password"
+        variant="password"
+        value={password}
+        onChangeText={setPassword}
+        errorKey={form.fieldError('password')}
+      />
       <Button
         label="action.signIn"
         ready={ready}
         reason="auth.ready.signIn"
+        busy={form.busy}
         onNotReady={() => {
           focusOn(emailRef.current);
         }}
         onPress={() => {
-          useSessionStore.getState().signIn();
+          void submitSignIn();
         }}
       />
+      {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
+      {form.retryIn !== null && form.retryIn > 0 ? (
+        <Text variant="body-small" tone="secondary">
+          {t('auth.rateLimit.retryIn', { seconds: form.retryIn })}
+        </Text>
+      ) : null}
       <View style={styles.links}>
         <LinkButton label="auth.view.signUp.title" onPress={() => switchTo('createAccount')} testID="link-create-account" />
         <LinkButton label="auth.view.forgot.title" onPress={() => switchTo('forgotPassword')} testID="link-forgot-password" />

@@ -1,6 +1,7 @@
 # 0010. Unknown-email branches mirror the attempts-guard statement so code-endpoint timing matches
 
-Date: 2026-10-20. Status: accepted. Phase 2b (rules A7, A9; skill rowta-testing-recipes).
+Date: 2026-10-20. Status: accepted — escalation executed the same day (see final section).
+Phase 2b (rules A7, A9; skill rowta-testing-recipes).
 
 ## Context
 
@@ -43,7 +44,8 @@ Sign-in needed no change (its known path does no write on failure). Escalation d
 **not needed**: if a zero-row UPDATE had still measured > 1.25 (a matched-row write can cost more
 than a miss), the plan was a single seeded decoy row per table — a counter incremented and reset by
 the server, no personal data, reachable by no user flow — so the write cost matches. Measurement
-after the zero-row fix: all three pairs ≤ 1.17, so the decoy rows were never created.
+after the zero-row fix: all three pairs ≤ 1.17, so the decoy rows were not created then — until
+later the same day the band was crossed from inside (see "Escalation executed" below).
 
 Evidence (`npx vitest run tests/auth-security.test.ts --silent=false`):
 
@@ -91,3 +93,47 @@ A database that can serve the guard's round-trip for free (eliminating the delta
 make the mirror statements redundant; or a PRD decision to treat code-endpoint timing parity as out
 of scope (it is in scope today: rule A7 says "the two paths cost about the same" without limiting
 that to sign-in).
+
+## Escalation executed (2026-10-20, same day): zero-row → decoy-row write
+
+The residual risk above arrived the same day. Re-measured first, as the ADR requires: on a quiet
+moment the standalone pairs sat at 1.20 / 1.24 (inside the band), but the FULL suite failed
+reset-code at 1.28–1.35 — past the strict 1.25 the owner refused to weaken. A decomposition of both
+paths against the live database showed the gap was structural, not noise:
+
+- a matched-row UPDATE (WAL + heap) measured ~11–14 ms where the random-id UPDATE matched nothing
+  (~3.5 ms) — the write cost this ADR predicted and the zero-row mirror could not equalise;
+- reset-code additionally pays the `password_resets` findFirst (~3.5 ms) that the unknown-email
+  branch never runs;
+- the Argon2id baseline had shrunk from the ~52 ms recorded at gate time to ~40 ms on this machine,
+  so the same absolute gap grew from 1.17 to ~1.24 of a smaller base — jitter then crossed the line.
+
+Per the owner's standing instruction (BUILD-PROGRESS, 20 Oct 2026: "escalate to seeded decoy-row
+writes only if still >1.25, never weaken silently") the reserved escalation now runs:
+
+- `server/src/auth/timing-decoy.ts` seeds ONE row per guard table — `pending_signups`,
+  `password_resets`, and the `users` row the reset row's foreign key requires — lazily on the first
+  unknown probe, memoised per process, idempotent (`INSERT … ON CONFLICT (id) DO NOTHING`).
+- The three unknown-branch guards (`verifyCode` unknown email; `verifyResetCode` unknown email and
+  "no active code") now target those rows: the UPDATE matches and writes, paying the identical
+  write cost. The decoy rows hold no personal data; their emails carry no `@`, which the shared
+  `emailField` (z.email()) rejects — asserted in `auth-security.test.ts` — so no user flow can name
+  them; the guard's `SET attempts = CASE …` cycles 0–4 inside `WHERE attempts < 5`, resetting the
+  counter inside the same single statement.
+- Fallback: if the seed cannot run, the branch keeps the original random-id mirror. The `countries`
+  table ships empty by design and `users`/`pending_signups` require a country — while no country
+  exists no REAL row can exist either, so there is no known path to compare against and the signal
+  has nothing to reveal.
+- Known paths stay byte-for-byte the A9/C3 guard; only the failure branches changed.
+
+Evidence (`npx vitest run tests/auth-security.test.ts --silent=false`, 8/8 tests, exit 0):
+
+```
+sign-in      unknown 38.1ms vs wrong 38.8ms  ratio 1.02
+verify-code  unknown 49.3ms vs wrong 48.5ms  ratio 1.02
+reset-code   unknown 48.3ms vs wrong 52.2ms  ratio 1.08   ← residual = the known path's findFirst
+```
+
+Full suite after the escalation: **17 files / 123 tests / 123 passed** (`npm run -w @rowta/server test`,
+exit 0), including the new `A7 timing decoys (ADR 0010 escalation)` test that proves the unknown
+probes move the decoy counters (a zero-row mirror would leave them untouched).

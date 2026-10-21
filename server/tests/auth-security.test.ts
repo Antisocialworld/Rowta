@@ -7,11 +7,12 @@
 import { Writable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pino from 'pino';
-import { REFRESH_TOKEN_TTL_SECONDS, ACCESS_TOKEN_TTL_SECONDS, CODE_TTL_SECONDS } from '@rowta/shared';
+import { REFRESH_TOKEN_TTL_SECONDS, ACCESS_TOKEN_TTL_SECONDS, CODE_TTL_SECONDS, CODE_MAX_ATTEMPTS, emailField } from '@rowta/shared';
 import { createApp } from '../src/index.ts';
 import { buildLoggerOptions } from '../src/lib/logger.ts';
 import { globalDb } from '../src/db/clients.ts';
 import { signIn, verifyCode, verifyResetCode } from '../src/auth/service.ts';
+import { DECOY_PENDING_EMAIL, DECOY_USER_EMAIL, timingDecoys } from '../src/auth/timing-decoy.ts';
 import { getDummyHash, hashSecret, verifySecret } from '../src/security/argon2.ts';
 import {
   TEST_COUNTRY,
@@ -322,6 +323,37 @@ describe('A7 timing (evidence for docs/SECURITY.md section 5)', () => {
       // OUTSIDE the timed window (test bookkeeping, see verify-code test).
       () => db.password_resets.updateMany({ where: { user_id: userId }, data: { attempts: 0 } }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// ADR 0010 escalation evidence: the unknown-email guards must hit the SEEDED decoy rows — a
+// zero-row mirror would leave the counters untouched.
+// ---------------------------------------------------------------------------------------------
+
+describe('A7 timing decoys (ADR 0010 escalation)', () => {
+  it('unknown-email probes increment the seeded decoy counters, proving a matched write', async () => {
+    const db = globalDb();
+    const decoys = await timingDecoys();
+    if (decoys === null) throw new Error('decoy seed did not run although the country fixture exists');
+    const pendingBefore = await db.pending_signups.findUnique({ where: { id: decoys.pendingId } });
+    const resetBefore = await db.password_resets.findUnique({ where: { id: decoys.resetId } });
+    expect(pendingBefore, 'decoy pending row must be seeded').not.toBeNull();
+    expect(resetBefore, 'decoy reset row must be seeded').not.toBeNull();
+
+    await verifyCode({ email: uniqueEmail('decoy-probe'), code: '000000' }).catch(() => undefined);
+    await verifyResetCode({ email: uniqueEmail('decoy-probe'), code: '000000' }).catch(() => undefined);
+
+    const pendingAfter = await db.pending_signups.findUnique({ where: { id: decoys.pendingId } });
+    const resetAfter = await db.password_resets.findUnique({ where: { id: decoys.resetId } });
+    // The guard's CASE cycles 0..CAP-1 inside WHERE attempts < CAP: the counter must have MOVED
+    // by exactly one step — a zero-row mirror would leave it at its previous value.
+    expect(pendingAfter?.attempts).toBe(((pendingBefore?.attempts ?? 0) + 1) % CODE_MAX_ATTEMPTS);
+    expect(resetAfter?.attempts).toBe(((resetBefore?.attempts ?? 0) + 1) % CODE_MAX_ATTEMPTS);
+    // The decoy emails carry no '@': the shared API email field rejects them, so no user flow
+    // can ever name these rows (A7: unreachable by any request).
+    expect(emailField.safeParse(DECOY_PENDING_EMAIL).success).toBe(false);
+    expect(emailField.safeParse(DECOY_USER_EMAIL).success).toBe(false);
   });
 });
 

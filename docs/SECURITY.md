@@ -51,25 +51,37 @@ finish in ~1–3 ms — a lone database lookup). The correct-secret sign-in is m
 because it does strictly more (refresh-verifier hash, row writes, HS512 JWT) and is not the path an
 attacker's probe exercises.
 
-Final numbers (`npx vitest run tests/auth-security.test.ts --silent=false` from `server/`):
+Final numbers (`npx vitest run tests/auth-security.test.ts --silent=false` from `server/`; after the
+ADR 0010 escalation run of 20 Oct 2026):
 
 ```
-[A7 sign-in unknown-vs-wrong] A(unknown) 44.6ms vs B(wrong) 44.6ms, ratio 1.00 (n=55 each after discarding 5, alternating)
-[A7 sign-in correct-password] median 111.7ms (n=55; longer by design: issues refresh verifier + JWT)
-[A7 verify-code unknown-vs-wrong] A(unknown) 51.8ms vs B(wrong) 60.4ms, ratio 1.17 (n=55 each after discarding 5, alternating)
-[A7 reset-code unknown-vs-wrong] A(unknown) 52.1ms vs B(wrong) 61.0ms, ratio 1.17 (n=55 each after discarding 5, alternating)
+[A7 sign-in unknown-vs-wrong] A(unknown) 38.1ms vs B(wrong) 38.8ms, ratio 1.02 (n=55 each after discarding 5, alternating)
+[A7 sign-in correct-password] median 84.6ms (n=55; longer by design: issues refresh verifier + JWT)
+[A7 verify-code unknown-vs-wrong] A(unknown) 49.3ms vs B(wrong) 48.5ms, ratio 1.02 (n=55 each after discarding 5, alternating)
+[A7 reset-code unknown-vs-wrong] A(unknown) 48.3ms vs B(wrong) 52.2ms, ratio 1.08 (n=55 each after discarding 5, alternating)
 ```
 
 History of this measurement (honest record): the Phase 2 version compared unknown vs known+CORRECT
 (49.4 ms vs 124.5 ms, n=50) — the wrong pair, because the correct path's extra token-issuance work
 is not what an attacker pays. The first rework to failure-path pairs measured verify-code at ratio
 1.27 and reset-code at 1.36: the known path runs the A9 attempts-guard conditional UPDATE (one or
-two extra database round-trips ≈ 14–16 ms) that the unknown path had no row to run. ADR 0010 mirrors
-that guard on the unknown branches with the SAME statement shape against a random id — zero rows
-matched, no write — which brought all three pairs inside the strict 25% band (the decoy-row write
-escalation reserved by the owner was NOT needed: zero-row round-trips proved sufficient at 1.17).
+two extra database round-trips ≈ 14–16 ms) that the unknown path had no row to run. ADR 0010 first
+mirrored that guard on the unknown branches against a random id — zero rows matched, no write —
+which brought all three pairs inside the band at gate time (1.17/1.17). Later the same day the band
+was crossed from inside: a decomposition showed the zero-row mirror equalised the round-trip but not
+the matched write (~11–14 ms vs ~3.5 ms; reset-code also pays an extra findFirst ≈ 3.5 ms), and the
+Argon2id baseline had shrunk from ~52 ms to ~40 ms, growing the same gap to a ~1.24 ratio — full
+suite runs then failed reset-code at 1.28–1.35. The owner's pre-authorized escalation ran ("escalate
+to seeded decoy-row writes only if still >1.25, never weaken silently"): the unknown branches now
+run their guard against SEEDED decoy rows — one per guard table plus the foreign-key user in
+`server/src/auth/timing-decoy.ts` — paying the identical write cost. The decoy rows hold no personal
+data, their emails carry no `@` (rejected by the shared `emailField`, asserted in the suite), the
+attempts counter cycles 0–4 inside the same statement, and the random-id mirror remains the fallback
+for when the seed cannot run (no `countries` row ⇒ no real `users`/`pending_signups` row can exist
+either ⇒ no known path exists to compare against).
 
 The ≥ 5 ms floor assertion fails the suite if a dummy verify is ever removed; the ≤ 1.25 ratio
 assertion fails it if either path's cost drifts apart. Residual risks are recorded in ADR 0010
-(network/scheduler jitter inside the band, rate limits as the second line of defence). Re-run the
+(network/scheduler jitter inside the band, rate limits as the second line of defence; reset-code's
+1.08 residual is the known path's findFirst — a fixed ~3.5 ms, far inside the band). Re-run the
 numbers any time with `npx vitest run tests/auth-security.test.ts --silent=false` (from `server/`).

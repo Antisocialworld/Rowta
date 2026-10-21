@@ -133,6 +133,9 @@ export const messageResponseSchema = z.strictObject({
   message: z.string(),
 });
 
+/** Empty data envelope for endpoints whose success body is `{}` (logout, logout-all). */
+export const emptyResponseSchema = z.strictObject({});
+
 /**
  * Success responses for the flows that sign someone in (sign-in, verify code, refresh,
  * magic consume). `accountStatus` appears only when a correct password was presented to an
@@ -165,6 +168,38 @@ export const grantTimerMetaSchema = z.strictObject({
   expiresInSeconds: z.number().int().min(0).max(RESET_GRANT_TTL_SECONDS),
 });
 
+/**
+ * GET /auth/me response (server decides — S5): the signed-in user's id and display name.
+ * The name is trimmed server-side; empty is allowed (V8 minimum is 1 but legacy rows may be blank,
+ * so the app treats empty as "no name to show").
+ */
+export const meResponseSchema = z.strictObject({
+  userId: z.string().min(1),
+  displayName: z.string().max(DISPLAY_NAME_MAX_LENGTH),
+});
+
+/**
+ * One offered country for the sign-up list (PRD 8.1). The SERVER owns the list: `countries`
+ * only holds rows whose currency is sold (docs/DATABASE.md), so the app never hard-codes
+ * its own copy (S5). Format matches 010-global.sql's CHECK constraints.
+ */
+export const countryItemSchema = z.strictObject({
+  code: z.string().regex(/^[A-Z]{2}$/),
+  name: z.string().min(1).max(100),
+});
+
+/** GET /auth/countries response: every country the server currently offers, ordered by name. */
+export const countryListResponseSchema = z.array(countryItemSchema);
+
+export type CountryItem = z.infer<typeof countryItemSchema>;
+
+// Response types (inferred ONCE here so the app's API client never imports zod itself, V1).
+export type AuthTokensResponse = z.infer<typeof authTokensResponseSchema>;
+export type MessageResponse = z.infer<typeof messageResponseSchema>;
+export type ResetGrantResponse = z.infer<typeof resetGrantResponseSchema>;
+export type CodeTimerMeta = z.infer<typeof codeTimerMetaSchema>;
+export type GrantTimerMeta = z.infer<typeof grantTimerMetaSchema>;
+
 // ---------------------------------------------------------------------------------------------
 // Input types (inferred ONCE from the schemas above; the server service functions use these)
 // ---------------------------------------------------------------------------------------------
@@ -180,3 +215,4 @@ export type ResetCodeInput = z.infer<typeof resetCodeSchema>;
 export type ResetNewPasswordInput = z.infer<typeof resetNewPasswordSchema>;
 export type MagicRequestInput = z.infer<typeof magicRequestSchema>;
 export type MagicConsumeInput = z.infer<typeof magicConsumeSchema>;
+export type MeResponse = z.infer<typeof meResponseSchema>;

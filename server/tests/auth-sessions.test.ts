@@ -2,7 +2,7 @@
 // detection, expiry, logout, log out of all devices. Every failure body is compared byte for
 // byte: a stolen, expired or garbage refresh token must be indistinguishable (A5).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { authTokensResponseSchema } from '@rowta/shared';
+import { authTokensResponseSchema, meResponseSchema } from '@rowta/shared';
 import { globalDb } from '../src/db/clients.ts';
 import {
   TEST_COUNTRY,
@@ -200,5 +200,32 @@ describe('log out of all devices (8.1)', () => {
     expect(
       await db.refresh_tokens.count({ where: { user_id: first.userId, revoked_at: null } }),
     ).toBe(0);
+  });
+});
+
+describe('GET /auth/me (Phase 2 app session restore; S5)', () => {
+  it('returns the signed-in user id and display name for a valid access token', async () => {
+    const session = await signupAndVerify(uniqueEmail('me'));
+    const res = await app.request('/auth/me', {
+      method: 'GET',
+      headers: { authorization: `Bearer ${session.accessToken}` },
+    });
+    expect(res.status).toBe(200);
+    const profile = meResponseSchema.parse(await dataOf(res));
+    expect(profile.userId).toBe(session.userId);
+    expect(profile.displayName).toBe('Session User');
+  });
+
+  it('a missing and a garbage access token share the same generic 401 body (A5)', async () => {
+    const missing = await app.request('/auth/me', { method: 'GET' });
+    expect(missing.status).toBe(401);
+    const garbage = await app.request('/auth/me', {
+      method: 'GET',
+      headers: { authorization: 'Bearer not-a-real-token' },
+    });
+    expect(garbage.status).toBe(401);
+    const garbageText = await garbage.text();
+    expect((await errorOf(garbageText)).code).toBe('auth.not_authenticated');
+    expect(normaliseForCompare(garbageText)).toBe(normaliseForCompare(await missing.text()));
   });
 });

@@ -8,7 +8,10 @@
 //   3. request timeout     hono/timeout                   (C8)
 //   4. body-size limit     hono/body-limit                (C8)
 //   5. security headers    hono/secure-headers            (S11)
-//   6. CORS allowlist      hono/cors, from CORS_ALLOWED_ORIGINS, no wildcard (S11)
+//   6. CORS (two layers, this exact order):
+//        6a. dev-only localhost preview allow-list (no credentials; never in production) — MUST
+//            run first: hono/cors answers OPTIONS itself without calling next
+//        6b. allowlist    hono/cors, from CORS_ALLOWED_ORIGINS, no wildcard (S11)
 //   7. per-route rate limit   (Phase 2 — skill rowta-rate-limiting-recipes)
 //   8. authentication         (Phase 2 — skill rowta-auth-recipes)
 //   9. routes
@@ -39,6 +42,18 @@ const BODY_LIMIT_BYTES = 256 * 1024;
 const allowedOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
   .map((o) => o.trim())
   .filter((o) => o.length > 0);
+
+// Dev-only preview origins (Phase 2 app views): the Expo web preview runs on a localhost port that
+// is not (and need not be) in CORS_ALLOWED_ORIGINS. No wildcard and NO credentials for these
+// entries (S11): the app authenticates with a Bearer token, never cookies, so
+// Access-Control-Allow-Credentials is deliberately never sent for a localhost preview origin.
+// Production (NODE_ENV=production) gets NONE of this — only the configured allow-list.
+const DEV_PREVIEW_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
+
+/** Pure predicate so a test can prove production never matches (exported for tests/cors-dev.test.ts). */
+export function isDevPreviewOrigin(origin: string, nodeEnv: string): boolean {
+  return nodeEnv !== 'production' && DEV_PREVIEW_ORIGIN.test(origin);
+}
 
 export interface AppDeps {
   log: AppLogger;
@@ -79,7 +94,43 @@ export function createApp(deps: AppDeps): Hono {
   // 5. Security headers.
   app.use('*', secureHeaders());
 
-  // 6. CORS allowlist. No wildcard; credentials on; x-request-id exposed to the client.
+  // 6a. Dev-only localhost preview allow-list (see isDevPreviewOrigin above): a localhost origin
+  //     that is NOT in CORS_ALLOWED_ORIGINS is allowed WITHOUT credentials and without wildcard,
+  //     only when NODE_ENV !== 'production'. Registered BEFORE hono/cors (6b) because hono/cors
+  //     answers OPTIONS itself and never calls next(), so a preflight would never reach a layer
+  //     below it. An env-listed origin skips straight to 6b and keeps the credentials behaviour.
+  if (env.NODE_ENV !== 'production') {
+    app.use(
+      '*',
+      async (c, next): Promise<Response | void> => {
+        const origin = c.req.header('origin');
+        if (origin === undefined || allowedOrigins.includes(origin) || !isDevPreviewOrigin(origin, env.NODE_ENV)) {
+          await next();
+          return;
+        }
+        if (c.req.method === 'OPTIONS') {
+          // Preflight for the web preview: answered here, no Access-Control-Allow-Credentials by
+          // design. Built from c.res.headers so prepared headers (x-request-id) are carried over,
+          // exactly as hono/cors builds its own preflight.
+          const headers = new Headers(c.res.headers);
+          headers.set('access-control-allow-origin', origin);
+          headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
+          headers.set('access-control-allow-headers', 'content-type, authorization, idempotency-key, x-request-id');
+          headers.set('access-control-max-age', '600');
+          headers.set('vary', 'origin');
+          return new Response(null, { status: 204, headers });
+        }
+        await next();
+        c.res.headers.set('access-control-allow-origin', origin);
+        // hono/cors sets Access-Control-Allow-Credentials unconditionally (verified against the
+        // installed hono source); a preview origin must never carry it (S11).
+        c.res.headers.delete('access-control-allow-credentials');
+        return;
+      },
+    );
+  }
+
+  // 6b. CORS allowlist. No wildcard; credentials on; x-request-id exposed to the client.
   app.use(
     '*',
     cors({

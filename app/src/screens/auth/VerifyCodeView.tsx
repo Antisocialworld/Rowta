@@ -1,44 +1,26 @@
 // VerifyCodeView — PRD 6.1 step "verify code" inside the AuthPage card (heading rendered by the page).
-// X14: ready at exactly six digits with the reason auth.ready.code; not-ready keeps the button focusable and
-// moves focus back to the code field. The expiry line is static catalog text (PRD 11 auth.code.expiresIn).
-import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, type TextInputInstance } from 'react-native';
-import { Button, Input, Text } from '../../components';
-import { t } from '../../i18n/en';
-import { focusOn } from '../../lib/a11y';
-import { useSessionStore } from '../../state/session';
-import { spacing } from '../../theme/tokens';
+// Phase 2: the real POST /auth/signup/verify with the email carried in the flow context (the view
+// unmounts between steps, so the address cannot live in local state). Success returns TOKENS — the
+// session store takes them (A11) and the root render switches to the signed-in branch (S5). The
+// resend control and countdown live in the shared CodeStep (A9).
+import { authApi } from '../../lib/api';
+import { useAuthSession } from '../../state/auth-session';
+import { useAuthFlow } from '../../state/auth-context';
+import { CodeStep } from './CodeStep';
 
 export function VerifyCodeView() {
-  const codeRef = useRef<TextInputInstance>(null);
-  const [code, setCode] = useState('');
-  const ready = /^\d{6}$/.test(code);
-
-  useEffect(() => {
-    focusOn(codeRef.current);
-  }, []);
+  const email = useAuthFlow((state) => state.email);
+  const signInWithTokens = useAuthSession((state) => state.signInWithTokens);
 
   return (
-    <View style={styles.stack}>
-      <Text variant="body-small" tone="secondary">
-        {t('auth.code.expiresIn')}
-      </Text>
-      <Input ref={codeRef} label="field.code" variant="code" value={code} onChangeText={setCode} maxLength={6} />
-      <Button
-        label="action.verify"
-        ready={ready}
-        reason="auth.ready.code"
-        onNotReady={() => {
-          focusOn(codeRef.current);
-        }}
-        onPress={() => {
-          useSessionStore.getState().signIn();
-        }}
-      />
-    </View>
+    <CodeStep
+      testIDPrefix="verify"
+      verify={async (code) => {
+        const tokens = await authApi.verifyCode({ email, code });
+        await signInWithTokens(tokens);
+        return true;
+      }}
+      resend={async () => (await authApi.resendCode({ email })).meta}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  stack: { gap: spacing.base, alignSelf: 'stretch' },
-});

@@ -18,6 +18,7 @@ export default defineConfig(
             'eslint.config.mjs',
             'scripts/capture-ui-matrix.mjs',
             'scripts/capture-web-matrix.mjs',
+            'scripts/capture-web-auth-live.mjs',
           ],
         },
         tsconfigRootDir: import.meta.dirname,

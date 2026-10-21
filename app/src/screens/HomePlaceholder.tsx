@@ -7,12 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Text } from '../components';
 import { t } from '../i18n/en';
 import { focusOn } from '../lib/a11y';
-import { useSessionStore } from '../state/session';
+import { useAuthSession } from '../state/auth-session';
 import { colors, spacing } from '../theme/tokens';
 
 export function HomePlaceholder() {
-  const signOut = useSessionStore((state) => state.signOut);
-  const openGallery = useSessionStore((state) => state.openGallery);
+  const signOut = useAuthSession((state) => state.signOut);
+  const openGallery = useAuthSession((state) => state.openGallery);
   const headingRef = useRef<TextInstance>(null);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function HomePlaceholder() {
           {t('home.placeholder.body')}
         </Text>
         <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
-        <Button label="action.signOut" variant="ghost" onPress={signOut} />
+        <Button label="action.signOut" variant="ghost" onPress={() => { void signOut(); }} />
       </View>
     </SafeAreaView>
   );

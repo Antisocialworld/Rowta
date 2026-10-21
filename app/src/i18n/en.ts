@@ -44,6 +44,16 @@ export const en = {
   'auth.field.required': 'This field is required.',
   'auth.deleteOwner.blocked': 'Transfer or delete your team first.',
   'generic.error': 'Something went wrong. Try again.',
+  // Server 422 field codes (routes.ts fieldCode) that are not PRD-11 rows above, and the 429
+  // countdown line. The countdown is VISUAL only — the announcement is the fixed auth.rateLimited
+  // line above, so screen readers are not spammed every second.
+  'validation.invalid': 'This value is not valid.',
+  'validation.unknown_field': 'This field is not expected here.',
+  'validation.too_long': 'Use fewer characters.',
+  'validation.name_invalid': "Use letters, numbers, spaces, apostrophes or hyphens.",
+  'validation.country': 'Choose a country from the list.',
+  'auth.countries.unavailable': 'The country list could not be loaded.',
+  'auth.rateLimit.retryIn': 'Try again in {seconds} seconds.',
 
   // ---------------------------------------------------------------- view chrome (PRD 6.1: title + heading per view)
   'auth.view.signIn.title': 'Sign in',
@@ -124,6 +134,12 @@ export const en = {
 
 export type MessageKey = keyof typeof en;
 export type Messages = typeof en;
+
+/** Runtime guard for values that arrive as strings (server field codes): unknown keys fall back
+ *  to generic.error instead of ever rendering raw server text (V5, U8). */
+export function isMessageKey(key: string): key is MessageKey {
+  return Object.prototype.hasOwnProperty.call(en, key);
+}
 
 /** Params are substituted for {name} placeholders. Unknown keys are impossible: MessageKey is a union. */
 export function t(key: MessageKey, params?: Record<string, string | number>): string {
