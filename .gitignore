@@ -56,3 +56,26 @@ server/prisma/generated/
 !package-lock.json
 rowta-old-backup/
 rowta-scaffold*
+
+# ---- Agent context and non-functional notes ----
+# These are planning/context only. Nothing in /app /server /shared /web /scripts reads them
+# (verified by grep across all code files: the only references are code COMMENTS citing them).
+# README.md, LICENSE, docs/SECURITY.md and every docs/legal/*.md are deliberately NOT listed here —
+# docs/legal/*.md are read at build/test time by web/build.mjs, web/src/pages.mjs,
+# web/src/landing.mjs and web/tests/test-content-safety.mjs.
+# NOTE: .gitignore has no effect on files that are ALREADY TRACKED. The owner must run
+# `git rm --cached <path>` for each entry below to actually stop tracking it.
+#
+# Agent context folders (no other agent-tool folder exists today: no .claude, .cursor,
+# .windsurf, .gemini, .antigravity, .github/copilot-instructions, docs-for-agents).
+.agents/
+#
+# Agent-facing markdown in /docs (explicit paths; no blanket *.md, no negations).
+docs/AGENT-PROMPT.md
+docs/AGENT-SETUP.md
+docs/BUILD-PROGRESS.md
+docs/LEARNING-LOG.md
+docs/TAX-NOTES.md
+# Deliberately kept tracked (owner decision, 21 Oct 2026): AGENTS.md, docs/gates/*,
+# docs/decisions/*, docs/a11y/*, docs/stores/*, docs/BRANDING.md, docs/DATABASE.md,
+# docs/DEPLOY.md, docs/SETUP.md, README.md, LICENSE, docs/SECURITY.md, docs/legal/*.
