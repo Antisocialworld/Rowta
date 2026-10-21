@@ -104,6 +104,7 @@ parser + entry mapping, live e2e **45/45 × 3 runs** (`app/scripts/e2e-auth.ts`,
 `docs/gates/evidence-phase-2-app-e2e.txt`), 10 web screenshots (`docs/ui-matrix/auth-*-p2.png`), TalkBack checklist
 `docs/a11y/auth-page.md` (device pass pending). ADRs 0007–0010; `docs/SECURITY.md` threats 1/2/7 + §5 rewritten;
 evidence `docs/gates/phase-2.md`. Next: the `/magic` and `/invite` web fallback pages (PRD 8.1 — small task), then
-Phase 3 (teams, roles, invites). The Phase 1 P7-guarded session stub (`app/src/state/session.ts`) is now fully
-dead code — kept in place, owner decides removal. Work happens on branch `rowta-1`;
+Phase 3 (teams, roles, invites). The Phase 1 P7-guarded session stub (`app/src/state/session.ts`) and its
+`test-session-guard.ts` were REMOVED 2026-10-21 once the real session store replaced them (proof and run:
+`docs/gates/phase-2.md` §9d, `docs/SECURITY.md` §3 removal note). Work happens on branch `rowta-1`;
 the owner does all git writes. Update this line at the end of each phase.

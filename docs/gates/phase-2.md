@@ -4,10 +4,10 @@ State: **passed** — server slice (Prompt 6 + the Phase 2b fixes: reworked A7 t
 strict ≤ 1.25 ratio on all three failure-path pairs after the same-day ADR 0010 decoy-row
 escalation, 9 concurrency tests over 10 rounds each, failure-modes table) **and** app views
 (Prompt 7: AuthPage on the real API, secure-store token store, TanStack Query, deep links,
-45/45 live e2e × 3 runs, 10 web screenshots). The Phase 1 session stub is now fully dead
-code (P7 guard kept, `app/src/state/session.ts`). Remaining Phase 2 items listed in §12:
-the `/magic` + `/invite` web fallback pages (next small task) and on-device passes.
-Branch: `rowta-1`. Date: 2026-10-20. Full-build mode. Owner does all git work (P1).
+45/45 live e2e × 3 runs, 10 web screenshots). The Phase 1 session stub was fully dead and has
+been REMOVED (2026-10-21 — §9d; the real session store replaced it). Remaining Phase 2 items
+listed in §12: the `/magic` + `/invite` web fallback pages (next small task) and on-device passes.
+Branch: `rowta-1`. Date: 2026-10-20 (stub removal 2026-10-21). Full-build mode. Owner does all git work (P1).
 
 Every claim below was produced by the command shown, on this machine, at gate time. "not verified"
 means exactly that.
@@ -213,14 +213,36 @@ files stay intact; NOT Android (the PRD 6.3 size matrix remains the later emulat
 |---|---|
 | `npm run -w @rowta/app typecheck` | 0 errors (`tsc --noEmit`; `allowImportingTsExtensions` + `noEmit` added for the shared-workspace `.ts` imports) |
 | `npm run -w @rowta/app lint` | exit 0 — eslint + UI TOKEN GATE (74 files) + STRING GATE (41) + A11Y GATE (41) |
-| `npm exec --workspace @rowta/app -- tsx scripts/test-token-store.ts` | 36/36 |
-| `npm exec --workspace @rowta/app -- tsx scripts/test-api-client.ts` | 12/12 |
+| `npm exec --workspace @rowta/app -- tsx scripts/test-token-store.ts` | 12 PASS (counted 2026-10-21; the original row said 36 — transcription swap, corrected) |
+| `npm exec --workspace @rowta/app -- tsx scripts/test-api-client.ts` | 36 PASS (counted 2026-10-21; the original row said 12 — transcription swap, corrected) |
 | `npm exec --workspace @rowta/app -- tsx scripts/test-auth-session.ts` | 24/24 |
 | `npm exec --workspace @rowta/app -- tsx scripts/test-auth-machine.ts` | 20/20 |
 | `npm exec --workspace @rowta/app -- tsx scripts/test-deep-links.ts` | 22/22 |
 | `npm exec --workspace @rowta/app -- tsx scripts/test-auth-entry-paths.ts` | 11/11 |
-| `npm exec --workspace @rowta/app -- tsx scripts/test-session-guard.ts` | 2/2 |
+| `npm exec --workspace @rowta/app -- tsx scripts/test-session-guard.ts` | 2/2 at gate time — **script and stub REMOVED 2026-10-21 (§9d)**; no longer part of the runnable list |
 | `node scripts/test-ui-tokens-gate.mjs` | 4/4 (Option 1 probes) |
+
+### 9d. Phase 1 session stub removal (2026-10-21, owner-directed)
+
+Why: `app/src/state/session.ts` (the Phase 1 P7-guarded dev-only session stub) had no app-code
+consumers after Prompt 7 — `git grep` for `state/session` / `test-session-guard` showed only the
+stub itself, its own test (`app/scripts/test-session-guard.ts`), a comment in `auth-session.ts`
+and docs. The real store (`app/src/state/auth-session.ts`: expo-secure-store tokens, single-flight
+refresh, server decides — S5) replaced it, so the stub and its guard test were dead code.
+
+| Action | Evidence |
+|---|---|
+| Deleted `app/src/state/session.ts` and `app/scripts/test-session-guard.ts` | `Test-Path` false for both after `Remove-Item`; repo-wide grep afterwards finds no code reference |
+| No package.json script ran it | `app/package.json` scripts = typecheck / lint / check:a11y only |
+| `auth-session.ts` header comment updated | no longer claims the stub's guard "stays" |
+| `docs/SECURITY.md` §3 row | replaced with the removal note (threat/P7 row kept — payment simulator row still active) |
+| Suites re-run after removal | see the row below — typecheck, lint and all six remaining script suites green |
+
+Post-removal run (2026-10-21): `npm run -w @rowta/app typecheck` 0; `npm run -w @rowta/app lint`
+exit 0; `test-token-store` 12 PASS / 0 FAIL; `test-api-client` 36 PASS / 0 FAIL;
+`test-auth-session` 24; `test-auth-machine` 20; `test-deep-links` 22; `test-auth-entry-paths` 11;
+`test-ui-tokens-gate` 4/4 probes — every exit code 0. History in §9c and `docs/gates/phase-1.md`
+§36 is left untouched apart from the two count corrections noted in §9c — those runs happened.
 
 ## 10. ADRs and docs written with this slice
 

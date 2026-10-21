@@ -12,8 +12,8 @@
 //   failure during refresh does NOT sign anyone out — the request surfaces its own transport error.
 // - The server decides (S5): this store never derives "signed in" from anything but the presence of
 //   a stored pair; every real check (me, permissions, roles) happens server-side.
-// - The dev gallery flag (home | gallery) moved here from the Phase 1 stub, which now has no
-//   consumers (its P7 release guard stays, proven by scripts/test-session-guard.ts).
+// - The dev gallery flag (home | gallery) moved here from the Phase 1 stub; that stub was REMOVED
+//   once this store replaced it (docs/SECURITY.md section 3, session-removal note).
 import { create } from 'zustand';
 import { ApiError, authApi, setApiRuntime } from '../lib/api';
 import { singleFlight } from '../lib/single-flight';

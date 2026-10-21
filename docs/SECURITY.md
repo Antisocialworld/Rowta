@@ -23,7 +23,7 @@ State: skeleton. Each section is filled with evidence as its phase is completed.
 | Item | Guard | Status |
 |---|---|---|
 | Payment simulator (`PAYMENT_SIMULATOR_ENABLED`) | startup check | not built |
-| Phase 1 session stub (`app/src/state/session.ts`) | throws at import when `__DEV__ === false` (React Native release builds set it false — the app-side equivalent of this rule's `NODE_ENV=production`); proven by `npm exec --workspace @rowta/app -- tsx scripts/test-session-guard.ts` | built in Phase 1 step 3; the Phase 2 **server** auth API is live (13 `/auth/*` endpoints, `docs/gates/phase-2.md`) — the app wiring (secure-store + TanStack Query, server decides — S5) is the next step and still replaces this stub. It authenticates nothing and must never ship in a release build. |
+| Phase 1 session stub (`app/src/state/session.ts`) | was: throws at import when `__DEV__ === false` (React Native release builds set it false — the app-side equivalent of this rule's `NODE_ENV=production`); proven by `npm exec --workspace @rowta/app -- tsx scripts/test-session-guard.ts` (2/2 at the Phase 2 gate) | **REMOVED** (2026-10-21): the real session store (`app/src/state/auth-session.ts` — expo-secure-store tokens, single-flight refresh, server decides — S5) replaced it and nothing imported the stub any more (`git grep` showed only its own test and docs). No release-build guard is needed for it any more because no stub exists — the P7 obligation ends with the dev-only code it guarded; the payment simulator row above keeps P7 live for the app. Evidence: `docs/gates/phase-2.md` §9c (removal note), `docs/BUILD-PROGRESS.md` session log. |
 
 ## 4. The 8 threats
 
