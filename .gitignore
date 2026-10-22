@@ -69,6 +69,10 @@ rowta-scaffold*
 # Agent context folders (no other agent-tool folder exists today: no .claude, .cursor,
 # .windsurf, .gemini, .antigravity, .github/copilot-instructions, docs-for-agents).
 .agents/
+# Top-level agent context file (owner decision, 22 Oct 2026 — supersedes the 21 Oct decision to
+# keep it tracked). Already tracked, so this line alone does nothing until the owner runs
+# `git rm --cached AGENTS.md` (see the NOTE above).
+AGENTS.md
 #
 # Agent-facing markdown in /docs (explicit paths; no blanket *.md, no negations).
 docs/AGENT-PROMPT.md
@@ -76,6 +80,6 @@ docs/AGENT-SETUP.md
 docs/BUILD-PROGRESS.md
 docs/LEARNING-LOG.md
 docs/TAX-NOTES.md
-# Deliberately kept tracked (owner decision, 21 Oct 2026): AGENTS.md, docs/gates/*,
-# docs/decisions/*, docs/a11y/*, docs/stores/*, docs/BRANDING.md, docs/DATABASE.md,
-# docs/DEPLOY.md, docs/SETUP.md, README.md, LICENSE, docs/SECURITY.md, docs/legal/*.
+# Deliberately kept tracked (owner decision, 21 Oct 2026): docs/gates/*, docs/decisions/*,
+# docs/a11y/*, docs/stores/*, docs/BRANDING.md, docs/DATABASE.md, docs/DEPLOY.md, docs/SETUP.md,
+# README.md, LICENSE, docs/SECURITY.md, docs/legal/*.
