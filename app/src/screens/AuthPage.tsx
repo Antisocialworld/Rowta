@@ -8,8 +8,10 @@
 // views with a field focus their first input themselves on mount.
 //
 // Logo: the lettered blue-tile book from brand-source/logo.svg, shown via the app asset that pipeline builds
-// from it (app/assets/app-icon-1024.png, BRANDING section 5) — no redraw, no recolour. 160 px, or 120 px when
-// the window is narrower than 360 px (item 2), centred, accessible name from the catalog (brand.logo = "Rowta").
+// from it (app/assets/logo-rounded.png — the SVG rasterised WITHOUT flattening, so the rx=38/160 rounded
+// corners stay transparent and the auth screen matches the landing page; BRANDING section 5, item B of
+// 22 Oct 2026). No redraw, no recolour. 160 px, or 120 px when the window is narrower than 360 px (item 2),
+// centred, accessible name from the catalog (brand.logo = "Rowta").
 //
 // Desktop/web (item 5): the page centres the card, the card is width 100% with maxWidth 400 and large padding;
 // nothing stretches past the viewport, the page background stays color-surface, phone widths are untouched.
@@ -35,7 +37,8 @@ import { t } from '../i18n/en';
 import { focusOn } from '../lib/a11y';
 import { AUTH_VIEWS, isFormView, useAuthViewStore, type AuthView } from '../state/auth-view';
 import { colors, spacing } from '../theme/tokens';
-import logoSource from '../../assets/app-icon-1024.png';
+import { CONTENT_MAX_WIDTH } from '../theme/layout';
+import logoSource from '../../assets/logo-rounded.png';
 import { AcceptInviteView } from './auth/AcceptInviteView';
 import { ForgotView } from './auth/ForgotView';
 import { MagicConfirmView } from './auth/MagicConfirmView';
@@ -62,7 +65,6 @@ const VIEWS_BY_NAME = {
 
 const VIEWS: Record<AuthView, () => ReactElement> = VIEWS_BY_NAME;
 
-const CARD_MAX_WIDTH = 400;
 const LOGO_DEFAULT = 160;
 const LOGO_COMPACT = 120;
 const PHONE_NARROW = 360;
@@ -140,8 +142,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors['color-surface'] },
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: Number(spacing.base) },
-  topRow: { width: '100%', maxWidth: CARD_MAX_WIDTH, alignItems: 'flex-start', marginBottom: Number(spacing.small) },
-  card: { width: '100%', maxWidth: CARD_MAX_WIDTH, alignItems: 'center' },
+  topRow: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignItems: 'flex-start', marginBottom: Number(spacing.small) },
+  card: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignItems: 'center' },
   heading: { textAlign: 'center' },
   message: { textAlign: 'center' },
 });

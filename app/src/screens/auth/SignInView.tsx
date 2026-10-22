@@ -1,7 +1,7 @@
 // SignInView — the SIGN IN form of the one AuthPage card (PRD 6.1 "sign in"; Phase 2: the real API).
 // U7: the email field takes focus on mount (and again whenever the state switches back to signIn).
-// X14: ready only when the email looks like an address and the password is non-empty; not-ready keeps
-// the button focusable and moves focus back to the email field with the reason announced.
+// X14/V6: readiness IS the shared signInSchema (V1, V7: email shape + non-empty password, never a
+// strength rule); not-ready keeps the button focusable and moves focus back to the email field.
 // Phase 2: submit calls POST /auth/signin (shared schema validates first, V1). Tokens go to the
 // session store (A11); the uniform unverified prompt carries the server's remaining-SECONDS meta and
 // lands on verifyCode with the PRD-11 line (A9). Failures map codes to catalog keys — the server's
@@ -12,7 +12,7 @@ import { Button, Input, LinkButton, LiveRegion, Text } from '../../components';
 import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
-import { isEmailLike } from '../../lib/validation';
+import { signInReady } from '../../lib/validation';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthForm } from '../../state/auth-form';
 import { useAuthSession } from '../../state/auth-session';
@@ -28,7 +28,7 @@ export function SignInView() {
   const emailRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const ready = isEmailLike(email) && password.length > 0;
+  const ready = signInReady(email, password);
 
   useEffect(() => {
     focusOn(emailRef.current);

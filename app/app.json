@@ -15,6 +15,9 @@
     "plugins": [
       ["expo-splash-screen", { "image": "./assets/splash.png", "backgroundColor": "#292da3" }],
       ["expo-notifications", { "icon": "./assets/notification-icon.png" }]
-    ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
   }
 }

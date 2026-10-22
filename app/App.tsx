@@ -13,12 +13,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Root } from './src/Root';
 // Registers the platform token store with the session layer BEFORE any restore() can run (A11 wiring).
 import './src/lib/token-platform';
+import { hideNativePasswordReveal } from './src/platform/web-native-reveal';
 import { parseDeepLink } from './src/lib/deep-links';
 import { useAuthFlow } from './src/state/auth-context';
 import { useAuthSession } from './src/state/auth-session';
 import { AUTH_ENTRY, useAuthViewStore } from './src/state/auth-view';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+// Web only (X1, item D): hide Edge/Chromium's native password-reveal button so the kit's labelled toggle
+// is the single control. No-op on Android/iOS.
+hideNativePasswordReveal();
 
 /** Linking (PRD 8.1, A13): a parsed link stores its token in MEMORY (never a query string, never a
  *  log line) and enters the matching AuthPage state. Strict parsing: an unexpected URL changes

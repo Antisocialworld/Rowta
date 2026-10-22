@@ -8,6 +8,9 @@
 // Scrim:   colour-scrim token dimmed with state.disabledContent — the design system ships a scrim COLOUR but no
 //         scrim alpha, so the closest accepted state opacity is used and the gap is reported, never invented (U5).
 // Gesture: no drag-to-dismiss; every dismissal has a BUTTON (scrim tap, close control, Android back — X11).
+// Width:   the sheet is width 100% capped at CONTENT_MAX_WIDTH and centred, so on a wide desktop viewport it
+//          matches the auth card's column instead of spanning the browser (phones stay full width); title,
+//          children and full-width buttons all live inside the sheet's horizontal padding either way.
 // Props: visible, onClose, titleKey (optional heading), initialFocusRef, children, testID.
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -21,7 +24,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { colors, shape, spacing, state } from '../theme/tokens';
-import { MIN_TOUCH_TARGET, TOUCH_SLOP, iconSize } from '../theme/layout';
+import { MIN_TOUCH_TARGET, TOUCH_SLOP, CONTENT_MAX_WIDTH, iconSize } from '../theme/layout';
 import { elevated } from '../theme/shadows';
 import { motion } from '../theme/motion';
 import { focusOn, useReducedMotion } from '../lib/a11y';
@@ -115,9 +118,10 @@ const styles = StyleSheet.create({
   scrim: StyleSheet.absoluteFill,
   sheet: {
     position: 'absolute',
-    left: 0,
-    right: 0,
     bottom: 0,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
     borderTopLeftRadius: shape.extraLarge,
     borderTopRightRadius: shape.extraLarge,
     paddingHorizontal: spacing.base,

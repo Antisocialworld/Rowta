@@ -1,15 +1,16 @@
 // ForgotView — the FORGOT PASSWORD form of the one AuthPage card (PRD 6.1; Phase 2: real API).
 // Enumeration-safe by construction (A5/A6): the same next view and the same message happen whether
 // or not the account exists — the uniform auth.forgot.submitted line carries to resetCode together
-// with the server's remaining-SECONDS code timers (A9). X14: ready at an email-shaped address with
-// reason auth.ready.forgot; failures map to catalog keys (V5), a 429 shows its countdown (S14i).
+// with the server's remaining-SECONDS code timers (A9). X14/V6: readiness IS the shared
+// forgotSchema (V1: email shape only) with reason auth.ready.forgot; failures map to catalog keys
+// (V5), a 429 shows its countdown (S14i).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 import { Button, Input, LinkButton, LiveRegion, Text } from '../../components';
 import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
-import { isEmailLike } from '../../lib/validation';
+import { forgotReady } from '../../lib/validation';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthForm } from '../../state/auth-form';
 import { useAuthViewStore } from '../../state/auth-view';
@@ -22,7 +23,7 @@ export function ForgotView() {
   const form = useAuthForm();
   const emailRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
-  const ready = isEmailLike(email);
+  const ready = forgotReady(email);
 
   useEffect(() => {
     focusOn(emailRef.current);

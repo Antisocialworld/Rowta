@@ -1,7 +1,7 @@
 // MagicRequestView — PRD 6.1 step "magic link request" (reached from the sign-in form's "Email me a
 // sign-in link" text link; heading rendered by the page).
 // Enumeration-safe (A5/A6): the same next view and message whether or not the account exists.
-// X14: ready at an email-shaped address with reason auth.ready.forgot.
+// X14/V6: readiness IS the shared magicRequestSchema (V1: email shape only), reason auth.ready.forgot.
 // Phase 2: submit calls POST /auth/magic/request; success carries auth.magic.submitted plus the
 // email (for resend contexts) to magicSent. Failures map codes to catalog keys (V5); 429 counts down.
 import { useEffect, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import { Button, Input, LiveRegion, Text } from '../../components';
 import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
-import { isEmailLike } from '../../lib/validation';
+import { magicRequestReady } from '../../lib/validation';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthForm } from '../../state/auth-form';
 import { useAuthViewStore } from '../../state/auth-view';
@@ -22,7 +22,7 @@ export function MagicRequestView() {
   const form = useAuthForm();
   const emailRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
-  const ready = isEmailLike(email);
+  const ready = magicRequestReady(email);
 
   useEffect(() => {
     focusOn(emailRef.current);

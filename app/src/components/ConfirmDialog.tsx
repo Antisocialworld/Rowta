@@ -8,11 +8,15 @@
 //           escape); the caller returns focus to whatever opened it inside onCancel/onConfirm.
 // Buttons:  both are Button components, so pressed/focus/busy/not-ready all come from the one implementation;
 //           cancel is never a "waiting" button and therefore never needs a reason.
+// Width:    the dialog is width 100% capped at CONTENT_MAX_WIDTH and centred inside the scrim padding, so on a
+//           wide desktop viewport it matches the auth card's column instead of spanning the browser (phones
+//           keep today's width: viewport minus the scrim padding).
 // Props:    visible, titleKey, messageKey, confirmLabel, cancelLabel, destructive, busy, onConfirm, onCancel,
 //           testID.
 import { useEffect, useRef } from 'react';
 import { Modal, Pressable, StyleSheet, View, type TextInstance } from 'react-native';
 import { colors, shape, spacing, state } from '../theme/tokens';
+import { CONTENT_MAX_WIDTH } from '../theme/layout';
 import { focusOn } from '../lib/a11y';
 import { t, type MessageKey } from '../i18n/en';
 import { Button } from './Button';
@@ -91,6 +95,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.extraLarge,
   },
   dialog: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
     borderRadius: shape.large,
     padding: spacing.extraLarge,
     gap: spacing.medium,

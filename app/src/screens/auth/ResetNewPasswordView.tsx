@@ -1,18 +1,20 @@
 // ResetNewPasswordView — PRD 6.1 step "new password" inside the AuthPage card (Phase 2: real API).
 // The server hashes with Argon2id (A1). PRD 8.1: the polite LiveRegion announces "Use at least 8
-// characters." while the user types (X3). X14: ready at >= 8 characters with a matching confirmation,
-// reason auth.ready.resetNew.
+// characters." while the user types (X3), at the ONE shared PASSWORD_MIN_LENGTH (V1). X14/V6:
+// readiness IS the shared resetNewPasswordSchema (V1) — password at the shared minimum plus an
+// identical confirmation, grant from the flow context — reason auth.ready.resetNew.
 // Phase 2: submit carries the 10-minute GRANT from the flow context (A10) to POST /auth/reset; the
 // grant is single-use and is dropped with the rest of the code flow on success. Success SWITCHES to
 // signIn carrying auth.reset.done (PRD 11). A missing grant (a stray landing on this view) fails as
 // generic.error without any request — the token never appears on screen (A10, V5).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
+import { PASSWORD_MIN_LENGTH } from '@rowta/shared';
 import { Button, Input, LiveRegion, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
-import { PASSWORD_MIN } from '../../lib/validation';
+import { resetNewPasswordReady } from '../../lib/validation';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthForm } from '../../state/auth-form';
 import { useAuthViewStore } from '../../state/auth-view';
@@ -26,7 +28,7 @@ export function ResetNewPasswordView() {
   const firstRef = useRef<TextInputInstance>(null);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const ready = password.length >= PASSWORD_MIN && confirm === password && confirm.length > 0;
+  const ready = resetNewPasswordReady(grant, password, confirm);
   // TS 6.0 quirk: a string-literal union in a JSX children position is rejected as a single child; a typed
   // variable of the same MessageKey type is accepted (AuthPage does the same with the machine's message).
   const tooShortKey: MessageKey = 'auth.password.tooShort';
@@ -68,7 +70,7 @@ export function ResetNewPasswordView() {
         onChangeText={setConfirm}
         errorKey={confirm.length > 0 && confirm !== password ? 'auth.password.mismatch' : form.fieldError('confirm')}
       />
-      {password.length > 0 && password.length < PASSWORD_MIN ? (
+      {password.length > 0 && password.length < PASSWORD_MIN_LENGTH ? (
         <LiveRegion>{tooShortKey}</LiveRegion>
       ) : null}
       <Button

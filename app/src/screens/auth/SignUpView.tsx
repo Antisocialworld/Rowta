@@ -1,6 +1,7 @@
 // SignUpView — the CREATE ACCOUNT form of the one AuthPage card (PRD 6.1 "sign up"; Phase 2: real API).
-// X14: ready only when every field is filled, the password meets the 8-character minimum and the
-// confirmation matches; not-ready keeps the button focusable with auth.ready.signUp announced.
+// X14/V6: readiness IS the shared signUpSchema (V1) — name, email, country, password at the shared
+// minimum and an identical confirmation; not-ready keeps the button focusable with
+// auth.ready.signUp announced.
 // Country (PRD 8.1, S5): the SERVER owns the list — GET /auth/countries through TanStack Query —
 // rendered in a BottomSheet of button rows (no free text, no client-side country list). The field is
 // a labelled button whose accessible name carries the chosen country; choosing restores focus to it
@@ -16,7 +17,7 @@ import { BottomSheet, Button, Input, LinkButton, LiveRegion, Text } from '../../
 import { t, type MessageKey } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
-import { isEmailLike, PASSWORD_MIN } from '../../lib/validation';
+import { signUpReady } from '../../lib/validation';
 import { colors, shape, spacing } from '../../theme/tokens';
 import { MIN_TOUCH_TARGET, RING, iconSize } from '../../theme/layout';
 import { useAuthFlow } from '../../state/auth-context';
@@ -36,12 +37,7 @@ export function SignUpView() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
-  const ready =
-    name.trim().length > 0 &&
-    isEmailLike(email) &&
-    country.trim().length > 0 &&
-    password.length >= PASSWORD_MIN &&
-    confirm === password;
+  const ready = signUpReady(name, email, country, password, confirm);
 
   const countries = useQuery({ queryKey: ['auth', 'countries'], queryFn: authApi.countries });
   const countryName = countries.data?.find((item) => item.code === country)?.name ?? null;

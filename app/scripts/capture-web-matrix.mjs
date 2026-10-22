@@ -6,7 +6,9 @@
 // adb-based script scripts/capture-ui-matrix.mjs stays the Android path and still needs a connected device.
 //
 // What it drives: the same machine the app uses — state switches happen by pressing the real text LINKS inside
-// the card (item 3/4 of the rework): "Create account" and "Forgot password" from the sign-in form.
+// the card (item 3/4 of the rework): "Create account" and "Forgot password" from the sign-in form. After the
+// create-account form it also opens the country bottom sheet (error state — no API server needed) and captures
+// it at the same two sizes.
 //
 // Browser: the system Edge (or Chrome) via puppeteer-core — NO bundled Chromium download. Dev-only dependency,
 // pinned exactly in @rowta/app (puppeteer-core 25.14.0, Apache-2.0), never shipped in the app bundle.
@@ -22,6 +24,9 @@ import puppeteer from 'puppeteer-core';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ROOT, '..', 'docs', 'ui-matrix');
 const BASE_URL = process.env.ROWTA_WEB_URL ?? 'http://localhost:8082';
+// Optional filename suffix (e.g. ROWTA_MATRIX_SUFFIX=-before-fix) so a before/after pair of runs can be kept
+// side by side in docs/ui-matrix; the default run is the canonical evidence.
+const SUFFIX = process.env.ROWTA_MATRIX_SUFFIX ?? '';
 
 const VIEWPORTS = [
   { name: '360x800', width: 360, height: 800, isMobile: true },
@@ -113,9 +118,22 @@ async function main() {
           await new Promise((resolve) => setTimeout(resolve, 400));
         }
         await settle(page);
-        const file = path.join(OUT_DIR, `auth-${state.name}-${viewport.name}-web-render-not-android.png`);
+        const file = path.join(OUT_DIR, `auth-${state.name}-${viewport.name}-web-render-not-android${SUFFIX}.png`);
         await page.screenshot({ path: file });
         console.log(`saved ${path.relative(path.join(ROOT, '..'), file)}`);
+        if (state.name === 'create-account') {
+          // The country bottom sheet at the same two sizes. No API server is needed: the countries fetch fails
+          // and the sheet shows title + error + "Try again" — the wide-viewport case this evidence is for.
+          await page.click('[data-testid="field-country"]');
+          await page.waitForSelector('[data-testid="sheet-country"]', { timeout: 10_000 });
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          const sheetFile = path.join(
+            OUT_DIR,
+            `auth-create-account-country-sheet-${viewport.name}-web-render-not-android${SUFFIX}.png`,
+          );
+          await page.screenshot({ path: sheetFile });
+          console.log(`saved ${path.relative(path.join(ROOT, '..'), sheetFile)}`);
+        }
         await page.close();
       }
     }

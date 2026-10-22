@@ -174,11 +174,18 @@ const styles = StyleSheet.create({
   },
   // The text style comes from the design system; padding zeroes React Native's own field inset without writing
   // a number (Number(spacing.noSpacing) is the token's "0").
+  // Web (X5): kill the browser's default focus ring on the input itself (the inner black rectangle inside the
+  // field). The focus indicator stays the field border turning primary (borderColor above, >= 3:1 in
+  // docs/a11y/contrast.md). React Native's types allow only "solid" | "dotted" | "dashed" for outlineStyle —
+  // never "none" — so a zero-width solid outline is the typed equivalent of outline-style: none; native
+  // ignores outline* entirely, so Android/iOS are unaffected.
   input: {
     ...typeStyle('body-large'),
     flex: 1,
     padding: Number(spacing.noSpacing),
     color: colors['color-on-surface'],
+    outlineStyle: 'solid',
+    outlineWidth: 0,
   },
   toggle: {
     minWidth: MIN_TOUCH_TARGET,
