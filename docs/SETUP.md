@@ -18,12 +18,33 @@ node scripts/setup-env.mjs --audit-example   # fails if .env.example holds a val
 | Names | From | Needed for |
 |---|---|---|
 | `FLW_PUBLIC_KEY`, `FLW_SECRET_KEY`, `FLW_ENCRYPTION_KEY`, `FLW_WEBHOOK_SECRET_HASH` | your Flutterwave dashboard, TEST mode keys only | real test-mode checkout (Phase 7). Without them the development-only simulator proves the flow. |
-| `SMTP_USER`, `SMTP_PASSWORD` (and `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `MAIL_FROM`) | your email provider | real email delivery. Without them, mail goes to the local catcher (Mailpit) and nothing leaves your computer. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `MAIL_FROM` (+ optional `SMTP_USER`, `SMTP_PASSWORD`) | your email provider (see §2b) | real email delivery. There is no local mail catcher — the server sends through your provider's real SMTP. |
 | `EXPO_ACCESS_TOKEN` | your Expo account | authenticated push sends (optional) |
 | `SENTRY_DSN_SERVER`, `EXPO_PUBLIC_SENTRY_DSN` | Sentry project | error reporting (optional) |
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | EAS project | Android development build (Phase 12) |
 
 Use a test Flutterwave account, not live keys. If a key is ever exposed, rotate it in the provider dashboard first.
+
+## 2b. SMTP (real email; owner decision 22 Oct 2026)
+
+Rowta sends email with nodemailer over your provider's real SMTP server. There is no local mail
+catcher.
+
+| Name | What to paste |
+|---|---|
+| `SMTP_HOST` | the provider's SMTP hostname |
+| `SMTP_PORT` | the provider's SMTP port (often 465 or 587) |
+| `SMTP_SECURE` | `true` for implicit TLS (usually port 465), `false` otherwise (usually 587) |
+| `MAIL_FROM` | the From header the provider allows (usually a no-reply address on your own domain) |
+| `SMTP_USER` | the SMTP login, only if the provider requires authentication |
+| `SMTP_PASSWORD` | the SMTP password, only if the provider requires authentication |
+
+- Paste the values into `.env` BY HAND. `.env` is git-ignored and must never be committed, pasted
+  into chat, an issue, a pull request or a commit message; the scripts never print its values.
+- Manual check (sends exactly ONE email to the address you pass; you run it):
+  `node scripts/mail-test.mjs you@example.com`.
+- Automated tests NEVER open an SMTP connection: the server suite captures mail in process, and
+  the real transporter refuses to build under vitest. Real values can stay in `.env` while tests run.
 
 ## 3. Running locally
 
@@ -31,14 +52,15 @@ Docker Desktop must be running.
 
 ```
 node scripts/setup-env.mjs     # once, first
-docker compose up -d           # two PostgreSQL databases, Redis, local mail catcher (Mailpit)
-docker compose ps              # all four should be "healthy" or "running"
+docker compose up -d           # two PostgreSQL databases and Redis (email is NOT a container)
+docker compose ps              # all three should be "healthy"
 ```
 
-- Mail sent in development is caught by Mailpit; open `http://localhost:8025` (port from `MAILPIT_UI_PORT`) to read it. Nothing leaves your computer.
 - Every port binds to 127.0.0.1 only.
 - Do NOT run `docker compose config` and paste the output anywhere: it prints your secrets.
-- The compose file was syntax-checked and its variable guard tested. Verified 2026-10-19: all four containers start and report healthy (two PostgreSQL 16, Redis 7, Mailpit v1.31.6).
+- The compose file was syntax-checked and its variable guard tested. Verified 2026-10-19 with all
+  four then-existing containers healthy; the mail catcher was REMOVED 2026-10-22 (owner decision —
+  §2b), so `docker compose up -d` now starts three; owner re-run confirms.
 
 ## 4. Databases (schema, self-tests, Prisma)
 
@@ -84,8 +106,8 @@ npm run worker:dev --workspace @rowta/server   # worker
 - `GET http://localhost:3000/health` reports the process is up.
 - `GET http://localhost:3000/health/deep` additionally pings Redis and both databases, returning
   pass/fail per dependency. In production this route should sit behind the load balancer only.
-- Email proof (requires Mailpit from §3): `node scripts/mail-test.mjs` — sends one message through
-  SMTP and confirms it arrived in Mailpit, printing only the subject match and recipient count.
+- Email proof (your own mailbox, exactly one message): `node scripts/mail-test.mjs you@example.com` —
+  the owner runs it; it prints only pass/fail and the accepted-recipient count (§2b).
 - Server smoke test (boots the real HTTP server in-process, no background process left behind):
   `npx tsx scripts/server-smoke.mjs`.
 

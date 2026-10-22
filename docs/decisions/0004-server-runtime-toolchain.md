@@ -72,6 +72,11 @@ delivery end to end via Mailpit's HTTP API. Mailpit has no `DELETE /api/v1/messa
 single deletes go through `DELETE /api/v1/messages` with `{"IDs":["<id>"]}` (verified against the
 Mailpit server route table and a live 405).
 
+**SUPERSEDED 22 Oct 2026 (owner decision):** Mailpit is removed. Email is nodemailer over the
+owner's REAL SMTP provider; the automated tests capture mail in process and the real transporter
+refuses to build under vitest; `scripts/mail-test.mjs` sends exactly ONE message to a recipient
+given as an argument. The Mailpit facts above are kept only as the history of the Phase 0 gate.
+
 ## Consequences
 
 - All versions are pinned exactly; bumping any one requires re-running typecheck, lint, tests, the

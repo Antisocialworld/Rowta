@@ -2,7 +2,9 @@
 //
 // Everything here talks to the REAL local Docker stack: PostgreSQL via src/db/clients.ts, Redis
 // via src/jobs/queues.ts, the email queue through an in-process Worker running the SAME
-// processEmailJob the real worker registers, and Mailpit over its HTTP API (never a fake mailbox).
+// processEmailJob the real worker registers, and an in-process mail CAPTURE (owner decision
+// 22 Oct 2026: Mailpit removed; automated tests never open an SMTP connection — the real
+// transporter refuses to build under vitest).
 //
 // Country fixture: `currencies`/`countries` ship EMPTY by design (010-global.sql line 4; PRD 5 Q12
 // seeds them from cited sources in the payments phase). Sign-up checks membership in `countries`
@@ -13,11 +15,16 @@ import { randomUUID } from 'node:crypto';
 import type { Hono } from 'hono';
 import { Worker } from 'bullmq';
 import { createApp } from '../../src/index.ts';
-import { env } from '../../src/config/env.ts';
 import { logger } from '../../src/lib/logger.ts';
 import { closeAllQueues, createRedisConnection } from '../../src/jobs/queues.ts';
 import { closeAllDatabases, globalDb } from '../../src/db/clients.ts';
-import { closeMailTransport } from '../../src/mail/transport.ts';
+import {
+  clearMailCapture,
+  closeMailTransport,
+  mailCaptureSnapshot,
+  startMailCapture,
+  stopMailCapture,
+} from '../../src/mail/transport.ts';
 import { closeRateLimitRedis } from '../../src/security/rate-limit.ts';
 import { processEmailJob } from '../../src/jobs/email/processor.ts';
 import type { EmailJobData } from '../../src/jobs/email/types.ts';
@@ -150,75 +157,64 @@ export async function startEmailWorker(): Promise<Worker> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Mailpit HTTP API (local mail catcher): tests read the REAL delivered message.
+// In-process mail capture (owner decision 22 Oct 2026: tests never open SMTP). The capture is
+// installed at import — before any test or in-process worker can send — and the processor builds
+// every message for real (real code, real link); only the final hand-off is recorded locally.
 // ---------------------------------------------------------------------------------------------
 
-const MAILPIT = `http://127.0.0.1:${env.MAILPIT_UI_PORT}`;
+startMailCapture();
 
-interface MailpitSummary {
-  ID: string;
-  Subject: string;
-  To: unknown;
+/** Empty the capture — each auth file's beforeAll, where the old Mailpit inbox clear was. */
+export async function mailCaptureClear(): Promise<void> {
+  clearMailCapture();
 }
 
-interface MailpitFull {
-  ID: string;
-  Subject: string;
-  Text: string;
-  HTML: string;
-}
-
-export async function mailpitClear(): Promise<void> {
-  await fetch(`${MAILPIT}/api/v1/messages`, { method: 'DELETE' });
-}
-
-export async function mailpitSummaries(): Promise<MailpitSummary[]> {
-  const res = await fetch(`${MAILPIT}/api/v1/messages?limit=100`);
-  const body = (await res.json()) as { messages?: MailpitSummary[] };
-  return body.messages ?? [];
-}
-
-function addressesOf(entry: unknown): string[] {
-  if (typeof entry === 'string') return [entry];
-  if (Array.isArray(entry)) {
-    return entry.flatMap((one) => {
-      if (typeof one === 'string') return [one];
-      const address = (one as { Address?: unknown }).Address;
-      return typeof address === 'string' ? [address] : [];
-    });
-  }
-  return [];
-}
-
-function deliveredTo(summary: MailpitSummary): string[] {
-  return addressesOf(summary.To).map((a) => a.toLowerCase());
-}
-
-/** How many messages were delivered to `address` (optionally with an exact subject). */
+/** How many captured messages went to `address` (optionally with an exact subject). */
 export async function countMailTo(address: string, subject?: string): Promise<number> {
-  const summaries = await mailpitSummaries();
-  return summaries.filter(
-    (s) => deliveredTo(s).includes(address.toLowerCase()) && (subject === undefined || s.Subject === subject),
+  const wanted = address.toLowerCase();
+  return mailCaptureSnapshot().filter(
+    (m) => m.to.toLowerCase() === wanted && (subject === undefined || m.subject === subject),
   ).length;
 }
 
-/** Wait until a message for `address` (optionally subject) is in Mailpit, then return it in full. */
-export async function waitForMail(address: string, subject?: string, timeoutMs = 15_000): Promise<MailpitFull> {
+/** One captured message as the tests read it (kind, recipient, subject, both bodies). */
+export interface CapturedMail {
+  kind: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}
+
+/** Every message captured so far (whole-inbox assertions, e.g. "no subject carries a digit"). */
+export function capturedMails(): readonly CapturedMail[] {
+  return mailCaptureSnapshot().map((m) => ({
+    kind: m.kind,
+    to: m.to,
+    subject: m.subject,
+    text: m.text,
+    html: m.html,
+  }));
+}
+
+/** Wait until a captured message matches, then return it in full. */
+export async function waitForMail(address: string, subject?: string, timeoutMs = 15_000): Promise<CapturedMail> {
+  const wanted = address.toLowerCase();
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const summaries = await mailpitSummaries();
-    const match = summaries.find(
-      (s) => deliveredTo(s).includes(address.toLowerCase()) && (subject === undefined || s.Subject === subject),
+    const match = mailCaptureSnapshot().find(
+      (m) => m.to.toLowerCase() === wanted && (subject === undefined || m.subject === subject),
     );
     if (match !== undefined) {
-      const res = await fetch(`${MAILPIT}/api/v1/message/${match.ID}`);
-      return (await res.json()) as MailpitFull;
+      return { kind: match.kind, to: match.to, subject: match.subject, text: match.text, html: match.html };
     }
     if (Date.now() > deadline) {
-      const seen = summaries.map((s) => `${s.Subject}<${deliveredTo(s).join(',')}>`).join(' | ');
-      throw new Error(`no Mailpit message for ${address} (subject ${subject ?? '*'}) within ${timeoutMs}ms; saw: ${seen}`);
+      const seen = mailCaptureSnapshot()
+        .map((m) => `${m.subject}<${m.to}>`)
+        .join(' | ');
+      throw new Error(`no captured message for ${address} (subject ${subject ?? '*'}) within ${timeoutMs}ms; saw: ${seen}`);
     }
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
 
@@ -258,10 +254,11 @@ export async function createVerifiedUser(
 export async function shutdownAuthTest(worker?: Worker): Promise<void> {
   await worker?.close().catch(() => undefined);
   await closeAllQueues();
-  // The limiter and the SMTP transport hold module-level connections of their own; each test file
-  // gets a fresh module registry, so close them here or the worker process would keep them open.
-  await closeRateLimitRedis();
+  // The limiter and the mail module hold module-level state of their own; each test file gets a
+  // fresh module registry, so close them here or the worker process would keep them open.
+  stopMailCapture();
   await closeMailTransport();
+  await closeRateLimitRedis();
   await redis.quit().catch(() => undefined);
   await cleanupTestCountries();
   await closeAllDatabases();

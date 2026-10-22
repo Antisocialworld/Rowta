@@ -92,11 +92,12 @@ const EnvObject = z.object({
   // At least 64 characters; rule A4 asks for >= 64 random bytes of signing material.
   JWT_ACCESS_SECRET: z.string().min(64, 'must be at least 64 characters (rule A4)'),
 
-  // ---- Email (nodemailer over SMTP; rule A13, PRD Q7) ------------------------------------------
+  // ---- Email (nodemailer over REAL SMTP; rule A13, PRD Q7; owner decision 22 Oct 2026) ------------
+  // There is no local mail catcher: the owner pastes provider values into .env by hand. Automated
+  // tests never open an SMTP connection (the mail module captures in process under vitest).
   SMTP_HOST: nonEmpty,
-  SMTP_PORT: intIn(1, 65535, 1025),
+  SMTP_PORT: intIn(1, 65535, 587),
   SMTP_SECURE: boolish(false),
-  MAILPIT_UI_PORT: intIn(1, 65535, 8025),
   MAIL_FROM: nonEmpty,
   // Login is only needed for a real SMTP server, so it stays optional here.
   SMTP_USER: z.string().optional().default(''),

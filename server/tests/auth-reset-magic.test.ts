@@ -1,4 +1,4 @@
-// Phase 2 password recovery and magic link (PRD 8.1, rules A6, A9, A10, A13 and the owner's
+﻿// Phase 2 password recovery and magic link (PRD 8.1, rules A6, A9, A10, A13 and the owner's
 // 5-minute magic-link override). Uniform responses, single-use codes and grants, single-winner
 // token consumption, POST-only magic consume, and byte-identical failures everywhere.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -20,7 +20,7 @@ import {
   dataOf,
   ensureTestCountries,
   errorOf,
-  mailpitClear,
+  mailCaptureClear,
   post,
   shutdownAuthTest,
   startEmailWorker,
@@ -48,7 +48,7 @@ let magicReplayBody = '';
 beforeAll(async () => {
   await clearRateKeys();
   await ensureTestCountries();
-  await mailpitClear();
+  await mailCaptureClear();
   worker = await startEmailWorker();
   app = testApp('auth-reset-magic');
 });
@@ -101,10 +101,10 @@ describe('forgot password (A6)', () => {
     // The unknown-address job ran FIRST (FIFO); once the known one delivered, job one is done.
     const mail = await waitForMail(knownForgotEmail, RESET_SUBJECT);
     expect(await countMailTo(unknownEmail)).toBe(0);
-    resetCode = codeFrom(mail.Text);
+    resetCode = codeFrom(mail.text);
     expect(resetCode).toMatch(/^\d{6}$/);
-    expect(mail.Subject).not.toMatch(/\d/);
-    expect(mail.Text).toContain('This code expires in 5 minutes.');
+    expect(mail.subject).not.toMatch(/\d/);
+    expect(mail.text).toContain('This code expires in 5 minutes.');
 
     // Resend inside 60 seconds: identical bytes, no second email.
     const resend = await post(app, '/auth/forgot/resend', { email: knownForgotEmail });
@@ -188,7 +188,7 @@ describe('reset password (A10)', () => {
     const forgot = await post(app, '/auth/forgot', { email });
     expect(forgot.status).toBe(200);
     const mail = await waitForMail(email, RESET_SUBJECT);
-    const verified = await post(app, '/auth/forgot/verify', { email, code: codeFrom(mail.Text) });
+    const verified = await post(app, '/auth/forgot/verify', { email, code: codeFrom(mail.text) });
     expect(verified.status).toBe(200);
     const grant = resetGrantResponseSchema.parse(await dataOf(verified)).grant;
 
@@ -232,12 +232,12 @@ describe('magic link (A13, owner override: 5 minutes)', () => {
 
     const mail = await waitForMail(magicEmail, MAGIC_SUBJECT);
     expect(await countMailTo(unknownMagicEmail)).toBe(0); // FIFO: the unknown job already ran
-    expect(mail.Subject).not.toMatch(/\d/);
+    expect(mail.subject).not.toMatch(/\d/);
     // OWNER OVERRIDE: the lifetime comes from the shared constant (300 s), the email says 5 minutes.
-    expect(mail.Text).toContain('The link expires in 5 minutes and works once.');
+    expect(mail.text).toContain('The link expires in 5 minutes and works once.');
     const prefix = env.PUBLIC_WEB_URL.replace(/\/+$/, '');
-    expect(mail.Text).toContain(`${prefix}/magic#`);
-    magicToken = tokenFromLink(mail.Text);
+    expect(mail.text).toContain(`${prefix}/magic#`);
+    magicToken = tokenFromLink(mail.text);
     expect(magicToken).toContain('.');
   });
 
@@ -267,7 +267,7 @@ describe('magic link (A13, owner override: 5 minutes)', () => {
     const request = await post(app, '/auth/magic/request', { email });
     expect(request.status).toBe(200);
     const mail = await waitForMail(email, MAGIC_SUBJECT);
-    const token = tokenFromLink(mail.Text);
+    const token = tokenFromLink(mail.text);
 
     const db = globalDb();
     const selector = token.split('.')[0] ?? '';

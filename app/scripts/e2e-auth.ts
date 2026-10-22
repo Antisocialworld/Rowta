@@ -1,14 +1,27 @@
 // LIVE E2E (rules A5/A6/A9/A11/A2x, S5): the app's REAL API client and session store against
-// the LIVE stack — API + worker + two PostgreSQL databases + Redis + Mailpit. It proves the
-// app<->server contract end to end: the server-owned country list, sign-up with an emailed code,
-// verify, sign-in (tokens AND the uniform unverified prompt), refresh rotation with family
-// revoke on reuse, the forgot/reset loop through an emailed grant, the magic link's single-use
-// token, logout-all revocation, uniform failure codes (A5/A6) and a 429 carrying Retry-After.
+// the LIVE stack — API + worker + two PostgreSQL databases + Redis. It proves the
+// app<->server contract end to end: the server-owned country list, uniform failure codes (A5/A6)
+// and a 429 carrying Retry-After, plus — WHILE THE EMAIL STEPS WERE ENABLED — sign-up with an
+// emailed code, verify, refresh rotation with family revoke on reuse, the forgot/reset loop and
+// the magic link's single-use token.
+//
+// STATUS (owner decision 22 Oct 2026 — Mailpit removed): the email-DEPENDENT steps below are
+// DISABLED. Automated tests capture mail in process and never open SMTP; this live harness had
+// its own mail catcher to read delivered codes/links from, and no catcher exists any more. Every
+// email-dependent step now throws emailStepDisabled() with the step name instead of silently
+// skipping, so the script cannot claim a green run it did not perform. Rework options: seed the
+// code/link rows directly (the unverified-user fixture already does this with the server's own
+// hashSecret), or hand the owner an interactive paste step. Until then the NON-email checks
+// (countries, uniform 422, 429 Retry-After, hygiene) still run.
+// NOTE: the remaining sign-up/resend/forgot/magic-request API calls still make the server ENQUEUE
+// email jobs; if the worker runs with real SMTP settings those sends reach the provider and will
+// bounce for the e2e.test addresses. Stop the worker for a bounce-free run of the non-email steps.
 //
 // Prerequisites (each checked; failures name the command to run):
-//   1. docker compose up -d                     -> db0, db1, redis, mail
+//   1. docker compose up -d                     -> db0, db1, redis
 //   2. npm run -w @rowta/server start           -> API on :3000
-//   3. npm run -w @rowta/server worker          -> email queue (codes and links reach Mailpit)
+//   3. npm run -w @rowta/server worker          -> email queue (needed again once the email
+//      steps are reworked; harmless while they throw)
 // Run from the repo root:
 //   npm exec --workspace @rowta/app -- tsx scripts/e2e-auth.ts
 // API URL: E2E_API_URL overrides the default http://127.0.0.1:3000 (loopback — the emulator
@@ -36,15 +49,12 @@ import { hashSecret } from '../../server/src/security/argon2.ts';
 
 process.env.EXPO_PUBLIC_API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3000';
 const apiUrl: string = process.env.EXPO_PUBLIC_API_URL;
-const mailBase = `http://127.0.0.1:${process.env.MAILPIT_UI_PORT ?? '8025'}`;
 
 let failures = 0;
 const check = (ok: boolean, label: string): void => {
   console.log(`${ok ? 'PASS' : 'FAIL'}: ${label}`);
   if (!ok) failures += 1;
 };
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function expectApiError(label: string, call: () => Promise<unknown>, match: (e: ApiError) => boolean): Promise<void> {
   try {
@@ -92,13 +102,6 @@ async function preflight(): Promise<void> {
     check(true, `preflight: API /health at ${apiUrl}`);
   } catch {
     throw new Error('E2E: API not reachable or unhealthy — start it with: npm run -w @rowta/server start');
-  }
-  try {
-    const response = await fetch(`${mailBase}/api/v1/messages?limit=1`);
-    if (!response.ok) throw new Error('Mailpit messages endpoint not ok');
-    check(true, `preflight: Mailpit at ${mailBase}`);
-  } catch {
-    throw new Error('E2E: Mailpit not reachable — run: docker compose up -d');
   }
 }
 
@@ -179,48 +182,17 @@ async function removeRunUsers(emails: readonly string[]): Promise<void> {
   }
 }
 
-// ---- Mailpit ------------------------------------------------------------------------------------
+// ---- email-dependent steps (DISABLED — Mailpit removed, owner decision 22 Oct 2026) ---------------
+// Every step that needed a DELIVERED email (the sign-up code, the prompt code, the reset code,
+// the magic link) throws here with the step name instead of silently skipping, so this script can
+// never claim a green run it did not perform. Rework note in the file header.
 
-type MailHit = { text: string; subject: string };
-
-/**
- * Poll Mailpit for the NEWEST mail to `to` created at/after `since` whose text satisfies `require`
- * — content, not subject, decides (other mails to the same address — e.g. the welcome message a
- * verification triggers — can arrive inside the window and must not shadow the one we need).
- */
-async function waitForMail(to: string, since: Date, what: string, require: (text: string) => boolean): Promise<MailHit> {
-  const deadline = Date.now() + 30_000;
-  const sinceIso = since.toISOString();
-  const rejected = new Set<string>();
-  for (;;) {
-    try {
-      const listResponse = await fetch(`${mailBase}/api/v1/messages?limit=50`);
-      const list = (await listResponse.json()) as {
-        messages?: Array<{ ID: string; Created: string; Subject: string; To: Array<{ Address: string }> }>;
-      };
-      const candidates = (list.messages ?? [])
-        .filter((m) => m.Created >= sinceIso && m.To.some((t) => t.Address.toLowerCase() === to))
-        .sort((a, b) => (a.Created < b.Created ? 1 : -1));
-      for (const candidate of candidates) {
-        if (rejected.has(candidate.ID)) continue;
-        const detailResponse = await fetch(`${mailBase}/api/v1/message/${candidate.ID}`);
-        const detail = (await detailResponse.json()) as { Text?: string; Snippet?: string; Subject?: string };
-        const text = detail.Text ?? detail.Snippet ?? '';
-        if (text !== '' && require(text)) return { text, subject: detail.Subject ?? candidate.Subject };
-        rejected.add(candidate.ID);
-      }
-    } catch {
-      // Transient Mailpit read error — keep polling until the deadline.
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`E2E: no "${what}" email for ${to} after 30s — is the worker running? (npm run -w @rowta/server worker)`);
-    }
-    await sleep(1000);
-  }
+function emailStepDisabled(what: string): never {
+  throw new Error(
+    `E2E: the "${what}" step needs a delivered email; the mail catcher was removed ` +
+      '(owner decision 22 Oct 2026). Rework pending — see the header of app/scripts/e2e-auth.ts.',
+  );
 }
-
-const sixDigits = (text: string): string | null => text.match(/\b(\d{6})\b/)?.[1] ?? null;
-const magicToken = (text: string): string | null => text.match(/\/magic#([A-Za-z0-9_.-]+)/)?.[1] ?? null;
 
 // ---- the run ------------------------------------------------------------------------------------
 
@@ -264,7 +236,6 @@ async function main(): Promise<void> {
     );
 
     // 3. Sign-up: uniform message + server-computed timers (A9 — remaining seconds, never a clock).
-    const sinceSignup = new Date(Date.now() - 2_000);
     const signup = await authApi.signUp({ displayName, email: knownEmail, country: 'ZZ', password, confirm: password });
     check(
       signup.data.message.length > 0 && signup.meta.expiresInSeconds > 0 && signup.meta.resendInSeconds > 0,
@@ -276,11 +247,8 @@ async function main(): Promise<void> {
     const resend = await authApi.resendCode({ email: knownEmail });
     check(resend.meta.expiresInSeconds > 0, 'resend: timer meta returned');
 
-    // 5. The emailed code arrives through worker -> SMTP -> Mailpit; use the NEWEST mail (resend rotates).
-    const signupMail = await waitForMail(knownEmail, sinceSignup, 'sign-up code', (t) => sixDigits(t) !== null);
-    const code = sixDigits(signupMail.text);
-    check(code !== null, `signup email: 6-digit code found (subject "${signupMail.subject}")`);
-    if (code === null) throw new Error('E2E: no 6-digit code in the sign-up email');
+    // 5. DISABLED (Mailpit removed): reading the delivered code needs a catcher; see the header.
+    const code: string = emailStepDisabled('sign-up code');
 
     // 6. Verify code -> tokens.
     const tokens1 = await authApi.verifyCode({ email: knownEmail, code });
@@ -342,21 +310,17 @@ async function main(): Promise<void> {
     //     prompt with timer meta and NO tokens (8.1), then the emailed code verifies THE SAME
     //     account — no duplicate user — all through the app client (mirrors the server's test).
     const seededId = await seedUnverifiedUser(promptEmail, password);
-    const sincePrompt = new Date(Date.now() - 2_000);
     const prompt = await authApi.signIn({ email: promptEmail, password });
     check(
       prompt.kind === 'prompt' && prompt.meta.expiresInSeconds > 0,
       'sign-in unverified -> prompt kind with timer meta, no tokens',
     );
-    const promptMail = await waitForMail(promptEmail, sincePrompt, 'prompt code', (t) => sixDigits(t) !== null);
-    const promptCode = sixDigits(promptMail.text);
-    check(promptCode !== null, `prompt email: 6-digit code found (subject "${promptMail.subject}")`);
-    if (promptCode === null) throw new Error('E2E: no 6-digit code in the prompt email');
+    // DISABLED (Mailpit removed): reading the delivered prompt code needs a catcher; see the header.
+    const promptCode: string = emailStepDisabled('prompt code');
     const promptTokens = await authApi.verifyCode({ email: promptEmail, code: promptCode });
     check(promptTokens.userId === seededId, 'prompt verify: SAME account verified, no duplicate user');
 
-    // 13. Forgot/reset: uniform message either way (A6), then the emailed code -> grant -> new password.
-    const sinceForgot = new Date(Date.now() - 2_000);
+    // 13. Forgot/reset: uniform message either way (A6) [code/grant steps DISABLED — see header].
     const forgotUnknown = await authApi.forgot({ email: unknownEmail });
     const forgotKnown = await authApi.forgot({ email: knownEmail });
     check(
@@ -367,10 +331,8 @@ async function main(): Promise<void> {
     await clearKeys(redis, ['cooldown:*'], 'cleared cooldown before forgot resend');
     const forgotResend = await authApi.forgotResend({ email: knownEmail });
     check(forgotResend.meta.expiresInSeconds > 0, 'forgot resend: timer meta returned');
-    const forgotMail = await waitForMail(knownEmail, sinceForgot, 'reset code', (t) => sixDigits(t) !== null);
-    const resetCode = sixDigits(forgotMail.text);
-    check(resetCode !== null, `reset email: 6-digit code found (subject "${forgotMail.subject}")`);
-    if (resetCode === null) throw new Error('E2E: no 6-digit code in the reset email');
+    // DISABLED (Mailpit removed): reading the delivered reset code needs a catcher; see the header.
+    const resetCode: string = emailStepDisabled('reset code');
     const grant = await authApi.forgotVerify({ email: knownEmail, code: resetCode });
     check(grant.data.grant.length > 0 && grant.meta.expiresInSeconds > 0, 'forgot verify: grant + grant timer meta');
     const reset = await authApi.resetNewPassword({ grant: grant.data.grant, newPassword, confirm: newPassword });
@@ -380,13 +342,10 @@ async function main(): Promise<void> {
     const passwordTokens = reSignIn.kind === 'tokens' ? reSignIn.tokens : null;
     if (passwordTokens === null) throw new Error('E2E: sign-in with the new password returned no tokens');
 
-    // 14. Magic link: the emailed /magic#token is single-use (A13, A2x) and signs the app in.
-    const sinceMagic = new Date(Date.now() - 2_000);
+    // 14. Magic link [token steps DISABLED — Mailpit removed; see the header].
     await authApi.magicRequest({ email: knownEmail });
-    const magicMail = await waitForMail(knownEmail, sinceMagic, 'magic link', (t) => magicToken(t) !== null);
-    const token = magicToken(magicMail.text);
-    check(token !== null, `magic email: /magic#token found (subject "${magicMail.subject}")`);
-    if (token === null) throw new Error('E2E: no magic token in the link email');
+    // DISABLED (Mailpit removed): reading the delivered /magic#token needs a catcher; see the header.
+    const token: string = emailStepDisabled('magic link');
     const magicTokens = await authApi.magicConsume({ token });
     await useAuthSession.getState().signInWithTokens(magicTokens);
     const magicMe = await authApi.me();

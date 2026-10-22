@@ -1,5 +1,7 @@
 # Local development services for Rowta. Reads values from .env (create it with: node scripts/setup-env.mjs).
 # Everything binds to 127.0.0.1 only, so nothing is reachable from other machines.
+# Email is NOT a container: nodemailer talks to the owner's real SMTP server (owner decision
+# 22 Oct 2026 - the local mail catcher was removed). Automated tests never open SMTP.
 # Images: [VERIFY] current tags on Docker Hub before relying on them.
 name: rowta
 
@@ -52,13 +54,6 @@ services:
       retries: 10
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-
-  mail:
-    # Local mail catcher (nodemailer talks SMTP to this in development). Nothing leaves your computer.
-    image: axllent/mailpit:v1.31.6
-    ports:
-      - "127.0.0.1:${SMTP_PORT:?}:1025"
-      - "127.0.0.1:${MAILPIT_UI_PORT:?}:8025"
 
 volumes:
   db0-data:

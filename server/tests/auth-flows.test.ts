@@ -1,9 +1,9 @@
-// Phase 2 sign-up / verify / sign-in flows end to end (PRD 8.1, rules A5 to A9, V1 to V5).
+﻿// Phase 2 sign-up / verify / sign-in flows end to end (PRD 8.1, rules A5 to A9, V1 to V5).
 //
-// Real stack: in-process app with the full middleware order, the REAL email worker, Mailpit as
-// the mailbox, real Redis rate limits and cooldowns, real PostgreSQL. Assertions compare against
-// the SHARED Zod schemas and the SHARED message catalog, so drift between server output and the
-// one source of truth fails the suite (V1, V5).
+// Real stack: in-process app with the full middleware order, the REAL email worker, the
+// in-process mail capture as the mailbox, real Redis rate limits and cooldowns, real PostgreSQL.
+// Assertions compare against the SHARED Zod schemas and the SHARED message catalog, so drift
+// between server output and the one source of truth fails the suite (V1, V5).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Worker } from 'bullmq';
 import { SignJWT, jwtVerify } from 'jose';
@@ -29,7 +29,7 @@ import {
   dataOf,
   ensureTestCountries,
   errorOf,
-  mailpitClear,
+  mailCaptureClear,
   post,
   createVerifiedUser,
   redis,
@@ -53,7 +53,7 @@ let realCode = '';
 beforeAll(async () => {
   await clearRateKeys();
   await ensureTestCountries();
-  await mailpitClear();
+  await mailCaptureClear();
   worker = await startEmailWorker();
   app = testApp('auth-flows');
 });
@@ -114,16 +114,16 @@ describe('sign up with code', () => {
 
   it('delivers the code email: neutral subject, no digits in it, footer, 5-minute wording', async () => {
     const mail = await waitForMail(signupEmail, CODE_SUBJECT);
-    expect(mail.Subject).not.toMatch(/\d/);
-    expect(mail.Text).toContain('Hi Ada Lovelace,');
-    expect(mail.Text).toContain('This code expires in 5 minutes.');
-    expect(mail.Text).toContain('You can ask for a new code after 60 seconds');
-    expect(mail.Text).toContain('This is an automated message. Please do not reply.');
-    expect(mail.Text).toContain('The Rowta team');
+    expect(mail.subject).not.toMatch(/\d/);
+    expect(mail.text).toContain('Hi Ada Lovelace,');
+    expect(mail.text).toContain('This code expires in 5 minutes.');
+    expect(mail.text).toContain('You can ask for a new code after 60 seconds');
+    expect(mail.text).toContain('This is an automated message. Please do not reply.');
+    expect(mail.text).toContain('The Rowta team');
     // The same words appear in the HTML part, and the code is in both.
-    const code = /\b(\d{6})\b/.exec(mail.Text)?.[1];
+    const code = /\b(\d{6})\b/.exec(mail.text)?.[1];
     expect(code).toMatch(/^\d{6}$/);
-    expect(mail.HTML).toContain(`>${code}</p>`);
+    expect(mail.html).toContain(`>${code}</p>`);
     // Exactly one code email: the in-window resend above never enqueued a second one.
     expect(await countMailTo(signupEmail, CODE_SUBJECT)).toBe(1);
     realCode = code ?? '';
@@ -194,8 +194,8 @@ describe('sign up with code', () => {
     expect(await res.text()).toBe(signupRawBody); // identical bytes again
 
     const notice = await waitForMail(signupEmail, 'A sign-up was attempted with your email');
-    expect(notice.Subject).not.toMatch(/\d/);
-    expect(notice.Text).toContain('but an account already exists');
+    expect(notice.subject).not.toMatch(/\d/);
+    expect(notice.text).toContain('but an account already exists');
     // The notice replaced no code: exactly the one code email from earlier still exists.
     expect(await countMailTo(signupEmail, CODE_SUBJECT)).toBe(1);
   });
@@ -253,14 +253,14 @@ describe('sign in', () => {
 
     // The job delivered a code, and the pending row carries the USER's own hash (never a payload).
     const mail = await waitForMail(email, CODE_SUBJECT);
-    const code = /\b(\d{6})\b/.exec(mail.Text)?.[1] ?? '';
+    const code = /\b(\d{6})\b/.exec(mail.text)?.[1] ?? '';
     const db = globalDb();
     const pending = await db.pending_signups.findUnique({ where: { email } });
     const user = await db.users.findUnique({ where: { id: userId } });
     expect(pending).not.toBeNull();
     expect(pending?.password_hash).toBe(user?.password_hash);
 
-    // The code verifies THE SAME ACCOUNT — no duplicate user is created.
+    // The code verifies THE SAME ACCOUNT â€” no duplicate user is created.
     const verifyRes = await post(app, '/auth/signup/verify', { email, code });
     expect(verifyRes.status).toBe(200);
     const tokens = authTokensResponseSchema.parse(await dataOf(verifyRes));
@@ -273,7 +273,7 @@ describe('sign in', () => {
     const email = uniqueEmail('attempts');
     await post(app, '/auth/signup', signUpBody(email));
     const mail = await waitForMail(email, CODE_SUBJECT);
-    const code = /\b(\d{6})\b/.exec(mail.Text)?.[1] ?? '';
+    const code = /\b(\d{6})\b/.exec(mail.text)?.[1] ?? '';
     expect(code).toMatch(/^\d{6}$/);
 
     for (let i = 0; i < 5; i += 1) {

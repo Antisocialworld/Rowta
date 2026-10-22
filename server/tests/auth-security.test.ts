@@ -1,6 +1,6 @@
-// Phase 2 security evidence (rules S1, S9, A1 to A4, A7): nothing secret ever reaches the logs
+﻿// Phase 2 security evidence (rules S1, S9, A1 to A4, A7): nothing secret ever reaches the logs
 // or a table in the clear, every stored secret is an Argon2id PHC string, refresh rows carry the
-// 30-day TTL, access tokens last 15 minutes, subjects carry no digits — and the A7 timing
+// 30-day TTL, access tokens last 15 minutes, subjects carry no digits â€” and the A7 timing
 // measurement compares the pair that matters on every dummy-verify route: unknown email vs
 // known row + WRONG secret, asserted within 25% of each other.
 // The timing numbers printed here are copied into docs/SECURITY.md as gate evidence.
@@ -16,11 +16,11 @@ import { DECOY_PENDING_EMAIL, DECOY_USER_EMAIL, timingDecoys } from '../src/auth
 import { getDummyHash, hashSecret, verifySecret } from '../src/security/argon2.ts';
 import {
   TEST_COUNTRY,
+  capturedMails,
   clearRateKeys,
   createVerifiedUser,
   ensureTestCountries,
-  mailpitClear,
-  mailpitSummaries,
+  mailCaptureClear,
   post,
   redis,
   shutdownAuthTest,
@@ -40,7 +40,7 @@ let worker: Worker;
 beforeAll(async () => {
   await clearRateKeys();
   await ensureTestCountries();
-  await mailpitClear();
+  await mailCaptureClear();
   worker = await startEmailWorker();
   app = testApp('auth-security');
 });
@@ -78,7 +78,7 @@ describe('secrets never leak', () => {
     });
     expect(signup.status).toBe(200);
     const mail = await waitForMail(email, CODE_SUBJECT);
-    const code = /\b(\d{6})\b/.exec(mail.Text)?.[1] ?? '';
+    const code = /\b(\d{6})\b/.exec(mail.text)?.[1] ?? '';
 
     const verify = await post(watched, '/auth/signup/verify', { email, code });
     expect(verify.status).toBe(200);
@@ -120,7 +120,7 @@ describe('secrets never leak', () => {
     });
     expect(signup.status).toBe(200);
     const mail = await waitForMail(email, CODE_SUBJECT);
-    const code = /\b(\d{6})\b/.exec(mail.Text)?.[1] ?? '';
+    const code = /\b(\d{6})\b/.exec(mail.text)?.[1] ?? '';
 
     const db = globalDb();
     const pending = await db.pending_signups.findUnique({ where: { email } });
@@ -158,33 +158,33 @@ describe('secrets never leak', () => {
   });
 
   it('no delivered subject contains a digit (skill section 7)', async () => {
-    const summaries = await mailpitSummaries();
+    const summaries = capturedMails();
     expect(summaries.length).toBeGreaterThan(0); // this file really did send mail
     for (const summary of summaries) {
-      expect(summary.Subject, `subject "${summary.Subject}" must carry no digits`).not.toMatch(/\d/);
+      expect(summary.subject, `subject "${summary.subject}" must carry no digits`).not.toMatch(/\d/);
     }
   });
 });
 
 // ---------------------------------------------------------------------------------------------
 // A7 timing. The pair that matters on every dummy-verify route is the two FAILURE paths:
-//   side A = unknown email  — lookup misses, one Argon2id verify against the process dummy hash;
-//   side B = known row + wrong secret — lookup hits, the attempts guard runs, one Argon2id verify
+//   side A = unknown email  â€” lookup misses, one Argon2id verify against the process dummy hash;
+//   side B = known row + wrong secret â€” lookup hits, the attempts guard runs, one Argon2id verify
 //            against the stored hash.
 // The dominant cost is one real Argon2id verify on BOTH sides; side B may additionally run the
 // conditional attempts UPDATE, which is one cheap database round-trip. The correct-secret path is
 // measured separately because it does strictly more (issues a refresh-verifier hash, writes rows,
-// signs a JWT) and is allowed to be slower — it is not the path an attacker's probe exercises.
+// signs a JWT) and is allowed to be slower â€” it is not the path an attacker's probe exercises.
 //
 // Method (per the Phase 2b task): >= 50 measured runs per side, the two paths ALTERNATED inside
 // one loop so neither side monopolises warm-up/GC, the first 5 runs of each side discarded, both
 // medians and the max/min ratio printed, and the ratio asserted within 25%.
 // beforeA/beforeB run OUTSIDE the timed window (fixture bookkeeping such as resetting an attempts
-// counter must never be counted — it is not work the server does on the real path).
+// counter must never be counted â€” it is not work the server does on the real path).
 //
 // Tolerance = 25%. Why that number: the only structural difference between A and B is which row
 // the hash comes from (process dummy vs stored) plus, on the known-row paths, one conditional
-// UPDATE for the attempts guard — all dwarfed by the ~40-60 ms Argon2id cost. 25% absorbs laptop
+// UPDATE for the attempts guard â€” all dwarfed by the ~40-60 ms Argon2id cost. 25% absorbs laptop
 // scheduler noise (GC, frequency scaling) without hiding a real defect: a missing dummy verify
 // would drop side A to ~1-3 ms (a lone database lookup), a 15-50x gap.
 // ---------------------------------------------------------------------------------------------
@@ -259,7 +259,7 @@ describe('A7 timing (evidence for docs/SECURITY.md section 5)', () => {
       samples.push(Number(process.hrtime.bigint() - start) / 1e6);
     }
     const correctMedian = median(samples.slice(TIMING_DISCARD));
-    // Printed as its own line: this path is LONGER by design — after the password verify it runs
+    // Printed as its own line: this path is LONGER by design â€” after the password verify it runs
     // needsRehash, hashes a fresh refresh verifier (a second Argon2id), inserts the refresh row
     // and signs the HS512 access token. It is NOT the A7 comparison pair.
     console.log(
@@ -293,7 +293,7 @@ describe('A7 timing (evidence for docs/SECURITY.md section 5)', () => {
       () => verifyCode({ email, code: wrongCode }),
       undefined,
       // OUTSIDE the timed window: each wrong attempt increments `attempts`; reset it so side B
-      // always takes the real-verify branch (past the cap it would fall back to the dummy —
+      // always takes the real-verify branch (past the cap it would fall back to the dummy â€”
       // a different shape of work). This reset is test bookkeeping, not server-path work.
       () => db.pending_signups.update({ where: { email }, data: { attempts: 0 } }),
     );
@@ -327,7 +327,7 @@ describe('A7 timing (evidence for docs/SECURITY.md section 5)', () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// ADR 0010 escalation evidence: the unknown-email guards must hit the SEEDED decoy rows — a
+// ADR 0010 escalation evidence: the unknown-email guards must hit the SEEDED decoy rows â€” a
 // zero-row mirror would leave the counters untouched.
 // ---------------------------------------------------------------------------------------------
 
@@ -347,7 +347,7 @@ describe('A7 timing decoys (ADR 0010 escalation)', () => {
     const pendingAfter = await db.pending_signups.findUnique({ where: { id: decoys.pendingId } });
     const resetAfter = await db.password_resets.findUnique({ where: { id: decoys.resetId } });
     // The guard's CASE cycles 0..CAP-1 inside WHERE attempts < CAP: the counter must have MOVED
-    // by exactly one step — a zero-row mirror would leave it at its previous value.
+    // by exactly one step â€” a zero-row mirror would leave it at its previous value.
     expect(pendingAfter?.attempts).toBe(((pendingBefore?.attempts ?? 0) + 1) % CODE_MAX_ATTEMPTS);
     expect(resetAfter?.attempts).toBe(((resetBefore?.attempts ?? 0) + 1) % CODE_MAX_ATTEMPTS);
     // The decoy emails carry no '@': the shared API email field rejects them, so no user flow

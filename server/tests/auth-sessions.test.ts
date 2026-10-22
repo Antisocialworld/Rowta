@@ -1,4 +1,4 @@
-// Phase 2 session lifecycle (PRD 8.1, rule A11): refresh rotation with family-wide reuse
+﻿// Phase 2 session lifecycle (PRD 8.1, rule A11): refresh rotation with family-wide reuse
 // detection, expiry, logout, log out of all devices. Every failure body is compared byte for
 // byte: a stolen, expired or garbage refresh token must be indistinguishable (A5).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -56,7 +56,7 @@ async function signupAndVerify(email: string): Promise<Session> {
   });
   expect(signup.status).toBe(200);
   const mail = await waitForMail(email, 'Your Rowta verification code');
-  const code = /\b(\d{6})\b/.exec(mail.Text)?.[1] ?? '';
+  const code = /\b(\d{6})\b/.exec(mail.text)?.[1] ?? '';
   const verify = await post(app, '/auth/signup/verify', { email, code });
   expect(verify.status).toBe(200);
   return authTokensResponseSchema.parse(await dataOf(verify));
@@ -77,7 +77,7 @@ describe('refresh rotation (A11)', () => {
     expect(rotated.userId).toBe(first.userId);
     expect(rotated.accessToken).not.toBe(first.accessToken);
 
-    // Replay of the USED token: 401, and the family — including the brand-new child — dies (A11).
+    // Replay of the USED token: 401, and the family â€” including the brand-new child â€” dies (A11).
     const replay = await refreshWith(first.refreshToken);
     expect(replay.status).toBe(401);
     const replayRaw = await replay.text();
