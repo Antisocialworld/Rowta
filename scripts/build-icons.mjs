@@ -24,6 +24,9 @@
 //   Android notification icon       : 96x96, all-white with transparency.
 //   Web manifest (maskable)         : full-bleed tile colour, artwork inside the 80% diameter circle.
 //   Expo splash                     : 1024x1024 transparent PNG with the card letterboxed inside.
+//   In-app auth logo (rounded)      : logo.svg rasterised WITHOUT flattening, so the SVG's own rx=38/160
+//                                     rounded corners stay transparent - matches the landing page, which
+//                                     shows the same SVG. Displayed at 160/120pt; exported at 480px = 3x.
 
 import { createHash } from 'node:crypto';
 import { promises as fsp } from 'node:fs';
@@ -51,6 +54,8 @@ const MASKABLE_SCALE = 0.88;
 const MASKABLE_RADIUS = 0.4; // fraction of canvas covered by the 80% diameter safe circle
 const NOTIFY_SIZE = 96;
 const ICO_SIZES = [48, 32, 16];
+// In-app rounded logo: AuthPage shows it at 160pt (120pt under 360px wide); 480px = 160 x 3 (X7/U9 3x).
+const LOGO_ROUNDED_SIZE = 480;
 
 const checks = [];
 const manifest = [];
@@ -222,6 +227,17 @@ async function main() {
   })();
   const adaptiveFile = path.join(APP_DIR, 'adaptive-icon-foreground.png');
 
+  // logo.svg -> in-app rounded logo for the auth screen (item B, 22 Oct 2026 owner option 4).
+  // NO flattenTo: the SVG's rx=38 rounded tile keeps its transparent corners, matching the landing
+  // page's /brand/logo.svg. Store icon / adaptive / splash outputs above are untouched.
+  pngTargets.push({
+    file: path.join(APP_DIR, 'logo-rounded.png'),
+    width: LOGO_ROUNDED_SIZE,
+    height: LOGO_ROUNDED_SIZE,
+    opaque: false,
+    build: () => raster(logo, 160, LOGO_ROUNDED_SIZE, LOGO_ROUNDED_SIZE),
+  });
+
   // logo-small.svg -> small web icons
   for (const size of ICO_SIZES) {
     pngTargets.push({
@@ -342,6 +358,35 @@ async function main() {
     }
     assert(inked > 0, 'adaptive foreground has artwork', inked);
     assert(outside === 0, 'adaptive artwork inside the 66dp safe zone', `${outside} px outside`);
+  }
+
+  // in-app rounded logo: transparent corners (the SVG's rx=38/160), opaque centre
+  {
+    const file = path.join(APP_DIR, 'logo-rounded.png');
+    const d = await dimensions(built.get(file));
+    assert(
+      d.width === LOGO_ROUNDED_SIZE && d.height === LOGO_ROUNDED_SIZE,
+      'logo-rounded dimensions',
+      `${d.width}x${d.height}`,
+    );
+    assert(d.hasAlpha, 'logo-rounded keeps transparency', d.hasAlpha);
+    dims.push({ path: rel(file), spec: `${d.width}x${d.height} transparent` });
+    const { data, width, height } = await rgba(built.get(file));
+    const corners = [
+      [0, 0],
+      [width - 1, 0],
+      [0, height - 1],
+      [width - 1, height - 1],
+    ].map(([x, y]) => data[(y * width + x) * 4 + 3]);
+    assert(
+      corners.every((a) => a === 0),
+      'logo-rounded four corner pixels fully transparent',
+      corners.join(','),
+    );
+    const cx = Math.floor(width / 2);
+    const cy = Math.floor(height / 2);
+    const centreAlpha = data[(cy * width + cx) * 4 + 3];
+    assert(centreAlpha === 255, 'logo-rounded centre opaque', centreAlpha);
   }
 
   // notification icon: 96x96, white where visible, transparent at the five cell cut-outs
