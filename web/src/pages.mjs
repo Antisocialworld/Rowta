@@ -1,6 +1,7 @@
 // pages — the ONE registry of public pages (W1: one pageMeta per page, unique titles and descriptions).
 // `source` is the markdown file in docs/legal/ that renders into the layout. `current` marks the nav item.
-// Token pages (invite/magic) are deliberately absent: they are NOT built in Phase 11 (task: not in this task).
+// Token pages (magic, invite) are `noindex` (W2) with a `canonicalPath` that carries NO token: they are
+// excluded from SITEMAP_PAGES by the noindex flag and never put a token in any built file.
 
 export const PAGES = [
   {
@@ -87,6 +88,35 @@ export const PAGES = [
     description:
       'Contact Rowta by email for privacy, deletion, legal or security questions: rowtareply@gmail.com. Email is the only contact channel.',
     keywords: 'contact, support email, privacy contact, security contact, Rowta',
+  },
+  {
+    // /magic — the https fallback page for the magic-link email (PRD 8.1, A13). The token lives only in
+    // the URL fragment at runtime; the built file contains no token and sends no request on load.
+    key: 'magic',
+    path: '/magic/',
+    canonicalPath: '/magic', // the clean URL the email link uses: PUBLIC_WEB_URL + /magic#<token>
+    type: 'website',
+    special: 'magic',
+    noindex: true,
+    title: 'Sign in to Rowta',
+    description:
+      'Open your Rowta sign-in link in the Rowta app on your phone. The link is short-lived, works once, and this page never asks for a password.',
+    keywords: 'sign in link, magic link, Rowta',
+  },
+  {
+    // /invite/:token — web fallback for the team invitation link (PRD 8.2, 8.1). One static page is
+    // served for any /invite/<segment> (Vercel rewrite); the token is read from the path at runtime
+    // only to build the rowta://invite/<token> link. No network request, no token in the file.
+    key: 'invite',
+    path: '/invite/',
+    canonicalPath: '/invite/', // the clean URL without the token
+    type: 'website',
+    special: 'invite',
+    noindex: true,
+    title: 'Open your Rowta invitation',
+    description:
+      'Open a Rowta team invitation in the Rowta app on your phone, or get the Android app if you do not have Rowta yet.',
+    keywords: 'team invitation, invite link, Rowta',
   },
   {
     key: 'notfound',

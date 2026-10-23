@@ -21,6 +21,7 @@ import { layout } from './src/layout.mjs';
 import { renderMarkdown, stripBanner } from './src/markdown.mjs';
 import { PAGES, SITEMAP_PAGES } from './src/pages.mjs';
 import { landingMain, loadLandingCopy } from './src/landing.mjs';
+import { magicMain, inviteMain } from './src/tokenPages.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -89,6 +90,12 @@ for (const page of PAGES) {
         },
       ],
     });
+  } else if (page.special === 'magic') {
+    // /magic (PRD 8.1): static fallback; the fragment is read at RUNTIME only, so no token here.
+    main = magicMain();
+  } else if (page.special === 'invite') {
+    // /invite/:token (PRD 8.2): one static page for any token; same runtime-only rule.
+    main = inviteMain(downloadUrl);
   } else if (page.special === 'notfound') {
     outputPath = '404.html';
     main = `<section class="prose">
@@ -116,14 +123,24 @@ for (const page of PAGES) {
     base,
     title: page.title,
     description: page.description,
-    path: page.path === '/404.html' ? '/404.html' : page.path,
+    path: page.canonicalPath ?? (page.path === '/404.html' ? '/404.html' : page.path),
     keywords: page.keywords,
     noindex: Boolean(page.noindex),
     type: page.type ?? 'article',
     themeColor,
   });
 
-  const html = layout({ meta, main, base, bannerOn, current: page.current ?? '', jsonLd });
+  const isTokenPage = page.special === 'magic' || page.special === 'invite';
+  const html = layout({
+    meta,
+    main,
+    base,
+    bannerOn,
+    current: page.current ?? '',
+    jsonLd,
+    tokenScript: isTokenPage,
+    tokenKind: isTokenPage ? page.special : '',
+  });
   write(outputPath, html);
   built.push({ title: page.title, path: page.path, bytes: Buffer.byteLength(html) });
 }
@@ -171,6 +188,7 @@ fs.mkdirSync(path.join(DIST, 'assets', 'fonts'), { recursive: true });
 fs.copyFileSync(path.join(ROOT, 'design-system', 'design-variables.css'), path.join(DIST, 'assets', 'design-variables.css'));
 fs.copyFileSync(path.join(HERE, 'src', 'styles.css'), path.join(DIST, 'assets', 'styles.css'));
 fs.copyFileSync(path.join(HERE, 'src', 'rowta.js'), path.join(DIST, 'assets', 'rowta.js'));
+fs.copyFileSync(path.join(HERE, 'src', 'token-page.js'), path.join(DIST, 'assets', 'token-page.js'));
 for (const weight of ['400Regular', '600SemiBold']) {
   // @expo-google-fonts/poppins keeps each weight in its own folder (400Regular/Poppins_400Regular.ttf, ...).
   fs.copyFileSync(

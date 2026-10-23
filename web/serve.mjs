@@ -48,9 +48,27 @@ function resolveFile(urlPath) {
   return null;
 }
 
+// Token routes (PRD 8.1, 8.2): ONE static page answers any /magic, /magic/*, /invite or /invite/* URL,
+// exactly like the Vercel rewrite in web/vercel.json. The fragment never reaches the server.
+// These two routes carry noindex (X-Robots-Tag), no-referrer and no-store — skill 3.15 note 4.
+const TOKEN_HEADERS = {
+  'x-robots-tag': 'noindex, nofollow',
+  'referrer-policy': 'no-referrer',
+  'cache-control': 'no-store',
+};
+
+function tokenRouteFile(urlPath) {
+  const clean = decodeURIComponent(urlPath.split('?')[0]);
+  const page = /^\/magic(\/|$)/.test(clean) ? 'magic' : /^\/invite(\/|$)/.test(clean) ? 'invite' : null;
+  if (page === null) return null;
+  const file = path.join(DIST, page, 'index.html');
+  return fs.existsSync(file) && fs.statSync(file).isFile() ? file : null;
+}
+
 http
   .createServer((req, res) => {
-    const file = resolveFile(req.url ?? '/');
+    const tokenFile = tokenRouteFile(req.url ?? '/');
+    const file = tokenFile ?? resolveFile(req.url ?? '/');
     if (!file) {
       const notFound = path.join(DIST, '404.html');
       const body = fs.existsSync(notFound) ? fs.readFileSync(notFound) : 'Not found';
@@ -58,7 +76,9 @@ http
       res.end(body);
       return;
     }
-    res.writeHead(200, { 'content-type': TYPES[path.extname(file)] ?? 'application/octet-stream' });
+    const headers = { 'content-type': TYPES[path.extname(file)] ?? 'application/octet-stream' };
+    if (tokenFile) Object.assign(headers, TOKEN_HEADERS);
+    res.writeHead(200, headers);
     res.end(fs.readFileSync(file));
   })
   .listen(PORT, () => {

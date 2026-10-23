@@ -14,6 +14,8 @@ import puppeteer from 'puppeteer-core';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASE_URL = process.env.ROWTA_WEB_URL ?? 'http://localhost:8321';
 const AXE_PATH = path.join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
+// Obviously fake token for the invite URL (P6): the page only reads the path segment at runtime.
+const FAKE_INVITE = 'FAKEINVITE0000000.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 const BROWSER_CANDIDATES = [
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -135,6 +137,8 @@ async function main() {
     for (const target of [
       { name: 'landing', url: '/' },
       { name: 'privacy', url: '/privacy/' },
+      { name: 'magic', url: '/magic' },
+      { name: 'invite', url: `/invite/${FAKE_INVITE}` },
     ]) {
       for (const viewport of [
         { name: '360x800', width: 360, height: 800 },
@@ -175,14 +179,33 @@ async function main() {
     }));
     check(
       privacyNoJs.h1.includes('Privacy') && privacyNoJs.text > 1000,
-      `no-JS: privacy renders full text (${privacyNoJs.text} chars)`,
+      `no-JS: privacy renders full text (${privacyNoJs.links ?? 0} links, ${privacyNoJs.text} chars)`,
     );
+    for (const target of [
+      { name: 'magic', url: '/magic', h1: 'Sign in to Rowta' },
+      { name: 'invite', url: '/invite/', h1: 'Open your Rowta invitation' },
+    ]) {
+      await noJs.goto(new URL(target.url, BASE_URL).href, { waitUntil: 'networkidle0', timeout: 60_000 });
+      const tokenNoJs = await noJs.evaluate(() => ({
+        h1: document.querySelector('h1')?.textContent?.trim() ?? '',
+        text: document.body.innerText.length,
+        notice: document.getElementById('token-notice')?.textContent.trim().length ?? 0,
+      }));
+      check(
+        tokenNoJs.h1 === target.h1 && tokenNoJs.text > 150 && tokenNoJs.notice > 40,
+        `no-JS: ${target.name} renders heading + incomplete-link message (${tokenNoJs.text} chars, notice ${tokenNoJs.notice})`,
+      );
+    }
     await noJs.close();
 
-    // ---- 4. axe-core: WCAG 2.0/2.1 A + AA on the two main pages (X13)
+    // ---- 4. axe-core: WCAG 2.0/2.1 A + AA on the main pages and both token pages (X13)
     for (const target of [
       { name: 'landing', url: '/' },
       { name: 'privacy', url: '/privacy/' },
+      { name: 'magic no token', url: '/magic' },
+      { name: 'magic with token', url: `/magic#FAKETOKEN00000000.fffffffffffffffffffffffffffffffffffffff` },
+      { name: 'invite no token', url: '/invite/' },
+      { name: 'invite with token', url: `/invite/${FAKE_INVITE}` },
     ]) {
       const audited = await browser.newPage();
       await audited.setViewport({ width: 1280, height: 800 });

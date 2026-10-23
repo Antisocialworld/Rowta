@@ -13,7 +13,7 @@
     "web:build": "node web/build.mjs",
     "web:serve": "node web/serve.mjs",
     "web:dev": "npm run web:build && npm run web:serve",
-    "web:test": "node web/tests/test-metadata.mjs && node web/tests/test-content-safety.mjs && node web/tests/test-links.mjs"
+    "web:test": "node web/tests/test-metadata.mjs && node web/tests/test-content-safety.mjs && node web/tests/test-links.mjs && node web/tests/test-token-pages.mjs"
   },
   "devDependencies": {
     "png-to-ico": "3.0.2",

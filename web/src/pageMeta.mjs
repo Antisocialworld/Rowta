@@ -9,7 +9,8 @@
 //   description ~160 chars
 //   path        canonical path WITH trailing slash ('' for the landing page), e.g. '/privacy/'
 //   keywords    short string; note: major search engines ignore meta keywords (W1 owner request)
-//   noindex     true for token/no-value pages (none public today; W2)
+//   noindex     true for token pages and the 404 page (W2): emitted as `noindex, nofollow` — the token
+//               pages must not be followed from the crawler's point of view (PRD 8.1/8.2, web-metadata)
 //   type        Open Graph type ('website' for landing, 'article' for the rest)
 //   themeColor  the resolved design-system token (build reads it from design-variables.css; never a literal here)
 export function pageMeta({ base, title, description, path = '', keywords, noindex = false, type = 'article', themeColor }) {
@@ -22,7 +23,7 @@ export function pageMeta({ base, title, description, path = '', keywords, noinde
     `<meta name="description" content="${escapeAttr(description)}">`,
     keywords ? `<meta name="keywords" content="${escapeAttr(keywords)}">` : '',
     `<link rel="canonical" href="${escapeAttr(canonical)}">`,
-    noindex ? '<meta name="robots" content="noindex, follow">' : '<meta name="robots" content="index, follow, max-image-preview:large">',
+    noindex ? '<meta name="robots" content="noindex, nofollow">' : '<meta name="robots" content="index, follow, max-image-preview:large">',
     `<meta name="theme-color" content="${escapeAttr(themeColor)}">`,
     // Favicon set (W1): ICO, SVG, Apple touch icon, web-manifest icons 192/512.
     '<link rel="icon" href="/brand/favicon.ico" sizes="any">',

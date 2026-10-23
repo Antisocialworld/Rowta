@@ -6,7 +6,7 @@
 const BANNER_TEXT = 'DRAFT — not legal advice. Review by a qualified lawyer before launch.';
 const CONTACT_EMAIL = 'rowtareply@gmail.com'; // OWNER input, 20 Oct 2026 (web/src/constants.mjs)
 
-export function layout({ meta, main, base, bannerOn, current = '', jsonLd = '' }) {
+export function layout({ meta, main, base, bannerOn, current = '', jsonLd = '', tokenScript = false, tokenKind = '' }) {
   const banner = bannerOn
     ? `\n  <div class="draft-banner" role="note">${BANNER_TEXT}</div>`
     : '';
@@ -21,7 +21,7 @@ export function layout({ meta, main, base, bannerOn, current = '', jsonLd = '' }
   <link rel="preload" href="/assets/fonts/Poppins_400Regular.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="/assets/fonts/Poppins_600SemiBold.ttf" as="font" type="font/ttf" crossorigin>
 ${jsonLd ? `  <script type="application/ld+json">${jsonLd}</script>\n` : ''}</head>
-<body>${banner}
+<body${tokenKind ? ` data-token-kind="${tokenKind}"` : ''}>${banner}
   <a class="skip-link" href="#main">Skip to main content</a>
   <div id="view-announcer" class="visually-hidden" role="status" aria-live="polite"></div>
   <header class="site-header">
@@ -53,7 +53,7 @@ ${main}
     <p class="fineprint">An iOS version is planned. It is not available yet.</p>
   </footer>
   <script src="/assets/rowta.js" defer></script>
-</body>
+${tokenScript ? '  <script src="/assets/token-page.js" defer></script>\n' : ''}</body>
 </html>
 `;
 }

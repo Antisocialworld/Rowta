@@ -12,6 +12,10 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute must win over component display rules (UA default alone loses to
+   .button's display: inline-flex). Structural only — no colour involved. */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {
