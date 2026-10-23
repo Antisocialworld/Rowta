@@ -90,7 +90,8 @@ try {
   if (accepted !== 1) fail(`expected exactly 1 accepted recipient, saw ${accepted}`);
   await transport.close();
 } catch (err) {
-  fail(`unexpected error: ${err?.message ?? String(err)}`);
+  const inner = Array.isArray(err?.errors) ? err.errors.map((e) => e?.code ?? 'none').join(',') : 'none';
+  fail(`unexpected error: code=${err?.code ?? 'none'} command=${err?.command ?? 'none'} inner=${inner} message=${err?.message || '(empty)'}`);
 }
 
 say(failures === 0 ? 'MAIL TEST OK: the SMTP server accepted the message. Check your mailbox for it.' : `MAIL TEST FAILED: ${failures} check(s) failed.`);
