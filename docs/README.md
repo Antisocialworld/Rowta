@@ -16,7 +16,7 @@
 | payment-trace.md | tracing one payment through logs and ledger | Phase 7 | not written |
 | DATABASE.md | every table, column, constraint and index, generated from a real PostgreSQL loaded with server/prisma/sql | Phase 2 | written (regenerate after schema changes) |
 | TAX-NOTES.md | VAT, invoices and e-invoicing: what Rowta does not do, sources, unverified items | Phase 12 | written (draft, unverified) |
-| PAYMENTS-CURRENCIES.md | sources for the currency and country lists, the provider's supported currencies and amount units, tax notes per country | Phase 7 | not written |
+| PAYMENTS-CURRENCIES.md | sources for the currency and country lists, the provider's supported currencies and amount units, tax notes per country | Phase 7 (country/currency sources written 23 Oct 2026) | country + currency sources written; provider list and tax notes [VERIFY] |
 | PRIVACY.md | data inventory, processors, retention, deletion, privacy page text | Phase 9 | not written |
 | BRANDING.md | how to replace the logo and rebuild icons | Phase 1 | not written |
 | DEPLOY.md | owner deploy steps (web, API, worker, Redis) | Phase 12 | not written |

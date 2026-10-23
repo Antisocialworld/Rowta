@@ -16,6 +16,9 @@
     "web:test": "node web/tests/test-metadata.mjs && node web/tests/test-content-safety.mjs && node web/tests/test-links.mjs && node web/tests/test-token-pages.mjs"
   },
   "devDependencies": {
+    "cldr-core": "45.0.0",
+    "cldr-numbers-modern": "45.0.0",
+    "i18n-iso-countries": "7.14.0",
     "png-to-ico": "3.0.2",
     "sharp": "0.35.5"
   }
