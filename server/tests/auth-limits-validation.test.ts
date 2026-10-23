@@ -214,10 +214,12 @@ describe('reference data (PRD 8.1, S5)', () => {
     const body = (await res.json()) as { data: unknown };
     const list = countryListResponseSchema.parse(body.data);
     // The fixture country seeded in beforeAll is offered; the response matches the shared schema
-    // (shape, uppercase code, bounded name) and is ordered by name exactly as the service queries.
+    // (shape, uppercase code, bounded name) and is ordered by the Intl.Collator('en', { sensitivity: 'base' })
+    // that listCountries() uses in code — same collator here so the assertion is deterministic.
     expect(list).toContainEqual({ code: 'ZZ', name: 'Test country' });
     const names = list.map((item) => item.name);
-    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    const collator = new Intl.Collator('en', { sensitivity: 'base' });
+    expect(names).toEqual([...names].sort((a, b) => collator.compare(a, b)));
   });
 });
 

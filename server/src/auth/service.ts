@@ -384,10 +384,15 @@ export async function me(userId: string): Promise<{ userId: string; displayName:
 
 /** The offered countries for the sign-up form, ordered by name. `countries` only holds rows
  *  whose currency is sold (docs/DATABASE.md), so this list IS the offer — the app must not
- *  keep its own copy (S5). Public read, no user data (P6: rows are reference data). */
+ *  keep its own copy (S5). Public read, no user data (P6: rows are reference data).
+ *
+ *  Sorting is done in code with `Intl.Collator` so the order is deterministic regardless of the
+ *  PostgreSQL collation on the database (which can vary between environments and locales). */
 export async function listCountries(): Promise<{ code: string; name: string }[]> {
   const db = globalDb();
-  return db.countries.findMany({ select: { code: true, name: true }, orderBy: { name: 'asc' } });
+  const rows = await db.countries.findMany({ select: { code: true, name: true } });
+  const collator = new Intl.Collator('en', { sensitivity: 'base' });
+  return rows.sort((a, b) => collator.compare(a.name, b.name));
 }
 
 // ---------------------------------------------------------------------------------------------

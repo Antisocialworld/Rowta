@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Worker, type Job } from 'bullmq';
-import { closeAllQueues, createRedisConnection, getQueue, jobId } from '../src/jobs/queues.ts';
+import { closeAllQueues, createRedisConnection, getQueue, jobId, QUEUE_PREFIX } from '../src/jobs/queues.ts';
 import { closeAllDatabases } from '../src/db/clients.ts';
 
 const workerConnection = createRedisConnection(true);
@@ -28,7 +28,7 @@ async function foundationPing(job: Job<{ pingId: string }>): Promise<{ pingId: s
 let worker: Worker;
 
 beforeAll(async () => {
-  worker = new Worker('foundation', foundationPing, { connection: workerConnection, lockDuration: 30_000 });
+  worker = new Worker('foundation', foundationPing, { connection: workerConnection, lockDuration: 30_000, prefix: QUEUE_PREFIX });
   // Fail loudly instead of timing out if the worker cannot boot.
   await new Promise<void>((resolve, reject) => {
     const onReady = () => {
@@ -91,5 +91,14 @@ describe('BullMQ foundation queue', () => {
     expect(opts.backoff).toMatchObject({ type: 'exponential' });
     expect(opts.removeOnFail).toBeTruthy();
     expect(opts.removeOnComplete).toBeTruthy();
+  });
+
+  it('test queue prefix is isolated from the dev prefix (Fix B: a dev worker cannot steal test jobs)', () => {
+    // Under VITEST the prefix must be 'bull-test'; the dev/production prefix is 'bull'.
+    // The two must differ — that is what prevents a running dev worker from consuming test jobs
+    // and sending real mail. No connection string or secret is printed here.
+    const DEV_PREFIX = 'bull';
+    expect(QUEUE_PREFIX).toBe('bull-test');
+    expect(QUEUE_PREFIX).not.toBe(DEV_PREFIX);
   });
 });

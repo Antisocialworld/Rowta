@@ -16,7 +16,7 @@ import type { Hono } from 'hono';
 import { Worker } from 'bullmq';
 import { createApp } from '../../src/index.ts';
 import { logger } from '../../src/lib/logger.ts';
-import { closeAllQueues, createRedisConnection } from '../../src/jobs/queues.ts';
+import { closeAllQueues, createRedisConnection, QUEUE_PREFIX } from '../../src/jobs/queues.ts';
 import { closeAllDatabases, globalDb } from '../../src/db/clients.ts';
 import {
   clearMailCapture,
@@ -140,6 +140,7 @@ export async function startEmailWorker(): Promise<Worker> {
   const worker = new Worker<EmailJobData>('email', (job) => processEmailJob(job), {
     connection,
     lockDuration: 30_000,
+    prefix: QUEUE_PREFIX,
   });
   await new Promise<void>((resolve, reject) => {
     const onReady = () => {

@@ -28,6 +28,19 @@ export const DEFAULT_JOB_OPTIONS: JobsOptions = {
   removeOnFail: { age: 86_400 },
 };
 
+/** Redis key prefix for BullMQ queues.
+ *
+ *  Per https://docs.bullmq.io/guide/connections (verified 2026-10-23): both the `Queue` and
+ *  the `Worker` must be initialised with the **same** prefix; BullMQ's native `prefix` option
+ *  must be used — ioredis's `keyPrefix` is incompatible with BullMQ's Lua scripts.
+ *
+ *  Default (dev + production): `'bull'`  → keys like `bull:{email}:id`
+ *  Under vitest:               `'bull-test'` → keys like `bull-test:{email}:id`
+ *
+ *  A running dev worker (prefix `'bull'`) can never see a test job (prefix `'bull-test'`),
+ *  so tests cannot accidentally send real mail through the owner's SMTP. */
+export const QUEUE_PREFIX: string = process.env.VITEST !== undefined ? 'bull-test' : 'bull';
+
 /** Producer/queue connection: Redis defaults (maxRetriesPerRequest 20). */
 export function createRedisConnection(forWorker = false): Redis {
   return new Redis(env.REDIS_URL, {
@@ -44,6 +57,7 @@ export function getQueue(name: QueueName): Queue {
   const created = new Queue(name, {
     connection: createRedisConnection(false),
     defaultJobOptions: DEFAULT_JOB_OPTIONS,
+    prefix: QUEUE_PREFIX,
   } satisfies QueueOptions);
   queues.set(name, created);
   return created;
