@@ -403,8 +403,8 @@ async function main() {
     results.createAccount.invalid = c3.ariaDisabled === 'true';
 
     await fill(page, 1, 'ada@example.com');
-    await fill(page, 2, 'correct-horse-battery');
-    await fill(page, 3, 'correct-horse-battery');
+    await fill(page, 2, 'Correct-Horse-Battery-1');
+    await fill(page, 3, 'Correct-Horse-Battery-1');
     const c4 = await report(page, 'createAccount', 'valid');
     results.createAccount.valid = sheetOk && c4.ariaDisabled === null && c4.opacity === '1';
     if (!sheetOk || countriesStubbed === 0) {
@@ -515,12 +515,12 @@ async function main() {
       const r3 = await report(page, 'resetPassword', 'invalid');
       results.resetPassword.invalid = r3.ariaDisabled === 'true';
 
-      await fill(page, 0, 'correct-horse-battery');
+      await fill(page, 0, 'Correct-Horse-Battery-1');
       await fill(page, 1, 'different-password');
       const r4 = await report(page, 'resetPassword', 'invalidMismatch');
       results.resetPassword.invalid = results.resetPassword.invalid && r4.ariaDisabled === 'true';
 
-      await fill(page, 1, 'correct-horse-battery');
+      await fill(page, 1, 'Correct-Horse-Battery-1');
       const r5 = await report(page, 'resetPassword', 'valid');
       results.resetPassword.valid = r5.ariaDisabled === null && r5.opacity === '1';
     } else {

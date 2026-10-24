@@ -9,9 +9,8 @@
 // generic.error without any request — the token never appears on screen (A10, V5).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
-import { PASSWORD_MIN_LENGTH } from '@rowta/shared';
-import { Button, Input, LiveRegion, Text } from '../../components';
-import { t, type MessageKey } from '../../i18n/en';
+import { Button, Input, LiveRegion, PasswordRulesChecklist, Text } from '../../components';
+import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
 import { resetNewPasswordReady } from '../../lib/validation';
@@ -29,9 +28,6 @@ export function ResetNewPasswordView() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const ready = resetNewPasswordReady(grant, password, confirm);
-  // TS 6.0 quirk: a string-literal union in a JSX children position is rejected as a single child; a typed
-  // variable of the same MessageKey type is accepted (AuthPage does the same with the machine's message).
-  const tooShortKey: MessageKey = 'auth.password.tooShort';
 
   useEffect(() => {
     focusOn(firstRef.current);
@@ -70,9 +66,7 @@ export function ResetNewPasswordView() {
         onChangeText={setConfirm}
         errorKey={confirm.length > 0 && confirm !== password ? 'auth.password.mismatch' : form.fieldError('confirm')}
       />
-      {password.length > 0 && password.length < PASSWORD_MIN_LENGTH ? (
-        <LiveRegion>{tooShortKey}</LiveRegion>
-      ) : null}
+      <PasswordRulesChecklist password={password} testID="reset-password-checklist" />
       <Button
         label="action.resetPassword"
         ready={ready}

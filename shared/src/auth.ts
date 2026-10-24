@@ -25,7 +25,67 @@ export const emailField = z
   .transform((value) => normaliseEmail(value))
   .pipe(z.string().min(3).max(254).email());
 
-export const passwordField = z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH);
+/**
+ * Special character definition for password composition (decision 24 Oct 2026).
+ * Any character that is not a letter, digit or whitespace.
+ * Kept in this one named constant so the owner can narrow it to exactly `/[#@>^%*+=$&]/u` later.
+ */
+export const PASSWORD_SPECIAL_REGEX = /[^\p{L}\p{Nd}\s]/u;
+
+export const PASSWORD_COMPOSITION_RULES = [
+  {
+    id: 'minLength',
+    key: 'auth.password.tooShort',
+    text: 'Minimum of 8 characters',
+    test: (value: string): boolean => {
+      const n = value.normalize('NFKC');
+      return n.length >= PASSWORD_MIN_LENGTH && n.length <= PASSWORD_MAX_LENGTH;
+    },
+  },
+  {
+    id: 'uppercase',
+    key: 'auth.password.uppercase',
+    text: 'Password must contain an uppercase letter',
+    test: (value: string): boolean => /\p{Lu}/u.test(value.normalize('NFKC')),
+  },
+  {
+    id: 'lowercase',
+    key: 'auth.password.lowercase',
+    text: 'Password must contain a lowercase letter',
+    test: (value: string): boolean => /\p{Ll}/u.test(value.normalize('NFKC')),
+  },
+  {
+    id: 'numberOrSpecial',
+    key: 'auth.password.numberOrSpecial',
+    text: 'Password must contain a number or a special character (#@>^%*+=$&)',
+    test: (value: string): boolean => {
+      const n = value.normalize('NFKC');
+      return /\p{Nd}/u.test(n) || PASSWORD_SPECIAL_REGEX.test(n);
+    },
+  },
+] as const;
+
+export type PasswordRuleId = (typeof PASSWORD_COMPOSITION_RULES)[number]['id'];
+export type PasswordRuleKey = (typeof PASSWORD_COMPOSITION_RULES)[number]['key'];
+
+export const passwordField = z
+  .string()
+  .transform((value) => value.normalize('NFKC'))
+  .pipe(
+    z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, { message: 'auth.password.tooShort' })
+      .max(PASSWORD_MAX_LENGTH, { message: 'auth.password.tooLong' })
+      .refine((value) => /\p{Lu}/u.test(value), {
+        message: 'auth.password.uppercase',
+      })
+      .refine((value) => /\p{Ll}/u.test(value), {
+        message: 'auth.password.lowercase',
+      })
+      .refine((value) => /\p{Nd}/u.test(value) || PASSWORD_SPECIAL_REGEX.test(value), {
+        message: 'auth.password.numberOrSpecial',
+      }),
+  );
 
 export const displayNameField = z
   .string()

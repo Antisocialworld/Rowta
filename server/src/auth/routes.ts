@@ -53,6 +53,9 @@ function fieldCode(issue: ZodIssue, field: string | undefined): string {
     case 'newPassword':
       if (issue.code === 'too_small') return 'auth.password.tooShort';
       if (issue.code === 'too_big') return 'auth.password.tooLong';
+      if (issue.code === 'custom' && typeof issue.message === 'string' && issue.message.startsWith('auth.password.')) {
+        return issue.message;
+      }
       return 'validation.invalid';
     case 'displayName':
       if (issue.code === 'too_small') return 'auth.name.required';

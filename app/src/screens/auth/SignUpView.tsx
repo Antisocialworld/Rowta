@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type PressableInstance, type TextInputInstance } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialIcons } from '@expo/vector-icons';
-import { BottomSheet, Button, Input, LinkButton, LiveRegion, Text } from '../../components';
+import { BottomSheet, Button, Input, LinkButton, LiveRegion, PasswordRulesChecklist, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
@@ -142,6 +142,7 @@ export function SignUpView() {
         onChangeText={setConfirm}
         errorKey={confirm.length > 0 && confirm !== password ? 'auth.password.mismatch' : form.fieldError('confirm')}
       />
+      <PasswordRulesChecklist password={password} testID="signup-password-checklist" />
       <Button
         label="action.createAccount"
         ready={ready}
