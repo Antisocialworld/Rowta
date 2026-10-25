@@ -4,7 +4,7 @@
 // (docs/SECURITY.md section 3). The size panel reports the live window and font scale so any phone can be
 // compared against the PRD cases without guessing.
 import { useState } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Avatar,
@@ -25,6 +25,7 @@ import {
 import { t, type MessageKey } from '../i18n/en';
 import { useAuthSession } from '../state/auth-session';
 import { colors, spacing } from '../theme/tokens';
+import { CONTENT_MAX_WIDTH } from '../theme/layout';
 import { GALLERY_PEOPLE, GALLERY_SHIFTS } from './gallery-data';
 
 const AVATAR_SIZES = ['sm', 'md', 'lg'] as const;
@@ -49,14 +50,19 @@ export function GalleryScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.content}>
-        <Text variant="headline-small" accessibilityRole="header">
-          {t('gallery.title')}
-        </Text>
-        <Text variant="body-medium" tone="secondary">
-          {t('gallery.body')}
-        </Text>
-        <Button label="action.back" icon="arrow-back" iconOnly variant="ghost" fullWidth={false} onPress={closeGallery} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.content}>
+          <Text variant="headline-small" accessibilityRole="header">
+            {t('gallery.title')}
+          </Text>
+          <Text variant="body-medium" tone="secondary">
+            {t('gallery.body')}
+          </Text>
+          <Button label="action.back" icon="arrow-back" iconOnly variant="ghost" fullWidth={false} onPress={closeGallery} />
 
         {section('gallery.section.text')}
         <Text variant="display-large">{t('gallery.glyph')}</Text>
@@ -172,13 +178,23 @@ export function GalleryScreen() {
           {`${width} x ${height} pt, font scale ${fontScale}`}
         </Text>
       </View>
-    </SafeAreaView>
+    </ScrollView>
+  </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors['color-surface'] },
-  content: { padding: Number(spacing.base), gap: Number(spacing.base) },
+  scroll: { flex: 1 },
+  container: {
+    alignItems: 'center',
+    padding: Number(spacing.base),
+  },
+  content: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    gap: Number(spacing.base),
+  },
   sectionTitle: { marginTop: Number(spacing.medium) },
   row: { flexDirection: 'row', alignItems: 'center', gap: Number(spacing.small), flexWrap: 'wrap' },
   skeletonBlock: { width: 120, height: 48 },

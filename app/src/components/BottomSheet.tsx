@@ -16,11 +16,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
   type PressableInstance,
   type TextInstance,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { colors, shape, spacing, state } from '../theme/tokens';
@@ -48,6 +51,12 @@ export function BottomSheet({ visible, onClose, titleKey, initialFocusRef, child
   const closeRef = useRef<PressableInstance>(null);
   const headingRef = useRef<TextInstance>(null);
   const [sheetHeight, setSheetHeight] = useState(0);
+
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // Keep the sheet below the window top so the scrim remains visible (token-derived spacing.veryLarge).
+  const maxHeight = Math.max(0, windowHeight - insets.top - spacing.veryLarge);
+  const bottomPadding = Math.max(spacing.extraLarge, insets.bottom + spacing.base);
 
   useEffect(() => {
     if (!visible) return;
@@ -85,7 +94,16 @@ export function BottomSheet({ visible, onClose, titleKey, initialFocusRef, child
       <Animated.View
         testID={testID}
         onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
-        style={[styles.sheet, { backgroundColor: colors['color-surface-container'] }, elevated('medium'), animatedStyle]}
+        style={[
+          styles.sheet,
+          {
+            maxHeight,
+            paddingBottom: bottomPadding,
+            backgroundColor: colors['color-surface-container'],
+          },
+          elevated('medium'),
+          animatedStyle,
+        ]}
       >
         <View style={styles.header}>
           {titleKey !== undefined ? (
@@ -108,7 +126,14 @@ export function BottomSheet({ visible, onClose, titleKey, initialFocusRef, child
             <MaterialIcons name="close" size={iconSize('title-large')} color={colors['color-on-surface-variant']} accessibilityElementsHidden />
           </Pressable>
         </View>
-        {children}
+        <ScrollView
+          style={styles.scrollArea}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          {children}
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
@@ -126,7 +151,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: shape.extraLarge,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.large,
-    paddingBottom: spacing.extraLarge,
     gap: spacing.base,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.small },
@@ -137,5 +161,11 @@ const styles = StyleSheet.create({
     minHeight: MIN_TOUCH_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  scrollArea: {
+    flexShrink: 1,
+  },
+  scrollContent: {
+    gap: spacing.base,
   },
 });

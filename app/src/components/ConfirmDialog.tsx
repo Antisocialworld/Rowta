@@ -14,7 +14,16 @@
 // Props:    visible, titleKey, messageKey, confirmLabel, cancelLabel, destructive, busy, onConfirm, onCancel,
 //           testID.
 import { useEffect, useRef } from 'react';
-import { Modal, Pressable, StyleSheet, View, type TextInstance } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type TextInstance,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, shape, spacing, state } from '../theme/tokens';
 import { CONTENT_MAX_WIDTH } from '../theme/layout';
 import { focusOn } from '../lib/a11y';
@@ -48,6 +57,10 @@ export function ConfirmDialog({
   testID,
 }: ConfirmDialogProps) {
   const headingRef = useRef<TextInstance>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // Keep dialog bounded inside the viewport so header and actions remain visible on small screens / 200% text.
+  const maxDialogHeight = Math.max(0, windowHeight - insets.top - insets.bottom - spacing.extraLarge * 2);
 
   useEffect(() => {
     if (visible) focusOn(headingRef.current);
@@ -64,13 +77,29 @@ export function ConfirmDialog({
         testID={testID !== undefined ? `${testID}-scrim` : undefined}
       />
       <View style={styles.centering} pointerEvents="box-none">
-        <View testID={testID} style={[styles.dialog, { backgroundColor: colors['color-surface-container'] }]}>
+        <View
+          testID={testID}
+          style={[
+            styles.dialog,
+            {
+              maxHeight: maxDialogHeight,
+              backgroundColor: colors['color-surface-container'],
+            },
+          ]}
+        >
           <Text ref={headingRef} variant="title-medium" accessibilityRole="header">
             {t(titleKey)}
           </Text>
-          <Text variant="body-medium" tone="secondary">
-            {t(messageKey)}
-          </Text>
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Text variant="body-medium" tone="secondary">
+              {t(messageKey)}
+            </Text>
+          </ScrollView>
           <View style={styles.actions}>
             <Button label={cancelLabel} onPress={onCancel} variant="ghost" fullWidth={false} />
             <Button
@@ -101,6 +130,12 @@ const styles = StyleSheet.create({
     borderRadius: shape.large,
     padding: spacing.extraLarge,
     gap: spacing.medium,
+  },
+  scrollArea: {
+    flexShrink: 1,
+  },
+  scrollContent: {
+    gap: spacing.small,
   },
   actions: {
     flexDirection: 'row',
