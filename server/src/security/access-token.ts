@@ -1,6 +1,6 @@
 // Access tokens: JWT HS512 with the algorithm pinned (rules A4, A11, S8; skill 3.16).
 //
-// - HS512 only: the verify call allows ONLY 'HS512', so `none`, HS256 and every other algorithm
+// - HS512 only: the verify call allows ONLY 'HS512', so `none` and every other algorithm
 //   are rejected (A4).
 // - Claims: subject (user ID), issued-at, expiry 15 minutes (A11), a token ID (jti). NO role and
 //   no team role anywhere in the token (S8).
