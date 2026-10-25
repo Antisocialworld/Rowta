@@ -11,6 +11,7 @@ const SCAN_DIRS = [
   join(repoRoot, 'server', 'src'),
   join(repoRoot, 'shared', 'src'),
   join(repoRoot, 'app', 'src'),
+  join(repoRoot, 'server', 'prisma', 'sql'),
 ];
 
 const BANNED_PATTERNS = [
@@ -27,7 +28,7 @@ function collectFiles(dir) {
       const st = statSync(full);
       if (st.isDirectory()) {
         results.push(...collectFiles(full));
-      } else if (/\.(ts|tsx|js|jsx|mjs|cjs|json)$/.test(entry)) {
+      } else if (/\.(ts|tsx|js|jsx|mjs|cjs|json|sql)$/.test(entry)) {
         results.push(full);
       }
     }
@@ -63,6 +64,6 @@ if (violations > 0) {
   console.error(`\nFAILED: Found ${violations} banned algorithm hit(s) across ${fileCount} files.`);
   process.exit(1);
 } else {
-  console.log(`BANNED ALGORITHM SCAN PASSED: 0 hits across ${fileCount} source files in server/src, shared/src, app/src.`);
+  console.log(`BANNED ALGORITHM SCAN PASSED: 0 hits across ${fileCount} files in server/src, shared/src, app/src, server/prisma/sql.`);
   process.exit(0);
 }

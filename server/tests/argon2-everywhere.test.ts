@@ -46,11 +46,12 @@ afterAll(async () => {
 });
 
 describe('Argon2id everywhere & banned algorithm scan (Rule A4)', () => {
-  it('fails if SHA-256 or any banned algorithm appears anywhere in server/src, shared/src, or app/src', () => {
+  it('fails if SHA-256 or any banned algorithm appears anywhere in server/src, shared/src, app/src, or server/prisma/sql', () => {
     const scanDirs = [
       join(repoRoot, 'server', 'src'),
       join(repoRoot, 'shared', 'src'),
       join(repoRoot, 'app', 'src'),
+      join(repoRoot, 'server', 'prisma', 'sql'),
     ];
 
     const bannedRegex = /\b(sha-?256|hmac-sha-?256|hs256|rs256|es256|ps256|md5|sha-?1)\b/i;
@@ -61,7 +62,7 @@ describe('Argon2id everywhere & banned algorithm scan (Rule A4)', () => {
         const full = join(dir, entry);
         const st = statSync(full);
         if (st.isDirectory()) files.push(...walk(full));
-        else if (/\.(ts|tsx|js|jsx|mjs|cjs|json)$/.test(entry)) files.push(full);
+        else if (/\.(ts|tsx|js|jsx|mjs|cjs|json|sql)$/.test(entry)) files.push(full);
       }
       return files;
     }
