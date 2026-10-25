@@ -153,6 +153,19 @@ npm run worker:dev --workspace @rowta/server   # worker
 - Server smoke test (boots the real HTTP server in-process, no background process left behind):
   `npx tsx scripts/server-smoke.mjs`.
 
+## 5b. Emails and cleanup need the worker
+
+Background jobs and outbound emails require the separate worker process:
+
+```
+npm run worker --workspace @rowta/server
+```
+
+- **Why**: Sign-up verification codes, password resets, and magic-link emails are dispatched exclusively by the worker via BullMQ. The HTTP API only enqueues work (rule C2); if the worker is not running, no emails arrive.
+- **Scheduled Purges**: Database cleanup (`purge-tokens` after 7 days past expiry, `purge-idempotency` after 48 hours) runs only within the worker via `node-cron`.
+- **Health Check (`/health/deep`)**: Reports `{ name: 'worker', pass: boolean }`. If the worker is dead or stopped, `worker` reports `false` and status is `degraded` (HTTP 200).
+- **`CRON_ENABLED`**: Defaults to `true` (documented in `.env.example`). Setting `CRON_ENABLED=false` pauses scheduled cron ticks, while direct job processing and liveness heartbeats continue running.
+
 ## 6. Checks the agent runs before reporting
 
 ```
