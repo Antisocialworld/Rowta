@@ -82,7 +82,9 @@ describe('cron lock', () => {
 
 describe('cron registry', () => {
   it('every entry uses a lock key with colons and a job-safe name', () => {
-    expect(CRON_REGISTRY.length).toBeGreaterThan(0);
+    expect(CRON_REGISTRY.length).toBe(3);
+    const names = CRON_REGISTRY.map((e) => e.name);
+    expect(names).toEqual(['foundation-heartbeat', 'purge-tokens', 'purge-idempotency']);
     for (const entry of CRON_REGISTRY) {
       expect(entry.lockKey).toContain(':');
       expect(entry.lockKey.startsWith('cron:lock:')).toBe(true);

@@ -10,6 +10,8 @@ import { globalDb, writeDb, type AnyPrismaClient } from '../db/clients.ts';
 import { ok } from '../middleware/error.ts';
 import type { AppLogger } from '../lib/logger.ts';
 
+import { checkWorkerLiveness } from '../worker/liveness.ts';
+
 export interface DependencyReport {
   name: string;
   pass: boolean;
@@ -40,23 +42,28 @@ async function pingDatabase(client: AnyPrismaClient): Promise<boolean> {
 
 /** Run every dependency check. Exported so the worker and tests can reuse it. */
 export async function checkDependencies(deps: {
-  redis: { ping(): Promise<string> };
+  redis: { ping(): Promise<string>; exists?(key: string): Promise<number> };
 }): Promise<DeepHealth> {
-  const [redisOk, db0Ok, db1Ok] = await Promise.all([
+  const [redisOk, db0Ok, db1Ok, workerOk] = await Promise.all([
     pingRedis(deps.redis),
     pingDatabase(globalDb()),
     pingDatabase(writeDb(1)),
+    checkWorkerLiveness(deps.redis),
   ]);
   const dependencies: DependencyReport[] = [
     { name: 'redis', pass: redisOk },
     { name: 'db0', pass: db0Ok },
     { name: 'db1', pass: db1Ok },
+    { name: 'worker', pass: workerOk },
   ];
   const status = dependencies.every((d) => d.pass) ? 'ok' : 'degraded';
   return { status, dependencies };
 }
 
-export function createHealthRoutes(deps: { redis: { ping(): Promise<string> }; log?: AppLogger }): Hono {
+export function createHealthRoutes(deps: {
+  redis: { ping(): Promise<string>; exists?(key: string): Promise<number> };
+  log?: AppLogger;
+}): Hono {
   const app = new Hono();
 
   app.get('/', (c) => c.json(ok({ status: 'ok', uptimeSeconds: Math.round(process.uptime()) })));

@@ -48,8 +48,10 @@ try {
 
   const deep = await get('/health/deep');
   const deepBody = JSON.parse(deep.body);
-  if (deep.status === 200 && deepBody.data.status === 'ok') pass('/health/deep returns 200 ok with all deps passing');
-  else fail(`/health/deep returned ${deep.status}: ${deep.body}`);
+  const deps = Object.fromEntries((deepBody.data?.dependencies ?? []).map((d) => [d.name, d.pass]));
+  if (deep.status === 200 && deps.redis === true && deps.db0 === true && deps.db1 === true) {
+    pass(`/health/deep returns 200 (status: ${deepBody.data.status}, db0/db1/redis ok, worker: ${deps.worker})`);
+  } else fail(`/health/deep returned ${deep.status}: ${deep.body}`);
 
   const missing = await get('/definitely-not-a-route');
   const missingBody = JSON.parse(missing.body);

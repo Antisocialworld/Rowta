@@ -16,6 +16,8 @@ import { closeAllQueues, createRedisConnection, getQueue, QUEUE_NAMES, type Queu
 import { startCron } from '../cron/registry.ts';
 import { processEmailJob } from '../jobs/email/processor.ts';
 import type { EmailJobData } from '../jobs/email/types.ts';
+import { runPurgeIdempotency, runPurgeTokens } from '../jobs/purge/processor.ts';
+import { startWorkerLiveness } from './liveness.ts';
 
 const log = logger.child({ process: 'worker' });
 
@@ -48,6 +50,16 @@ async function acknowledgeOnly(job: Job): Promise<{ jobId: string | undefined }>
   return { jobId: job.id };
 }
 
+async function processPurge(job: Job): Promise<unknown> {
+  if (job.name === 'purge-tokens') {
+    return runPurgeTokens({ dryRunFirst: true });
+  }
+  if (job.name === 'purge-idempotency') {
+    return runPurgeIdempotency({ dryRunFirst: true });
+  }
+  return acknowledgeOnly(job);
+}
+
 const PROCESSORS: Record<QueueName, (job: Job) => Promise<unknown>> = {
   foundation: (job) => {
     if (job.name === 'ping') return foundationPing(job as Job<{ pingId: string }>);
@@ -61,7 +73,7 @@ const PROCESSORS: Record<QueueName, (job: Job) => Promise<unknown>> = {
   // (A6): the request path only enqueues.
   email: (job) => processEmailJob(job as Job<EmailJobData>),
   renewal: acknowledgeOnly,
-  purge: acknowledgeOnly,
+  purge: processPurge,
 };
 
 function createWorkers(): Worker[] {
@@ -98,20 +110,32 @@ function wireLogging(workers: Worker[]): void {
 async function main(): Promise<void> {
   log.info({ queues: [...QUEUE_NAMES], cronEnabled: env.CRON_ENABLED }, 'worker starting');
 
+  // Worker liveness runs directly in the worker process (independent of CRON_ENABLED).
+  const livenessRedis = createRedisConnection(false);
+  const liveness = startWorkerLiveness(livenessRedis);
+
   const workers = createWorkers();
   wireLogging(workers);
 
   // Touch every queue so a missing Redis connection fails at boot, not on the first job.
   for (const name of QUEUE_NAMES) getQueue(name);
 
-  const cronHandle = env.CRON_ENABLED ? startCron(createRedisConnection(false), getQueue('foundation')) : null;
+  const cronRedis = createRedisConnection(false);
+  const cronHandle = env.CRON_ENABLED ? startCron(cronRedis) : null;
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     log.info({ signal }, 'worker shutting down');
+
+    // Stop liveness and delete heartbeat key immediately on shutdown
+    await liveness.stop();
+    await livenessRedis.quit().catch(() => undefined);
+
     cronHandle?.stopAll();
+    await cronRedis.quit().catch(() => undefined);
+
     // close() waits for in-flight jobs before resolving (C8).
     await Promise.all(workers.map((w) => w.close().catch(() => undefined)));
     await closeAllQueues();

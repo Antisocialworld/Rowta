@@ -15,7 +15,7 @@ import cron, { type ScheduledTask } from 'node-cron';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { acquireLock, releaseLock } from './lock.ts';
-import { jobId } from '../jobs/queues.ts';
+import { getQueue, jobId, type QueueName } from '../jobs/queues.ts';
 
 export interface CronEntry {
   name: string;
@@ -29,8 +29,8 @@ export interface CronEntry {
 }
 
 /**
- * The single source of truth for schedules. Phase 0 ships one heartbeat entry that proves the
- * tick -> lock -> enqueue path; later phases add renewals, purge and notifications here.
+ * The single source of truth for schedules (PRD 8.11, rules J2, D5).
+ * All schedules use 6-field cron expressions pinned to UTC (with leading seconds field).
  */
 export const CRON_REGISTRY: readonly CronEntry[] = [
   {
@@ -41,6 +41,24 @@ export const CRON_REGISTRY: readonly CronEntry[] = [
     ttlSeconds: 300,
     queue: 'foundation',
     jobName: 'heartbeat',
+  },
+  {
+    name: 'purge-tokens',
+    // PRD 8.11: 30 2 * * * (daily at 02:30 UTC), converted to 6-field node-cron format (second 0).
+    schedule: '0 30 2 * * *',
+    lockKey: 'cron:lock:purge-tokens',
+    ttlSeconds: 600,
+    queue: 'purge',
+    jobName: 'purge-tokens',
+  },
+  {
+    name: 'purge-idempotency',
+    // PRD 8.11: 45 2 * * * (daily at 02:45 UTC), converted to 6-field node-cron format (second 0).
+    schedule: '0 45 2 * * *',
+    lockKey: 'cron:lock:purge-idempotency',
+    ttlSeconds: 600,
+    queue: 'purge',
+    jobName: 'purge-idempotency',
   },
 ] as const;
 
@@ -54,7 +72,7 @@ export interface CronHandle {
  * Each tick: take the lock; if acquired, enqueue a job with a window-derived ID and release the lock.
  * The queued job does the work.
  */
-export function startCron(redis: Redis, queue: Queue): CronHandle {
+export function startCron(redis: Redis, defaultQueue?: Queue): CronHandle {
   const tasks = CRON_REGISTRY.map((entry) =>
     cron.schedule(
       entry.schedule,
@@ -64,6 +82,7 @@ export function startCron(redis: Redis, queue: Queue): CronHandle {
         if (!lock) return; // another instance holds the lock
         try {
           // Payload carries IDs and the entry name only — never a secret (J3).
+          const queue = entry.queue ? getQueue(entry.queue as QueueName) : defaultQueue!;
           await queue.add(entry.jobName, { entryName: entry.name, windowStart }, { jobId: jobId(entry.name, windowStart) });
         } finally {
           await releaseLock(redis, lock);

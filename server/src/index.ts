@@ -57,7 +57,7 @@ export function isDevPreviewOrigin(origin: string, nodeEnv: string): boolean {
 
 export interface AppDeps {
   log: AppLogger;
-  redis: { ping(): Promise<string> };
+  redis: { ping(): Promise<string>; exists?(key: string): Promise<number> };
 }
 
 export function createApp(deps: AppDeps): Hono {
