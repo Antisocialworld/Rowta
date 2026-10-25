@@ -13,6 +13,17 @@ node scripts/setup-env.mjs --audit-example   # fails if .env.example holds a val
 - If you change a database password after the containers were first started, run `docker compose down -v` once (this wipes the local data) so the containers restart with the new password.
 - Never paste the contents of `.env` into chat, an issue, a pull request or a commit message.
 
+### 1b. Generating a new JWT signing secret
+
+```
+npm run gen:secret
+```
+
+- Generates 64 cryptographically secure random bytes printed as 128 lowercase hex characters using `crypto.randomBytes`.
+- Paste the generated value into `.env` as `JWT_ACCESS_SECRET`.
+- Never share, commit, or log this value.
+- Changing `JWT_ACCESS_SECRET` immediately ends all active 15-minute access tokens; existing refresh tokens keep working and obtain new access tokens on their next refresh.
+
 ## 2. Secrets only you can provide (all optional until their phase)
 
 | Names | From | Needed for |

@@ -11,6 +11,7 @@
   "scripts": {
     "icons": "node scripts/build-icons.mjs",
     "check:hashing": "node scripts/check-no-sha256.mjs",
+    "gen:secret": "node scripts/gen-secret.mjs",
     "db:studio": "node scripts/db-studio.mjs db0",
     "db:studio:db1": "node scripts/db-studio.mjs db1",
     "db:psql": "node scripts/db-psql.mjs db0",
