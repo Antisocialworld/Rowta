@@ -18,3 +18,8 @@ export const PASSWORD_MIN_LENGTH = 8; // A8: owner rule.
 export const PASSWORD_MAX_LENGTH = 128; // A8: a giant input must not burn CPU.
 export const DISPLAY_NAME_MIN_LENGTH = 1; // V8
 export const DISPLAY_NAME_MAX_LENGTH = 60; // V8
+
+export const INVITE_TTL_SECONDS = 7 * 24 * 3_600; // 7 days (PRD 8.2, skill rowta-teams-roles-recipes 3)
+export const STARTER_SEAT_CAP = 5; // Starter includes up to 5 non-owner seats (PRD 5, Owner Decision 1)
+export const TEAM_NAME_MIN_LENGTH = 1;
+export const TEAM_NAME_MAX_LENGTH = 80;

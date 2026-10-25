@@ -60,6 +60,15 @@ export const CRON_REGISTRY: readonly CronEntry[] = [
     queue: 'purge',
     jobName: 'purge-idempotency',
   },
+  {
+    name: 'repair-user-team-index',
+    // PRD 8.11: 30 3 * * * (daily at 03:30 UTC), converted to 6-field node-cron format (second 0).
+    schedule: '0 30 3 * * *',
+    lockKey: 'cron:lock:repair-user-team-index',
+    ttlSeconds: 600,
+    queue: 'purge',
+    jobName: 'repair-user-team-index',
+  },
 ] as const;
 
 export interface CronHandle {

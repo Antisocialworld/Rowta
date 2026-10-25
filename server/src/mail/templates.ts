@@ -205,3 +205,40 @@ export function magicLinkUrl(token: string): string {
 export function webHomeUrl(): string {
   return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/`;
 }
+
+/** The canonical invite link: https page with the token path (PRD 8.2; Owner Decision 3). */
+export function inviteUrl(token: string): string {
+  return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/invite/${token}`;
+}
+
+export function inviteEmail(input: {
+  teamName: string;
+  inviterName: string | null;
+  role: string;
+  inviteUrl: string;
+}): RenderedEmail {
+  const subject = `You have been invited to join ${input.teamName} on Rowta`;
+  const inviterText = input.inviterName ? `${input.inviterName} has invited you` : 'You have been invited';
+  const text = textEmail([
+    'Hi,',
+    `${inviterText} to join "${input.teamName}" as a ${input.role} on Rowta.`,
+    `Use this link to accept the invitation:\n\n${input.inviteUrl}`,
+    'The invitation is valid for 7 days and can only be used once.',
+    'If you did not expect this invitation, you can safely ignore this email.',
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const safeUrl = escapeHtml(input.inviteUrl);
+  const html = htmlShell(subject, [
+    'Hi,',
+    `${escapeHtml(inviterText)} to join "${escapeHtml(input.teamName)}" as a ${escapeHtml(input.role)} on Rowta.`,
+    `Use this link to accept the invitation:`,
+    `<p><a href="${safeUrl}">${safeUrl}</a></p>`,
+    'The invitation is valid for 7 days and can only be used once.',
+    'If you did not expect this invitation, you can safely ignore this email.',
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+

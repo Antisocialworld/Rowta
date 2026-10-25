@@ -176,18 +176,19 @@ model swap_requests {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model teams {
-  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                  String
-  created_at            DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime          @default(now()) @db.Timestamptz(6)
-  deletion_requested_at DateTime?         @db.Timestamptz(6)
-  deleted_at            DateTime?         @db.Timestamptz(6)
-  activity_events       activity_events[]
-  invites               invites[]
-  memberships           memberships[]
-  shifts                shifts[]
-  subscriptions         subscriptions?
-  swap_requests         swap_requests[]
+  id                          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                        String
+  created_at                  DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime          @default(now()) @db.Timestamptz(6)
+  deletion_requested_at       DateTime?         @db.Timestamptz(6)
+  deleted_at                  DateTime?         @db.Timestamptz(6)
+  managers_can_revoke_invites Boolean           @default(true)
+  activity_events             activity_events[]
+  invites                     invites[]
+  memberships                 memberships[]
+  shifts                      shifts[]
+  subscriptions               subscriptions?
+  swap_requests               swap_requests[]
 
   @@index([deleted_at], map: "teams_deleted_idx", where: raw("(deleted_at IS NOT NULL)"))
 }

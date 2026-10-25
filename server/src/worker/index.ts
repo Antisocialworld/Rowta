@@ -17,6 +17,7 @@ import { startCron } from '../cron/registry.ts';
 import { processEmailJob } from '../jobs/email/processor.ts';
 import type { EmailJobData } from '../jobs/email/types.ts';
 import { runPurgeIdempotency, runPurgeTokens } from '../jobs/purge/processor.ts';
+import { runRepairUserTeamIndex } from '../jobs/repair/user-team-index.ts';
 import { startWorkerLiveness } from './liveness.ts';
 
 const log = logger.child({ process: 'worker' });
@@ -56,6 +57,9 @@ async function processPurge(job: Job): Promise<unknown> {
   }
   if (job.name === 'purge-idempotency') {
     return runPurgeIdempotency({ dryRunFirst: true });
+  }
+  if (job.name === 'repair-user-team-index') {
+    return runRepairUserTeamIndex();
   }
   return acknowledgeOnly(job);
 }

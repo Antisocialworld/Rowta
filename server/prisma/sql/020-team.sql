@@ -3,12 +3,13 @@
 -- rule D7); the application and repair jobs keep them consistent.
 
 CREATE TABLE teams (
-  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name                  text NOT NULL,
-  created_at            timestamptz NOT NULL DEFAULT now(),
-  updated_at            timestamptz NOT NULL DEFAULT now(),
-  deletion_requested_at timestamptz,
-  deleted_at            timestamptz,
+  id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                        text NOT NULL,
+  managers_can_revoke_invites boolean NOT NULL DEFAULT true,
+  created_at                  timestamptz NOT NULL DEFAULT now(),
+  updated_at                  timestamptz NOT NULL DEFAULT now(),
+  deletion_requested_at       timestamptz,
+  deleted_at                  timestamptz,
   CONSTRAINT teams_name_len CHECK (char_length(name) BETWEEN 1 AND 80),
   CONSTRAINT teams_name_no_control CHECK (name !~ '[[:cntrl:]]')
 );

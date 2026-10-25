@@ -18,6 +18,8 @@ import { hashSecret } from '../../security/argon2.ts';
 import { createTokenParts, formatToken, generateCode } from '../../security/tokens.ts';
 import { sendEmail } from '../../mail/transport.ts';
 import {
+  inviteEmail,
+  inviteUrl,
   magicLinkEmail,
   magicLinkUrl,
   resetCodeEmail,
@@ -43,11 +45,26 @@ export async function processEmailJob(job: Job<EmailJobData>): Promise<EmailJobR
       return sendResetCode(data.email);
     case 'magicLink':
       return sendMagicLink(data.email);
+    case 'teamInvite':
+      return sendTeamInvite(data);
     default: {
       const unknown: never = data;
       throw new Error(`unknown email job kind: ${JSON.stringify(unknown)}`);
     }
   }
+}
+
+async function sendTeamInvite(
+  data: Extract<EmailJobData, { kind: 'teamInvite' }>,
+): Promise<EmailJobResult> {
+  const message = inviteEmail({
+    teamName: data.teamName,
+    inviterName: data.inviterName,
+    role: data.role,
+    inviteUrl: inviteUrl(data.token),
+  });
+  await sendEmail({ kind: 'teamInvite', to: data.email, ...message });
+  return { kind: 'teamInvite', sent: true };
 }
 
 async function sendSignupCode(email: string): Promise<EmailJobResult> {

@@ -61,6 +61,20 @@ export const LIMITS: readonly LimitDef[] = [
   { id: 'magicRequest.ip', key: 'ip', max: 20, windowSec: 3_600, failMode: 'C', reason: 'email bombing' },
   { id: 'magicConsume.ip', key: 'ip', max: 30, windowSec: 900, failMode: 'C', reason: 'token guessing' },
   { id: 'magicConsume.token', key: 'bodyToken', field: 'token', max: 10, windowSec: 3_600, failMode: 'C', reason: 'token guessing' },
+
+  // Phase 3 — Teams, roles, invites, settings.
+  { id: 'team.create', key: 'user', max: 10, windowSec: 3_600, failMode: 'C', reason: 'stop mass team creation' },
+  { id: 'teams.list', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap user teams list read' },
+  { id: 'team.get', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap team details read' },
+  { id: 'members.list', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap member roster read' },
+  { id: 'member.role', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'member role change write' },
+  { id: 'member.remove', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'member removal write' },
+  { id: 'member.leave', key: 'user', max: 10, windowSec: 60, failMode: 'C', reason: 'leave team write' },
+  { id: 'invites.list', key: 'user', max: 60, windowSec: 60, failMode: 'O', reason: 'pending invites read' },
+  { id: 'invite.create', key: 'user', max: 30, windowSec: 3_600, failMode: 'C', reason: 'stop mass invites, email abuse' },
+  { id: 'invite.revoke', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'revoke invite write' },
+  { id: 'invite.accept', key: 'ip', max: 30, windowSec: 900, failMode: 'C', reason: 'stop brute force on invite tokens' },
+  { id: 'team.settings', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'team settings update write' },
 ];
 
 const BY_ID = new Map(LIMITS.map((def) => [def.id, def]));

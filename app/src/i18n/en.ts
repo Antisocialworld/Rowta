@@ -48,6 +48,12 @@ export const en = {
   'auth.magic.button': 'Sign in',
   'auth.field.required': 'This field is required.',
   'auth.deleteOwner.blocked': 'Transfer or delete your team first.',
+  'team.invite.sent': 'Invitation sent.',
+  'team.seatLimit': 'Seat limit reached.',
+  'team.name.required': 'Enter a team name.',
+  'team.name.tooLong': 'Use 80 characters or fewer.',
+  'team.notFound': 'Team not found.',
+  'team.forbidden': 'You do not have permission to perform this action.',
   'generic.error': 'Something went wrong. Try again.',
   // Server 422 field codes (routes.ts fieldCode) that are not PRD-11 rows above, and the 429
   // countdown line. The countdown is VISUAL only — the announcement is the fixed auth.rateLimited

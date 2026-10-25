@@ -7,7 +7,15 @@ export type EmailJobData =
   | { kind: 'signupNotice'; email: string }
   | { kind: 'welcome'; userId: string }
   | { kind: 'resetCode'; email: string }
-  | { kind: 'magicLink'; email: string };
+  | { kind: 'magicLink'; email: string }
+  | {
+      kind: 'teamInvite';
+      email: string;
+      teamName: string;
+      inviterName: string | null;
+      role: string;
+      token: string;
+    };
 
 export type EmailJobKind = EmailJobData['kind'];
 

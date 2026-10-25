@@ -63,6 +63,33 @@ export function readDb(shard: Shard): AnyPrismaClient {
   return writeDb(shard);
 }
 
+export type Shard0Tx = Parameters<Parameters<GeneratedDb0['$transaction']>[0]>[0];
+export type Shard1Tx = Parameters<Parameters<GeneratedDb1['$transaction']>[0]>[0];
+export type ShardTx = Shard0Tx & Shard1Tx;
+
+/**
+ * Execute an interactive transaction on a shard database.
+ * Shards share identical shard-scoped models (teams, memberships, invites, etc.).
+ */
+export async function shardTransaction<R>(
+  shard: Shard,
+  fn: (tx: ShardTx) => Promise<R>,
+): Promise<R> {
+  const client = writeDb(shard);
+  if (shard === 0) {
+    return (client as GeneratedDb0).$transaction((tx) => fn(tx as unknown as ShardTx));
+  }
+  return (client as GeneratedDb1).$transaction((tx) => fn(tx as unknown as ShardTx));
+}
+
+/** Execute an interactive transaction on the shard routed for the team. */
+export async function teamTransaction<R>(
+  teamId: string,
+  fn: (tx: ShardTx) => Promise<R>,
+): Promise<R> {
+  return shardTransaction(shardFor(teamId), fn);
+}
+
 /** Close every open client. Used by graceful shutdown and by tests. */
 export async function closeAllDatabases(): Promise<void> {
   const open = [...clients.values()];
