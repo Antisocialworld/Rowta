@@ -1,6 +1,8 @@
-// HomePlaceholder — the signed-in branch of the root render for Phase 1 only (U2; PRD).
-// Phase 2 replaces this with the real role-aware Dashboard (PRD 6.2) fed by the server. It exists now so the
-// root conditional (AuthGate vs signed-in) is real code that the gallery and the size matrix can reach.
+// HomePlaceholder — placeholder screen for signed-in sessions (U2; PRD §6.1).
+// Phase 8 ("Offline and Dashboard", PRD §12) replaces this placeholder with the real role-aware
+// Dashboard home screen (PRD §6.1: "your next shift, this week, pending swap requests for managers,
+// recent activity, and for the owner a seat and billing summary"). It serves today so the root
+// conditional render (AuthGate vs signed-in) is live code that the gallery, size matrix, and sign-out can reach.
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
