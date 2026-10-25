@@ -127,7 +127,7 @@ async function main(): Promise<void> {
     responder(() =>
       json(
         429,
-        { error: { code: 'rate.limited', message: 'Too many attempts. Try again in a few minutes.', requestId: 'req-3' } },
+        { error: { code: 'rate.limited', message: 'Too many attempts. Please wait before trying again.', requestId: 'req-3' } },
         { 'Retry-After': '47' },
       ),
     );

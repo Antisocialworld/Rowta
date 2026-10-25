@@ -10,12 +10,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 import { Button, Input, LiveRegion, PasswordRulesChecklist, Text } from '../../components';
-import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
+import { formatRetryIn } from '../../lib/countdown';
 import { resetNewPasswordReady } from '../../lib/validation';
 import { useAuthFlow } from '../../state/auth-context';
-import { useAuthForm } from '../../state/auth-form';
+import { createSubmitTrigger, useAuthForm } from '../../state/auth-form';
 import { useAuthViewStore } from '../../state/auth-view';
 import { spacing } from '../../theme/tokens';
 
@@ -25,6 +25,7 @@ export function ResetNewPasswordView() {
   const clearCodeFlow = useAuthFlow((state) => state.clearCodeFlow);
   const form = useAuthForm();
   const firstRef = useRef<TextInputInstance>(null);
+  const confirmRef = useRef<TextInputInstance>(null);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const ready = resetNewPasswordReady(grant, password, confirm);
@@ -49,6 +50,15 @@ export function ResetNewPasswordView() {
     switchTo('signIn', 'auth.reset.done');
   };
 
+  const handleSubmit = createSubmitTrigger({
+    ready,
+    busy: form.busy,
+    onNotReady: () => {
+      focusOn(firstRef.current);
+    },
+    submit: submitReset,
+  });
+
   return (
     <View style={styles.stack}>
       <Input
@@ -58,13 +68,20 @@ export function ResetNewPasswordView() {
         value={password}
         onChangeText={setPassword}
         errorKey={form.fieldError('newPassword')}
+        returnKeyType="next"
+        onSubmitEditing={() => {
+          focusOn(confirmRef.current);
+        }}
       />
       <Input
+        ref={confirmRef}
         label="field.confirmPassword"
         variant="newPassword"
         value={confirm}
         onChangeText={setConfirm}
         errorKey={confirm.length > 0 && confirm !== password ? 'auth.password.mismatch' : form.fieldError('confirm')}
+        returnKeyType="go"
+        onSubmitEditing={handleSubmit}
       />
       <PasswordRulesChecklist password={password} testID="reset-password-checklist" />
       <Button
@@ -75,14 +92,12 @@ export function ResetNewPasswordView() {
         onNotReady={() => {
           focusOn(firstRef.current);
         }}
-        onPress={() => {
-          void submitReset();
-        }}
+        onPress={handleSubmit}
       />
       {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
       {form.retryIn !== null && form.retryIn > 0 ? (
         <Text variant="body-small" tone="secondary">
-          {t('auth.rateLimit.retryIn', { seconds: form.retryIn })}
+          {formatRetryIn(form.retryIn)}
         </Text>
       ) : null}
     </View>

@@ -24,8 +24,41 @@ export type AuthForm = {
   submit: <T>(request: () => Promise<T>) => Promise<T | null>;
 };
 
+export type SubmitTriggerOptions = {
+  ready?: boolean;
+  busy?: boolean;
+  submit: () => void | Promise<unknown>;
+  onNotReady?: () => void;
+};
+
+/**
+ * Shared submit trigger for both Button onPress and last Input onSubmitEditing (Enter key).
+ * Enforces:
+ * - Enter while busy does nothing (no double submit; held key does not re-submit)
+ * - Enter when ready invokes the same submit path
+ * - Enter when not ready invokes the same onNotReady as Button
+ */
+export function createSubmitTrigger({
+  ready = true,
+  busy = false,
+  submit,
+  onNotReady,
+}: SubmitTriggerOptions): () => void {
+  return () => {
+    if (busy) return;
+    if (ready === false) {
+      if (onNotReady !== undefined) {
+        onNotReady();
+      }
+      return;
+    }
+    void submit();
+  };
+}
+
 export function useAuthForm(): AuthForm {
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [formError, setFormError] = useState<MessageKey | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [retryIn, setRetryIn] = useState<number | null>(null);
@@ -54,6 +87,8 @@ export function useAuthForm(): AuthForm {
 
   const submit = useCallback(
     async <T,>(request: () => Promise<T>): Promise<T | null> => {
+      if (busyRef.current) return null;
+      busyRef.current = true;
       setBusy(true);
       setFormError(null);
       setFields({});
@@ -77,6 +112,7 @@ export function useAuthForm(): AuthForm {
         }
         return null;
       } finally {
+        busyRef.current = false;
         setBusy(false);
       }
     },

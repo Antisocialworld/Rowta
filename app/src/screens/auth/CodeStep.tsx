@@ -18,9 +18,9 @@ import type { CodeTimerMeta } from '@rowta/shared';
 import { Button, Input, LinkButton, LiveRegion, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
-import { formatClock, useCountdown } from '../../lib/countdown';
+import { formatClock, formatRetryIn, useCountdown } from '../../lib/countdown';
 import { useAuthFlow } from '../../state/auth-context';
-import { useAuthForm } from '../../state/auth-form';
+import { createSubmitTrigger, useAuthForm } from '../../state/auth-form';
 import { spacing } from '../../theme/tokens';
 
 export type CodeStepProps = {
@@ -58,6 +58,15 @@ export function CodeStep({ verify, resend, testIDPrefix }: CodeStepProps) {
     setResendEpoch((value) => value + 1);
   };
 
+  const handleSubmit = createSubmitTrigger({
+    ready,
+    busy: form.busy,
+    onNotReady: () => {
+      focusOn(codeRef.current);
+    },
+    submit: submitVerify,
+  });
+
   // TS 6.0 quirk (see ResetNewPasswordView): a string-literal union as a single JSX child is rejected.
   const waitKey: MessageKey = 'auth.code.resendWait';
   const readyKey: MessageKey = 'auth.code.resendReady';
@@ -79,6 +88,8 @@ export function CodeStep({ verify, resend, testIDPrefix }: CodeStepProps) {
         onChangeText={setCode}
         maxLength={6}
         errorKey={form.fieldError('code')}
+        returnKeyType="go"
+        onSubmitEditing={handleSubmit}
         testID={`${testIDPrefix}-code`}
       />
       {resendAvailable ? (
@@ -102,15 +113,13 @@ export function CodeStep({ verify, resend, testIDPrefix }: CodeStepProps) {
         onNotReady={() => {
           focusOn(codeRef.current);
         }}
-        onPress={() => {
-          void submitVerify();
-        }}
+        onPress={handleSubmit}
         testID={`${testIDPrefix}-submit`}
       />
       {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
       {form.retryIn !== null && form.retryIn > 0 ? (
         <Text variant="body-small" tone="secondary">
-          {t('auth.rateLimit.retryIn', { seconds: form.retryIn })}
+          {formatRetryIn(form.retryIn)}
         </Text>
       ) : null}
     </View>

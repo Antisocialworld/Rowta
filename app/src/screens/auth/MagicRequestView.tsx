@@ -7,12 +7,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 import { Button, Input, LiveRegion, Text } from '../../components';
-import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
+import { formatRetryIn } from '../../lib/countdown';
 import { magicRequestReady } from '../../lib/validation';
 import { useAuthFlow } from '../../state/auth-context';
-import { useAuthForm } from '../../state/auth-form';
+import { createSubmitTrigger, useAuthForm } from '../../state/auth-form';
 import { useAuthViewStore } from '../../state/auth-view';
 import { spacing } from '../../theme/tokens';
 
@@ -38,9 +38,27 @@ export function MagicRequestView() {
     go('magicSent', 'auth.magic.submitted');
   };
 
+  const handleSubmit = createSubmitTrigger({
+    ready,
+    busy: form.busy,
+    onNotReady: () => {
+      focusOn(emailRef.current);
+    },
+    submit: submitRequest,
+  });
+
   return (
     <View style={styles.stack}>
-      <Input ref={emailRef} label="field.email" variant="email" value={email} onChangeText={setEmail} errorKey={form.fieldError('email')} />
+      <Input
+        ref={emailRef}
+        label="field.email"
+        variant="email"
+        value={email}
+        onChangeText={setEmail}
+        errorKey={form.fieldError('email')}
+        returnKeyType="go"
+        onSubmitEditing={handleSubmit}
+      />
       <Button
         label="action.sendLink"
         ready={ready}
@@ -49,14 +67,12 @@ export function MagicRequestView() {
         onNotReady={() => {
           focusOn(emailRef.current);
         }}
-        onPress={() => {
-          void submitRequest();
-        }}
+        onPress={handleSubmit}
       />
       {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
       {form.retryIn !== null && form.retryIn > 0 ? (
         <Text variant="body-small" tone="secondary">
-          {t('auth.rateLimit.retryIn', { seconds: form.retryIn })}
+          {formatRetryIn(form.retryIn)}
         </Text>
       ) : null}
     </View>

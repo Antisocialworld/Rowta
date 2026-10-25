@@ -9,12 +9,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 import { Button, Input, LinkButton, LiveRegion, Text } from '../../components';
-import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
+import { formatRetryIn } from '../../lib/countdown';
 import { signInReady } from '../../lib/validation';
 import { useAuthFlow } from '../../state/auth-context';
-import { useAuthForm } from '../../state/auth-form';
+import { createSubmitTrigger, useAuthForm } from '../../state/auth-form';
 import { useAuthSession } from '../../state/auth-session';
 import { useAuthViewStore } from '../../state/auth-view';
 import { spacing } from '../../theme/tokens';
@@ -26,6 +26,7 @@ export function SignInView() {
   const signInWithTokens = useAuthSession((state) => state.signInWithTokens);
   const form = useAuthForm();
   const emailRef = useRef<TextInputInstance>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const ready = signInReady(email, password);
@@ -49,15 +50,38 @@ export function SignInView() {
     go('verifyCode', 'auth.signUp.submitted');
   };
 
+  const handleSubmit = createSubmitTrigger({
+    ready,
+    busy: form.busy,
+    onNotReady: () => {
+      focusOn(emailRef.current);
+    },
+    submit: submitSignIn,
+  });
+
   return (
     <View style={styles.stack}>
-      <Input ref={emailRef} label="field.email" variant="email" value={email} onChangeText={setEmail} errorKey={form.fieldError('email')} />
       <Input
+        ref={emailRef}
+        label="field.email"
+        variant="email"
+        value={email}
+        onChangeText={setEmail}
+        errorKey={form.fieldError('email')}
+        returnKeyType="next"
+        onSubmitEditing={() => {
+          focusOn(passwordRef.current);
+        }}
+      />
+      <Input
+        ref={passwordRef}
         label="field.password"
         variant="password"
         value={password}
         onChangeText={setPassword}
         errorKey={form.fieldError('password')}
+        returnKeyType="go"
+        onSubmitEditing={handleSubmit}
       />
       <Button
         label="action.signIn"
@@ -67,14 +91,12 @@ export function SignInView() {
         onNotReady={() => {
           focusOn(emailRef.current);
         }}
-        onPress={() => {
-          void submitSignIn();
-        }}
+        onPress={handleSubmit}
       />
       {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
       {form.retryIn !== null && form.retryIn > 0 ? (
         <Text variant="body-small" tone="secondary">
-          {t('auth.rateLimit.retryIn', { seconds: form.retryIn })}
+          {formatRetryIn(form.retryIn)}
         </Text>
       ) : null}
       <View style={styles.links}>

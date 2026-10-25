@@ -14,7 +14,7 @@ export const AUTH_MESSAGES = {
   'auth.forgot.submitted': 'If that email is registered, we have sent instructions to it.',
   'auth.magic.submitted': 'If that email is registered, we have sent a sign-in link to it.',
   'auth.link.invalid': 'This link is invalid or has expired. Request a new one.',
-  'auth.rateLimited': 'Too many attempts. Try again in a few minutes.',
+  'auth.rateLimited': 'Too many attempts. Please wait before trying again.',
   'auth.reset.done': 'Password updated. Sign in with your new password.',
   'generic.error': 'Something went wrong. Try again.',
 } as const;

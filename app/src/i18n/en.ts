@@ -16,7 +16,7 @@ export const en = {
   'auth.forgot.submitted': 'If that email is registered, we have sent instructions to it.',
   'auth.magic.submitted': 'If that email is registered, we have sent a sign-in link to it.',
   'auth.link.invalid': 'This link is invalid or has expired. Request a new one.',
-  'auth.rateLimited': 'Too many attempts. Try again in a few minutes.',
+  'auth.rateLimited': 'Too many attempts. Please wait before trying again.',
   'auth.code.hint': 'Enter the 6-digit code we sent to {email}.',
   'auth.code.expiresIn': 'The code expires in 5 minutes.',
   'auth.code.expired': 'This code has expired. Send a new code.',
@@ -58,7 +58,13 @@ export const en = {
   'validation.name_invalid': "Use letters, numbers, spaces, apostrophes or hyphens.",
   'validation.country': 'Choose a country from the list.',
   'auth.countries.unavailable': 'The country list could not be loaded.',
-  'auth.rateLimit.retryIn': 'Try again in {seconds} seconds.',
+  'auth.rateLimit.retryIn': 'Try again in {wait}.',
+  'auth.rateLimit.wait.second': '1 second',
+  'auth.rateLimit.wait.seconds': '{count} seconds',
+  'auth.rateLimit.wait.minute': '1 minute',
+  'auth.rateLimit.wait.minutes': '{count} minutes',
+  'auth.rateLimit.wait.hour': '1 hour',
+  'auth.rateLimit.wait.hours': '{count} hours',
 
   // ---------------------------------------------------------------- view chrome (PRD 6.1: title + heading per view)
   'auth.view.signIn.title': 'Sign in',

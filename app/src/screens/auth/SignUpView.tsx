@@ -17,11 +17,12 @@ import { BottomSheet, Button, Input, LinkButton, LiveRegion, PasswordRulesCheckl
 import { t, type MessageKey } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
 import { authApi } from '../../lib/api';
+import { formatRetryIn } from '../../lib/countdown';
 import { signUpReady } from '../../lib/validation';
 import { colors, shape, spacing } from '../../theme/tokens';
 import { MIN_TOUCH_TARGET, RING, iconSize } from '../../theme/layout';
 import { useAuthFlow } from '../../state/auth-context';
-import { useAuthForm } from '../../state/auth-form';
+import { createSubmitTrigger, useAuthForm } from '../../state/auth-form';
 import { useAuthViewStore } from '../../state/auth-view';
 
 export function SignUpView() {
@@ -30,7 +31,10 @@ export function SignUpView() {
   const setFlow = useAuthFlow((state) => state.setFlow);
   const form = useAuthForm();
   const nameRef = useRef<TextInputInstance>(null);
+  const emailRef = useRef<TextInputInstance>(null);
   const countryRef = useRef<PressableInstance>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
+  const confirmRef = useRef<TextInputInstance>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [country, setCountry] = useState('');
@@ -75,6 +79,15 @@ export function SignUpView() {
     go('verifyCode', 'auth.signUp.submitted');
   };
 
+  const handleSubmit = createSubmitTrigger({
+    ready,
+    busy: form.busy,
+    onNotReady: () => {
+      focusOn(nameRef.current);
+    },
+    submit: submitSignUp,
+  });
+
   const countryError = form.fieldError('country');
   const countryErrorText = countryError !== undefined ? t(countryError) : null;
   // TS 6.0 quirk (see ResetNewPasswordView): a string-literal union as a single JSX child is rejected;
@@ -91,8 +104,23 @@ export function SignUpView() {
         onChangeText={setName}
         maxLength={60}
         errorKey={form.fieldError('displayName')}
+        returnKeyType="next"
+        onSubmitEditing={() => {
+          focusOn(emailRef.current);
+        }}
       />
-      <Input label="field.email" variant="email" value={email} onChangeText={setEmail} errorKey={form.fieldError('email')} />
+      <Input
+        ref={emailRef}
+        label="field.email"
+        variant="email"
+        value={email}
+        onChangeText={setEmail}
+        errorKey={form.fieldError('email')}
+        returnKeyType="next"
+        onSubmitEditing={() => {
+          focusOn(passwordRef.current);
+        }}
+      />
       <View style={styles.countryBlock}>
         <Text variant="label-medium" tone="secondary" style={styles.countryLabel}>
           {t('field.country')}
@@ -129,18 +157,26 @@ export function SignUpView() {
         ) : null}
       </View>
       <Input
+        ref={passwordRef}
         label="field.password"
         variant="newPassword"
         value={password}
         onChangeText={setPassword}
         errorKey={form.fieldError('password')}
+        returnKeyType="next"
+        onSubmitEditing={() => {
+          focusOn(confirmRef.current);
+        }}
       />
       <Input
+        ref={confirmRef}
         label="field.confirmPassword"
         variant="newPassword"
         value={confirm}
         onChangeText={setConfirm}
         errorKey={confirm.length > 0 && confirm !== password ? 'auth.password.mismatch' : form.fieldError('confirm')}
+        returnKeyType="go"
+        onSubmitEditing={handleSubmit}
       />
       <PasswordRulesChecklist password={password} testID="signup-password-checklist" />
       <Button
@@ -151,11 +187,14 @@ export function SignUpView() {
         onNotReady={() => {
           focusOn(nameRef.current);
         }}
-        onPress={() => {
-          void submitSignUp();
-        }}
+        onPress={handleSubmit}
       />
       {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
+      {form.retryIn !== null && form.retryIn > 0 ? (
+        <Text variant="body-small" tone="secondary">
+          {formatRetryIn(form.retryIn)}
+        </Text>
+      ) : null}
       <LinkButton label="action.backToSignIn" onPress={() => switchTo('signIn')} testID="link-back-to-signin" />
 
       <BottomSheet visible={sheetOpen} onClose={closeSheet} titleKey="field.country" testID="sheet-country">

@@ -8,8 +8,9 @@
 // auth.link.invalid line; there is nothing else on this screen to focus (U7 heading focus stays).
 import { StyleSheet, View } from 'react-native';
 import { Button, LiveRegion, Text } from '../../components';
-import { t, type MessageKey } from '../../i18n/en';
+import { type MessageKey } from '../../i18n/en';
 import { authApi } from '../../lib/api';
+import { formatRetryIn } from '../../lib/countdown';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthForm } from '../../state/auth-form';
 import { useAuthSession } from '../../state/auth-session';
@@ -53,7 +54,7 @@ export function MagicConfirmView() {
       {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
       {form.retryIn !== null && form.retryIn > 0 ? (
         <Text variant="body-small" tone="secondary">
-          {t('auth.rateLimit.retryIn', { seconds: form.retryIn })}
+          {formatRetryIn(form.retryIn)}
         </Text>
       ) : null}
     </View>
