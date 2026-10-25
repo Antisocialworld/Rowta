@@ -31,14 +31,13 @@ describe('access-token security (HS512, pinned alg, minimal claims)', () => {
   });
 
   it('rejects a token signed with an alternative algorithm such as HS384', async () => {
-    const altKey = new Uint8Array(48).fill(9);
     const token = await new SignJWT({})
       .setProtectedHeader({ alg: 'HS384' })
       .setSubject('usr_alt_alg')
       .setJti(randomUUID())
       .setIssuedAt()
       .setExpirationTime(Math.floor(Date.now() / 1000) + 900)
-      .sign(altKey);
+      .sign(REAL_KEY);
 
     const claims = await verifyAccessToken(token);
     expect(claims).toBeNull();
