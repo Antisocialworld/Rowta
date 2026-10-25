@@ -85,6 +85,48 @@ node scripts/prisma-smoke.mjs          # proves both clients connect and the led
 - Nothing here prints a connection string, password or URL. If a command fails, paste the error text — the scripts mask
   credentials, but check before pasting.
 
+## 4b. View the database
+
+Safe commands to inspect local databases (`db0` and `db1`) in your browser or terminal:
+
+### Browser (Prisma Studio)
+
+```
+npm run db:studio        # db0 (global database & shard 0) on http://localhost:5555
+npm run db:studio:db1    # db1 (shard 1) on http://localhost:5556
+```
+
+- **Warning**: Prisma Studio allows **editing and deleting** rows in the database (it has no read-only mode).
+- **Warning**: Never screenshot, copy, or paste rows containing sensitive columns (e.g. `password_hash`, `code_hash`, `verifier_hash`, `token`, or `secret`).
+- Studio listens on `127.0.0.1` only. It refuses to start if `NODE_ENV=production` or if the host is not `127.0.0.1` / `localhost`.
+- If schema introspection is ever missing, it automatically invokes `scripts/prisma-pull.mjs`.
+
+### Terminal viewer (psql)
+
+Interactive `psql` session inside the database container:
+
+```
+npm run db:psql            # db0 interactive read-only session (default)
+npm run db:psql:db1        # db1 interactive read-only session
+npm run db:psql -- --write # db0 writable session (warning printed first)
+```
+
+- **Read-only by default**: The session runs with `PGOPTIONS="-c default_transaction_read_only=on"` to protect data from accidental modification. Pass `--write` when intentional edits are needed.
+- Safe tips inside `psql`:
+  - `\dt` lists all tables in the `public` schema.
+  - `\d <table_name>` describes columns, data types, and constraints of a table.
+  - `\q` quits the psql session.
+- Authentication: Inside the Docker container, PostgreSQL's local domain socket defaults to `trust` authentication per standard `postgres:16-alpine` configuration (`/var/lib/postgresql/data/pg_hba.conf`), connecting without exposing passwords on the command line.
+
+### Terminal table summary (non-interactive)
+
+```
+npm run db:tables
+```
+
+- Prints every table across both `db0` and `db1` with its current row count and column definitions.
+- **Privacy & Secret Safety**: Queries schema metadata (`information_schema`) and `COUNT(*)` only; it never queries or prints values of any column whose name contains `hash`, `token`, `secret`, `password`, or `code`.
+
 ## 5. Running the server and worker (Phase 0 part B and later)
 
 With the containers from §3 running and `.env` in place:

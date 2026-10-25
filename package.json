@@ -10,6 +10,11 @@
   ],
   "scripts": {
     "icons": "node scripts/build-icons.mjs",
+    "db:studio": "node scripts/db-studio.mjs db0",
+    "db:studio:db1": "node scripts/db-studio.mjs db1",
+    "db:psql": "node scripts/db-psql.mjs db0",
+    "db:psql:db1": "node scripts/db-psql.mjs db1",
+    "db:tables": "node scripts/db-tables.mjs",
     "web:build": "node web/build.mjs",
     "web:serve": "node web/serve.mjs",
     "web:dev": "npm run web:build && npm run web:serve",
