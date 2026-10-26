@@ -40,6 +40,12 @@ function parseWith<T>(schema: z.ZodType<T>, raw: unknown): T {
 
   const fields: Record<string, string> = {};
   for (const issue of result.error.issues) {
+    if (issue.code === 'unrecognized_keys') {
+      for (const key of issue.keys) {
+        if (fields[key] === undefined) fields[key] = 'validation.unknown_field';
+      }
+      continue;
+    }
     const fieldName = issue.path[0];
     const key = typeof fieldName === 'string' ? fieldName : 'form';
     if (!fields[key]) {

@@ -1,10 +1,17 @@
 // Teams, roles, invites, and settings integration tests (PRD 4, 8.2; rules S6, S7, S8, S14, C3, C4, A3, A6, A7).
+import { Writable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import type { Hono } from 'hono';
 import type { Worker } from 'bullmq';
+import pino from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CreateTeamInput } from '@rowta/shared';
+import { env } from '../src/config/env.ts';
 import { forTeam, globalDb } from '../src/db/clients.ts';
+import { createApp } from '../src/index.ts';
+import { buildLoggerOptions } from '../src/lib/logger.ts';
 import { signAccessToken } from '../src/security/access-token.ts';
+import { createTeam } from '../src/teams/service.ts';
 import {
   clearRateKeys,
   createVerifiedUser,
@@ -13,6 +20,7 @@ import {
   errorOf,
   mailCaptureClear,
   post,
+  redis,
   shutdownAuthTest,
   startEmailWorker,
   testApp,
@@ -102,6 +110,33 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       expect(conflictErr.code).toBe('idempotency.fingerprint_mismatch');
     });
 
+    it('idempotency fingerprint allowlists only `name` (non-allowlisted fields do not change the fingerprint)', async () => {
+      // Proven at the SERVICE level because createTeamSchema is .strict() over HTTP: an unknown
+      // body field is rejected with 422 validation.unknown_field before idempotency runs.
+      const idemKey = randomUUID();
+      const first = await createTeam(ownerId, { name: 'Acme Cafe' }, idemKey);
+      expect(first.name).toBe('Acme Cafe');
+      expect(first.id).toMatch(/^[0-9a-f-]{36}$/);
+
+      // Same key + same allowlisted field + an extra non-allowlisted property: treated as the
+      // SAME request, the original team comes back (PRD 9.9 allowlist semantics).
+      const widened = { name: 'Acme Cafe', futureField: 'ignored-by-the-fingerprint' } as CreateTeamInput;
+      const replay = await createTeam(ownerId, widened, idemKey);
+      expect(replay.id).toBe(first.id);
+
+      // Over HTTP the same extra property is refused by the strict schema before idempotency.
+      const httpRes = await post(
+        app,
+        '/teams',
+        { name: 'Acme Cafe', futureField: 'x' },
+        { ...ownerAuth, 'idempotency-key': randomUUID() },
+      );
+      expect(httpRes.status).toBe(422);
+      const httpErr = await errorOf(httpRes);
+      expect(httpErr.code).toBe('validation.invalid');
+      expect(httpErr.fields?.futureField).toBe('validation.unknown_field');
+    });
+
     it('verifies owner membership on shard and indexes in DB0', async () => {
       const shardClient = forTeam(teamId);
       const membership = await shardClient.memberships.findUnique({
@@ -178,9 +213,13 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       const mail = await waitForMail(managerEmail);
       expect(mail.subject).toContain('Acme Cafe');
       expect(mail.text).toContain('/invite/');
+      // Owner Decision 3: the email carries the canonical https invite link
+      // <PUBLIC_WEB_URL>/invite/<token>, never a bare path or the app custom scheme.
+      const prefix = env.PUBLIC_WEB_URL.replace(/\/+$/, '');
       const match = /\/invite\/([A-Za-z0-9_.~-]+)/.exec(mail.text);
       expect(match).not.toBeNull();
       managerToken = match![1]!;
+      expect(mail.text).toContain(`${prefix}/invite/${managerToken}`);
 
       // Invite row in DB contains Argon2id hash, never raw verifier (Rule A3)
       const shardClient = forTeam(teamId);
@@ -360,6 +399,66 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       });
       expect(openInvites).toHaveLength(1);
     });
+
+    it('invite token never reaches the request logs (Owner Decision 3, Rule S9)', async () => {
+      const chunks: string[] = [];
+      const stream = new Writable({
+        write(chunk, _encoding, callback) {
+          chunks.push(String(chunk));
+          callback();
+        },
+      });
+      const log = pino(buildLoggerOptions('info'), stream);
+      const watched = createApp({ log, redis });
+
+      const logEmail = uniqueEmail('logwatch-invite');
+      const logId = await createVerifiedUser(logEmail, 'LogInvitePass123#');
+      const logAuth = { authorization: `Bearer ${await signAccessToken(logId)}` };
+
+      // Seat math at this point: 2 active non-owner members (manager, staff) + 3 leftover open
+      // invites from earlier tests = the Starter cap of 5. Revoke the leftovers so this invite
+      // fits (the earlier tests already asserted their own behaviour).
+      await forTeam(teamId).invites.updateMany({
+        where: { team_id: teamId, accepted_at: null, revoked_at: null },
+        data: { revoked_at: new Date() },
+      });
+
+      await mailCaptureClear();
+      const createRes = await post(
+        watched,
+        `/teams/${teamId}/invites`,
+        { email: logEmail, role: 'staff' },
+        ownerAuth,
+      );
+      expect(createRes.status).toBe(200);
+      const mail = await waitForMail(logEmail);
+      const match = /\/invite\/([A-Za-z0-9_.~-]+)/.exec(mail.text);
+      expect(match).not.toBeNull();
+      const token = match![1]!;
+      const rawVerifier = token.split('.')[1]!;
+
+      // Accept through the same watched app so the token in a request body is also covered.
+      const acceptRes = await post(watched, '/invites/accept', { token }, logAuth);
+      expect(acceptRes.status).toBe(200);
+
+      const text = chunks.join('');
+      // Real traffic was captured...
+      expect(text).toContain('"route"');
+      // ...and neither the raw token nor its verifier ever reached the logs.
+      expect(text).not.toContain(token);
+      expect(text).not.toContain(rawVerifier);
+      expect(text).not.toContain('$argon2id$');
+
+      // Fixture cleanup: this accepted member must not eat a Starter seat for section 5's
+      // invite tests (5-seat boundary: active non-owner + open invites must stay at 4 here).
+      const shardClient = forTeam(teamId);
+      await shardClient.memberships.delete({
+        where: { team_id_user_id: { team_id: teamId, user_id: logId } },
+      });
+      await globalDb().user_team_index.delete({
+        where: { user_id_team_id: { user_id: logId, team_id: teamId } },
+      });
+    });
   });
 
   describe('4. Roles and Member Management (Rule S8)', () => {
@@ -413,6 +512,47 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       expect(res.status).toBe(400);
       const err = await errorOf(res);
       expect(err.code).toBe('auth.deleteOwner.blocked');
+    });
+
+    it('Manager cannot remove another Manager (403 team.forbidden)', async () => {
+      // Second manager added directly (PRD 4: remove_member is staff-only for Manager).
+      const mgr2Email = uniqueEmail('mgr2-target');
+      const mgr2Id = await createVerifiedUser(mgr2Email, 'Mgr2Pass123#');
+      const shardClient = forTeam(teamId);
+      await shardClient.memberships.create({
+        data: { team_id: teamId, user_id: mgr2Id, role: 'manager' },
+      });
+      await globalDb().user_team_index.create({
+        data: { user_id: mgr2Id, team_id: teamId },
+      });
+
+      const res = await post(app, `/teams/${teamId}/members/${mgr2Id}/remove`, {}, managerAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
+
+      // Cleanup fixture
+      await shardClient.memberships.delete({
+        where: { team_id_user_id: { team_id: teamId, user_id: mgr2Id } },
+      });
+      await globalDb().user_team_index.delete({
+        where: { user_id_team_id: { user_id: mgr2Id, team_id: teamId } },
+      });
+    });
+
+    it('Manager cannot remove the Owner (400 auth.deleteOwner.blocked, owner guard before can())', async () => {
+      const res = await post(app, `/teams/${teamId}/members/${ownerId}/remove`, {}, managerAuth);
+      expect(res.status).toBe(400);
+      const err = await errorOf(res);
+      expect(err.code).toBe('auth.deleteOwner.blocked');
+      expect(err.message).toBe('Transfer or delete your team first.');
+    });
+
+    it('Staff cannot toggle team settings (403 team.forbidden; manage_settings is owner-only)', async () => {
+      const res = await post(app, `/teams/${teamId}/settings`, { managers_can_revoke_invites: false }, staffAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
     });
 
     it('Staff can leave the team and loses access immediately', async () => {
