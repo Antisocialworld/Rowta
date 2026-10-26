@@ -189,7 +189,10 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       });
       expect(invRow).not.toBeNull();
       expect(invRow?.verifier_hash).toMatch(/^\$argon2id\$/);
-      expect(invRow?.verifier_hash).not.toContain(managerToken.split('.')[1]!);
+      const rawVerifier = managerToken.split('.')[1]!;
+      for (const [col, val] of Object.entries(invRow!)) {
+        expect(String(val), `verifier appears in column ${col}`).not.toContain(rawVerifier);
+      }
     });
 
     it('Manager accepts invite: lands in team with manager role', async () => {
@@ -210,6 +213,64 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
 
     it('reusing already accepted invite token fails with uniform error', async () => {
       const res = await post(app, '/invites/accept', { token: managerToken }, managerAuth);
+      expect(res.status).toBe(400);
+      const err = await errorOf(res);
+      expect(err.code).toBe('auth.link.invalid');
+      expect(err.message).toBe('This link is invalid or has expired. Request a new one.');
+    });
+
+    it('expired invite acceptance fails with identical uniform error', async () => {
+      const expEmail = uniqueEmail('expired-target');
+      const expId = await createVerifiedUser(expEmail, 'ExpiredPass123#');
+      const expAuth = { authorization: `Bearer ${await signAccessToken(expId)}` };
+
+      await mailCaptureClear();
+      const invRes = await post(app, `/teams/${teamId}/invites`, { email: expEmail, role: 'staff' }, ownerAuth);
+      expect(invRes.status).toBe(200);
+
+      const mail = await waitForMail(expEmail);
+      const match = /\/invite\/([A-Za-z0-9_.~-]+)/.exec(mail.text);
+      expect(match).not.toBeNull();
+      const token = match![1]!;
+
+      // Expire the invite in the database
+      const shardClient = forTeam(teamId);
+      const [selector] = token.split('.');
+      await shardClient.invites.update({
+        where: { selector },
+        data: { expires_at: new Date(Date.now() - 60_000) },
+      });
+
+      const res = await post(app, '/invites/accept', { token }, expAuth);
+      expect(res.status).toBe(400);
+      const err = await errorOf(res);
+      expect(err.code).toBe('auth.link.invalid');
+      expect(err.message).toBe('This link is invalid or has expired. Request a new one.');
+    });
+
+    it('revoked invite acceptance fails with identical uniform error', async () => {
+      const revEmail = uniqueEmail('revoked-target');
+      const revId = await createVerifiedUser(revEmail, 'RevokedPass123#');
+      const revAuth = { authorization: `Bearer ${await signAccessToken(revId)}` };
+
+      await mailCaptureClear();
+      const invRes = await post(app, `/teams/${teamId}/invites`, { email: revEmail, role: 'staff' }, ownerAuth);
+      expect(invRes.status).toBe(200);
+
+      const mail = await waitForMail(revEmail);
+      const match = /\/invite\/([A-Za-z0-9_.~-]+)/.exec(mail.text);
+      expect(match).not.toBeNull();
+      const token = match![1]!;
+
+      // Revoke the invite in the database
+      const shardClient = forTeam(teamId);
+      const [selector] = token.split('.');
+      await shardClient.invites.update({
+        where: { selector },
+        data: { revoked_at: new Date() },
+      });
+
+      const res = await post(app, '/invites/accept', { token }, revAuth);
       expect(res.status).toBe(400);
       const err = await errorOf(res);
       expect(err.code).toBe('auth.link.invalid');
@@ -267,11 +328,20 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
     });
 
     it('invite creation returns identical response whether email exists or not (Rule A6)', async () => {
-      const nonExistentEmail = uniqueEmail('nobody');
-      const res = await post(app, `/teams/${teamId}/invites`, { email: nonExistentEmail, role: 'staff' }, ownerAuth);
-      expect(res.status).toBe(200);
-      const data = await dataOf(res);
-      expect(data.message).toBe('Invitation sent.');
+      const existingEmail = uniqueEmail('existing-acct');
+      await createVerifiedUser(existingEmail, 'Existing123#');
+      const nonExistentEmail = uniqueEmail('nobody-acct');
+
+      const resExisting = await post(app, `/teams/${teamId}/invites`, { email: existingEmail, role: 'staff' }, ownerAuth);
+      const resNonExistent = await post(app, `/teams/${teamId}/invites`, { email: nonExistentEmail, role: 'staff' }, ownerAuth);
+
+      expect(resExisting.status).toBe(200);
+      expect(resNonExistent.status).toBe(200);
+      const textExisting = await resExisting.text();
+      const textNonExistent = await resNonExistent.text();
+      expect(textExisting).toBe(textNonExistent);
+      const parsed = JSON.parse(textExisting) as { data: { message: string } };
+      expect(parsed.data.message).toBe('Invitation sent.');
     });
 
     it('resending to the same email replaces the open invite (invites_one_open_idx)', async () => {
@@ -405,6 +475,30 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       expect(res.status).toBe(403);
 
       // Owner can still revoke it
+      const ownerRevokeRes = await post(app, `/teams/${teamId}/invites/${inv!.id}/revoke`, {}, ownerAuth);
+      expect(ownerRevokeRes.status).toBe(200);
+    });
+
+    it('Manager cannot revoke a manager invite (forbidden 403)', async () => {
+      // Re-enable managers_can_revoke_invites to true first
+      await post(app, `/teams/${teamId}/settings`, { managers_can_revoke_invites: true }, ownerAuth);
+
+      const mgrInvEmail = uniqueEmail('mgr-inv-target');
+      await post(app, `/teams/${teamId}/invites`, { email: mgrInvEmail, role: 'manager' }, ownerAuth);
+
+      const shardClient = forTeam(teamId);
+      const inv = await shardClient.invites.findFirst({
+        where: { team_id: teamId, email: mgrInvEmail, role: 'manager', revoked_at: null },
+      });
+      expect(inv).not.toBeNull();
+
+      // Manager tries to revoke a manager invite -> 403
+      const res = await post(app, `/teams/${teamId}/invites/${inv!.id}/revoke`, {}, managerAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
+
+      // Only Owner can revoke manager invites
       const ownerRevokeRes = await post(app, `/teams/${teamId}/invites/${inv!.id}/revoke`, {}, ownerAuth);
       expect(ownerRevokeRes.status).toBe(200);
     });
