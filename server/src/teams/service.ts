@@ -16,6 +16,7 @@ import {
   teamTransaction,
   writeDb,
   type AnyPrismaClient,
+  type ShardTx,
 } from '../db/clients.ts';
 import { shardFor, type Shard } from '../db/shard.ts';
 import { getDummyHash, hashSecret, verifySecret } from '../security/argon2.ts';
@@ -39,7 +40,7 @@ async function dummyVerify(): Promise<void> {
 }
 
 /** Calculate seat cap for team (Owner decision 1; PRD section 5). */
-export async function getSeatCap(teamId: string, client: AnyPrismaClient): Promise<number> {
+export async function getSeatCap(teamId: string, client: AnyPrismaClient | ShardTx): Promise<number> {
   assertTeamId(teamId);
   const sub = await client.subscriptions.findUnique({
     where: { team_id: teamId },

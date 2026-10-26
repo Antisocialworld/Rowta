@@ -134,4 +134,18 @@ describe('central permission policy engine (can / PERMISSION_MATRIX)', () => {
       expect(can(user(), membership('staff'), 'leave_team')).toBe(true);
     });
   });
+
+  describe('request_swap permissions (PRD 4: Request a swap on own shift)', () => {
+    it('allows Owner, Manager, and Staff to request a swap on their own shift', () => {
+      expect(can(user('u1'), membership('owner', 'team-1', 'u1'), 'request_swap', { shiftAssigneeId: 'u1' })).toBe(true);
+      expect(can(user('u2'), membership('manager', 'team-1', 'u2'), 'request_swap', { shiftAssigneeId: 'u2' })).toBe(true);
+      expect(can(user('u3'), membership('staff', 'team-1', 'u3'), 'request_swap', { shiftAssigneeId: 'u3' })).toBe(true);
+    });
+
+    it("denies requesting a swap on another user's shift", () => {
+      expect(can(user('u1'), membership('owner', 'team-1', 'u1'), 'request_swap', { shiftAssigneeId: 'uOther' })).toBe(false);
+      expect(can(user('u2'), membership('manager', 'team-1', 'u2'), 'request_swap', { shiftAssigneeId: 'uOther' })).toBe(false);
+      expect(can(user('u3'), membership('staff', 'team-1', 'u3'), 'request_swap', { shiftAssigneeId: 'uOther' })).toBe(false);
+    });
+  });
 });
