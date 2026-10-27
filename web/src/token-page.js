@@ -6,10 +6,23 @@
 //   * The token is read locally ONLY from the URL fragment (magic) or the path segment (invite),
 //     is never logged, never written to the title, and appears in the DOM in exactly one place:
 //     the href of the rowta:// deep link behind "Open in the app".
-//   * The fragment is removed from the address bar with history.replaceState right after reading.
+//   * The token is removed from the address bar with history.replaceState right after reading —
+//     on BOTH pages (invite strip: owner decision 4, 26 Oct 2026; reload after the strip shows
+//     the built-in no-token message).
+//   * A no-referrer policy is applied to this page so the token-bearing URL is never sent to a
+//     third party in a Referer header (decision 4).
 //   * No token (or a malformed one) keeps the built-in message visible and the button hidden.
 (function () {
   var SAFE = /^[A-Za-z0-9._~-]{1,512}$/;
+
+  function applyNoReferrer() {
+    // The meta element must exist BEFORE any navigation the page could trigger; injecting it here
+    // (before the deep-link button is even revealed) covers the page itself and its outgoing links.
+    var meta = document.createElement('meta');
+    meta.name = 'referrer';
+    meta.content = 'no-referrer';
+    document.head.appendChild(meta);
+  }
 
   function focusHeading() {
     var heading = document.getElementById('token-heading');
@@ -42,13 +55,20 @@
     if (kind === 'invite') {
       var parts = window.location.pathname.split('/').filter(Boolean);
       // Exactly /invite/<segment>; anything else (bare /invite, deeper paths) is incomplete.
-      if (parts.length === 2 && parts[0] === 'invite') return parts[1];
+      if (parts.length === 2 && parts[0] === 'invite') {
+        var token = parts[1];
+        // Read first, then strip the token segment from the address bar (owner decision 4):
+        // the URL in the bar/sharesheet no longer carries the token once the link is built.
+        history.replaceState(null, '', '/invite');
+        return token;
+      }
       return '';
     }
     return '';
   }
 
   function start() {
+    applyNoReferrer();
     var kind = document.body.getAttribute('data-token-kind') || '';
     var token = readToken();
     if (!token || !reveal(kind, token)) {

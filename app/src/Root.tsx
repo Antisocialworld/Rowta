@@ -1,11 +1,13 @@
 // Root — the conditional render (rule U2): the signed-out branch is the ONE AuthPage (three forms + step views
-// in a single centred card), the signed-in branch is the Phase 1 HomePlaceholder (or the component gallery while
-// that dev branch is open). Exactly one branch renders. The condition is the REAL session store (Phase 2):
-// 'restoring' renders nothing (the native splash covers it until the token store has been read — no flash of
-// the signed-out page); 'signedOut' is AuthPage; 'signedIn' is the signed-in branch (server decides — S5).
+// in a single centred card), the signed-in branch is the Phase 3 TeamsRouter (team list + switcher, create team,
+// members, invites — PRD 6.1, 8.2), or the component gallery while that dev branch is open. Exactly one branch
+// renders. The condition is the REAL session store (Phase 2): 'restoring' renders nothing (the native splash
+// covers it until the token store has been read — no flash of the signed-out page); 'signedOut' is AuthPage;
+// 'signedIn' is the signed-in branch (server decides — S5). The Phase 8 Dashboard (PRD §12) will replace the
+// list view's placeholder body; the routing shape stays.
 import { AuthPage } from './screens/AuthPage';
 import { GalleryScreen } from './screens/GalleryScreen';
-import { HomePlaceholder } from './screens/HomePlaceholder';
+import { TeamsRouter } from './screens/TeamsRouter';
 import { useAuthSession } from './state/auth-session';
 
 export function Root() {
@@ -14,5 +16,5 @@ export function Root() {
   if (status === 'restoring') return null;
   if (status === 'signedOut') return <AuthPage />;
   if (screen === 'gallery') return <GalleryScreen />;
-  return <HomePlaceholder />;
+  return <TeamsRouter />;
 }

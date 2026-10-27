@@ -20,6 +20,7 @@ import { singleFlight } from '../lib/single-flight';
 import type { TokenStore } from '../lib/token-store';
 import { useAuthFlow } from './auth-context';
 import { initialAuthState, useAuthViewStore } from './auth-view';
+import { useTeams } from './teams';
 
 export type AuthStatus = 'restoring' | 'signedOut' | 'signedIn';
 export type SessionScreen = 'home' | 'gallery';
@@ -70,10 +71,13 @@ async function clearLocal(): Promise<void> {
     // A keystore failure must not crash the sign-out path; the in-memory token is already gone.
   }
   // Signed out = a CLEAN auth page: no stale code/reset view left over (6.1) and no spent
-  // codes/grants/magic token in memory (A10 hygiene). The invite token survives — an invite stays
-  // pending until the user acts on it (Phase 3 consumes it).
+  // codes/grants/magic token in memory (A10 hygiene). The invite token is cleared too (decision 3,
+  // 26 Oct 2026): Phase 3's consumeInviteToken clears it after ANY server answer, so the only
+  // tokens that can still be here are network-error retries of an attempt the LEAVING user started
+  // — a second user on the same device must never inherit them (test-invite-token-lifecycle).
   useAuthViewStore.setState(initialAuthState);
   useAuthFlow.getState().clearCodeFlow();
+  useAuthFlow.getState().setFlow({ inviteToken: null });
 }
 
 /** The one refresh run (A11 single-flight). Returns true only when a FRESH token is in place. */
@@ -137,6 +141,14 @@ export const useAuthSession = create<AuthSessionState>((set) => ({
   signInWithTokens: async (tokens) => {
     await requireStore().write(tokens);
     accessToken = tokens.accessToken;
+    // Invite accept goes through the ONE path (consumeInviteToken — decisions 1-3): automatic, the
+    // outcome is ALWAYS stored for a result view, and the memory token is cleared after any server
+    // answer (kept only on a network/timeout failure for a retry). This call never throws (the
+    // result lives in the teams store), so signing in is never blocked by an invite outcome.
+    const inviteToken = useAuthFlow.getState().inviteToken;
+    if (inviteToken !== null) {
+      await useTeams.getState().consumeInviteToken(inviteToken);
+    }
     // Whatever code/reset flow led here is finished — drop its email, timers and grant (A10).
     useAuthFlow.getState().clearCodeFlow();
     set({ status: 'signedIn', screen: 'home' });

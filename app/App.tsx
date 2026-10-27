@@ -18,6 +18,7 @@ import { parseDeepLink } from './src/lib/deep-links';
 import { useAuthFlow } from './src/state/auth-context';
 import { useAuthSession } from './src/state/auth-session';
 import { AUTH_ENTRY, useAuthViewStore } from './src/state/auth-view';
+import { useTeams } from './src/state/teams';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 // Web only (X1, item D): hide Edge/Chromium's native password-reveal button so the kit's labelled toggle
@@ -26,7 +27,9 @@ hideNativePasswordReveal();
 
 /** Linking (PRD 8.1, A13): a parsed link stores its token in MEMORY (never a query string, never a
  *  log line) and enters the matching AuthPage state. Strict parsing: an unexpected URL changes
- *  nothing. Runs outside React through the store's getState — the listener fires in background too. */
+ *  nothing. Runs outside React through the store's getState — the listener fires in background too.
+ *  Signed-in invite links run the ONE accept path (consumeInviteToken — decisions 1-3, 26 Oct 2026):
+ *  automatic, but the outcome is ALWAYS stored for a result view; NEVER a silent .catch(). */
 function handleDeepLink(url: string): void {
   const target = parseDeepLink(url);
   if (target === null) return;
@@ -35,7 +38,11 @@ function handleDeepLink(url: string): void {
     useAuthViewStore.getState().enter(AUTH_ENTRY.magicToken);
   } else {
     useAuthFlow.getState().setFlow({ inviteToken: target.token });
-    useAuthViewStore.getState().enter(AUTH_ENTRY.invite);
+    if (useAuthSession.getState().status === 'signedIn') {
+      void useTeams.getState().consumeInviteToken(target.token);
+    } else {
+      useAuthViewStore.getState().enter(AUTH_ENTRY.invite);
+    }
   }
 }
 

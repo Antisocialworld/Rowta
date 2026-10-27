@@ -39,13 +39,32 @@ import {
   signUpSchema,
   successEnvelopeSchema,
   verifyCodeSchema,
+  acceptInviteResponseSchema,
+  acceptInviteSchema,
+  changeMemberRoleSchema,
+  createTeamSchema,
+  inviteListResponseSchema,
+  inviteMemberSchema,
+  memberListResponseSchema,
+  memberRoleResponseSchema,
+  teamListResponseSchema,
+  teamResponseSchema,
+  teamSettingsResponseSchema,
+  updateTeamSettingsSchema,
+  type AcceptInviteResponse,
   type AuthTokensResponse,
   type CodeTimerMeta,
   type CountryItem,
   type GrantTimerMeta,
+  type InviteListResponse,
   type MeResponse,
+  type MemberListResponse,
+  type MemberRoleResponse,
   type MessageResponse,
   type ResetGrantResponse,
+  type TeamListResponse,
+  type TeamResponse,
+  type TeamSettingsResponse,
 } from '@rowta/shared';
 import { isMessageKey, type MessageKey } from '../i18n/en';
 
@@ -84,8 +103,13 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'auth.failed': 'auth.signIn.failed',
   'auth.code_invalid': 'auth.code.invalid',
   'auth.link_invalid': 'auth.link.invalid',
+  'auth.link.invalid': 'auth.link.invalid',
   'auth.not_authenticated': 'generic.error',
   'auth.refresh_invalid': 'generic.error',
+  'auth.deleteOwner.blocked': 'auth.deleteOwner.blocked',
+  'team.notFound': 'team.notFound',
+  'team.forbidden': 'team.forbidden',
+  'team.seatLimit': 'team.seatLimit',
   'rate.limited': 'auth.rateLimited',
   'validation.failed': 'generic.error',
   'request.malformed': 'generic.error',
@@ -152,6 +176,7 @@ type RequestInput = {
   metaSchema?: z.ZodType;
   /** Attach the access token; a 401 then goes through onUnauthorized once (A11). */
   auth?: boolean;
+  headers?: Record<string, string>;
   timeoutMs?: number;
   /** Internal: stops the 401 refresh-and-retry from looping (one retry only). */
   retried?: boolean;
@@ -162,7 +187,10 @@ type RequestOutput = { data: unknown; meta?: unknown };
 async function send(input: RequestInput): Promise<RequestOutput> {
   const { method, path, body, dataSchema, metaSchema, auth = false, timeoutMs = DEFAULT_TIMEOUT_MS } = input;
 
-  const headers: Record<string, string> = { accept: 'application/json' };
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    ...(input.headers ?? {}),
+  };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (auth) {
     const token = await runtime.getAccessToken();
@@ -397,5 +425,148 @@ export const authApi = {
       dataSchema: authTokensResponseSchema,
     });
     return out.data as AuthTokensResponse;
+  },
+};
+
+export const teamsApi = {
+  async createTeam(input: z.input<typeof createTeamSchema>, idempotencyKey: string): Promise<TeamResponse> {
+    createTeamSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: '/teams',
+      body: input,
+      headers: { 'idempotency-key': idempotencyKey },
+      auth: true,
+      dataSchema: teamResponseSchema,
+    });
+    return out.data as TeamResponse;
+  },
+
+  async listTeams(): Promise<TeamListResponse> {
+    const out = await send({
+      method: 'GET',
+      path: '/teams',
+      auth: true,
+      dataSchema: teamListResponseSchema,
+    });
+    return out.data as TeamListResponse;
+  },
+
+  async getTeam(teamId: string): Promise<TeamResponse> {
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}`,
+      auth: true,
+      dataSchema: teamResponseSchema,
+    });
+    return out.data as TeamResponse;
+  },
+
+  async listMembers(teamId: string): Promise<MemberListResponse> {
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/members`,
+      auth: true,
+      dataSchema: memberListResponseSchema,
+    });
+    return out.data as MemberListResponse;
+  },
+
+  async changeMemberRole(
+    teamId: string,
+    userId: string,
+    input: z.input<typeof changeMemberRoleSchema>,
+  ): Promise<MemberRoleResponse> {
+    changeMemberRoleSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}/role`,
+      body: input,
+      auth: true,
+      dataSchema: memberRoleResponseSchema,
+    });
+    return out.data as MemberRoleResponse;
+  },
+
+  async removeMember(teamId: string, userId: string): Promise<{ removed: boolean }> {
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}/remove`,
+      body: {},
+      auth: true,
+      dataSchema: z.object({ removed: z.boolean() }),
+    });
+    return out.data as { removed: boolean };
+  },
+
+  async leaveTeam(teamId: string): Promise<{ left: boolean }> {
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/leave`,
+      body: {},
+      auth: true,
+      dataSchema: z.object({ left: z.boolean() }),
+    });
+    return out.data as { left: boolean };
+  },
+
+  async listInvites(teamId: string): Promise<InviteListResponse> {
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/invites`,
+      auth: true,
+      dataSchema: inviteListResponseSchema,
+    });
+    return out.data as InviteListResponse;
+  },
+
+  async createInvite(teamId: string, input: z.input<typeof inviteMemberSchema>): Promise<MessageResponse> {
+    inviteMemberSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/invites`,
+      body: input,
+      auth: true,
+      dataSchema: messageResponseSchema,
+    });
+    return out.data as MessageResponse;
+  },
+
+  async revokeInvite(teamId: string, inviteId: string): Promise<{ revoked: boolean }> {
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/revoke`,
+      body: {},
+      auth: true,
+      dataSchema: z.object({ revoked: z.boolean() }),
+    });
+    return out.data as { revoked: boolean };
+  },
+
+  async acceptInvite(input: z.input<typeof acceptInviteSchema>): Promise<AcceptInviteResponse> {
+    acceptInviteSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: '/invites/accept',
+      body: input,
+      auth: true,
+      dataSchema: acceptInviteResponseSchema,
+    });
+    return out.data as AcceptInviteResponse;
+  },
+
+  async updateTeamSettings(
+    teamId: string,
+    input: z.input<typeof updateTeamSettingsSchema>,
+  ): Promise<TeamSettingsResponse> {
+    updateTeamSettingsSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/settings`,
+      body: input,
+      auth: true,
+      dataSchema: teamSettingsResponseSchema,
+    });
+    return out.data as TeamSettingsResponse;
   },
 };
