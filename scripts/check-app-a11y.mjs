@@ -21,7 +21,6 @@ const EXCLUDE_FILE = /(\.test\.|__tests__|\.d\.ts$)/;
 const EXCLUDE_PATHS = /[\\/]i18n[\\/]/;
 
 const KIT_PRESSABLE_TAGS = new Set(['Button', 'Chip', 'ShiftCard', 'LinkButton', 'Pressable', 'TouchableOpacity', 'TouchableHighlight', 'TouchableWithoutFeedback']);
-
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
@@ -34,6 +33,7 @@ function walk(dir) {
 function elementBody(lines, lineIndex, start) {
   let braceDepth = 0;
   let inString = null;
+  let inBlockComment = false;
   const parts = [];
   for (let li = lineIndex; li < lines.length; li++) {
     const line = lines[li];
@@ -41,9 +41,30 @@ function elementBody(lines, lineIndex, start) {
     parts.push(line.slice(from));
     for (let i = from; i < line.length; i++) {
       const ch = line[i];
+      if (inBlockComment) {
+        if (ch === '*' && line[i + 1] === '/') {
+          inBlockComment = false;
+          i += 1;
+        }
+        continue;
+      }
       if (inString !== null) {
         if (ch === inString && line[i - 1] !== '\\') inString = null;
         continue;
+      }
+      // Comments inside JSX expressions are not code. Before this guard, the apostrophe in
+      // "attempt's" on CreateTeamScreen line 93 opened the string state, so the scan ran past the
+      // Input's `/>` and attributed the following Button's onPress to the Input (Fix Round 2).
+      if (braceDepth > 0 && ch === '/') {
+        if (line[i + 1] === '/') {
+          parts[parts.length - 1] = parts[parts.length - 1].slice(0, i - from);
+          break;
+        }
+        if (line[i + 1] === '*') {
+          inBlockComment = true;
+          i += 1;
+          continue;
+        }
       }
       if (ch === '"' || ch === "'") inString = ch;
       else if (ch === '{') braceDepth += 1;
