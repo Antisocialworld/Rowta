@@ -1,5 +1,5 @@
 // TeamsRouter — the signed-in branch's conditional render (rule U2; PRD 6.1). Replaces the Phase 1
-// HomePlaceholder as the live signed-in surface for Phase 3: whichever teams-view the machine names
+// placeholder as the live signed-in surface for Phase 3: whichever teams-view the machine names
 // renders, exactly one at a time, with the Android hardware Back wired to the machine's back()
 // (the same pattern AuthPage uses — an empty stack REFUSES so the OS exits, U1). The Phase 8
 // Dashboard (PRD §12) will replace the list view's placeholder body later; nothing here is Phase 8.
