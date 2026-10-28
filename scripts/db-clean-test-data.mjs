@@ -127,12 +127,15 @@ function runSql(key, sql, { readOnly = true } = {}) {
 }
 
 function fetchUsers() {
+  // 'decoy' = the A7 timing-decoy fixture rows seeded by server/src/auth/timing-decoy.ts
+  // (emails carry no '@', so no API flow can ever reach them; ids are the fixed constants there).
   const output = runSql(
     'db0',
-    `SELECT id, CASE WHEN lower(email) LIKE '%@example.test' THEN 'test' ELSE 'real' END AS kind FROM users ORDER BY id;`,
+    `SELECT id, CASE WHEN lower(email) LIKE '%@example.test' THEN 'test' WHEN lower(email) LIKE 'rowta-timing-decoy%' THEN 'decoy' ELSE 'real' END AS kind FROM users ORDER BY id;`,
   );
   const real = [];
   const test = [];
+  const decoy = [];
   for (const line of output.split(/\r?\n/).map((value) => value.trim()).filter(Boolean)) {
     const parts = line.split('|');
     if (parts.length !== 2 || !UUID_PATTERN.test(parts[0])) {
@@ -142,11 +145,13 @@ function fetchUsers() {
       real.push(parts[0]);
     } else if (parts[1] === 'test') {
       test.push(parts[0]);
+    } else if (parts[1] === 'decoy') {
+      decoy.push(parts[0]);
     } else {
       throw new Error('Unexpected user classification from the database.');
     }
   }
-  return { real: unique(real).sort(), test: unique(test).sort() };
+  return { real: unique(real).sort(), test: unique(test).sort(), decoy: unique(decoy).sort() };
 }
 
 function fetchTeams(key, realUserIds) {
@@ -286,12 +291,12 @@ function fetchPlan(key, context) {
         'tx_ref IN (SELECT tx_ref FROM payment_intents WHERE team_id IN (SELECT id FROM all_test_teams) AND tx_ref IS NOT NULL)',
         'tx_ref IN (SELECT tx_ref FROM payment_intents WHERE team_id IN (SELECT id FROM all_kept_teams) AND tx_ref IS NOT NULL)',
       ),
-      countRow('pending_signups', `lower(email) LIKE '%@example.test'`, `NOT (lower(email) LIKE '%@example.test')`),
-      countRow('users', 'id IN (SELECT id FROM test_users)', 'id IN (SELECT id FROM real_users)'),
+      countRow('pending_signups', `lower(email) LIKE '%@example.test' OR lower(email) LIKE 'rowta-timing-decoy%'`, `NOT (lower(email) LIKE '%@example.test' OR lower(email) LIKE 'rowta-timing-decoy%')`),
+      countRow('users', `id IN (SELECT id FROM test_users) OR lower(email) LIKE 'rowta-timing-decoy%'`, `NOT (id IN (SELECT id FROM test_users) OR lower(email) LIKE 'rowta-timing-decoy%')`),
       countRow('devices', 'user_id IN (SELECT id FROM test_users)', 'user_id IN (SELECT id FROM real_users)'),
       countRow('refresh_tokens', 'user_id IN (SELECT id FROM test_users)', 'user_id IN (SELECT id FROM real_users)'),
       countRow('magic_tokens', 'user_id IN (SELECT id FROM test_users)', 'user_id IN (SELECT id FROM real_users)'),
-      countRow('password_resets', 'user_id IN (SELECT id FROM test_users)', 'user_id IN (SELECT id FROM real_users)'),
+      countRow('password_resets', `user_id IN (SELECT id FROM test_users) OR user_id IN (SELECT id FROM users WHERE lower(email) LIKE 'rowta-timing-decoy%')`, `NOT (user_id IN (SELECT id FROM test_users) OR user_id IN (SELECT id FROM users WHERE lower(email) LIKE 'rowta-timing-decoy%'))`),
       countRow('notification_log', 'user_id IN (SELECT id FROM test_users)', 'user_id IN (SELECT id FROM real_users)'),
       countRow('sent_emails', 'user_id IN (SELECT id FROM test_users)', 'user_id IN (SELECT id FROM real_users)'),
       countRow('user_settings', 'user_id IN (SELECT id FROM test_users)', 'user_id IN (SELECT id FROM real_users)'),
@@ -352,7 +357,9 @@ function validatePlan(key, plan) {
 
 function printPlan(key, users, teams, plan, devs) {
   console.log(`\n[${key}] ${targets[key].container}/${targets[key].dbName}`);
-  console.log(`real_users=${users ? users.real.length : 'n/a'} test_users=${users ? users.test.length : 'n/a'}`);
+  console.log(
+    `real_users=${users ? users.real.length : 'n/a'} test_users=${users ? users.test.length : 'n/a'} decoy_fixture_users=${users ? users.decoy.length : 'n/a'}`,
+  );
   console.log(`test_teams=${teams.test.length} kept_teams=${teams.kept.length}`);
   if (devs) {
     console.log(`devs_team=present devs_memberships=${devs.memberships} devs_invites=${devs.invites}`);
@@ -429,13 +436,20 @@ const db0Specs = [
   },
   { table: 'refresh_tokens', where: 'user_id IN (SELECT id FROM _clean_test_users)' },
   { table: 'magic_tokens', where: 'user_id IN (SELECT id FROM _clean_test_users)' },
-  { table: 'password_resets', where: 'user_id IN (SELECT id FROM _clean_test_users)' },
+  {
+    table: 'password_resets',
+    where:
+      "user_id IN (SELECT id FROM _clean_test_users) OR user_id IN (SELECT id FROM users WHERE lower(email) LIKE 'rowta-timing-decoy%')",
+  },
   { table: 'notification_log', where: 'user_id IN (SELECT id FROM _clean_test_users)' },
   { table: 'sent_emails', where: 'user_id IN (SELECT id FROM _clean_test_users)' },
   { table: 'user_settings', where: 'user_id IN (SELECT id FROM _clean_test_users)' },
   { table: 'devices', where: 'user_id IN (SELECT id FROM _clean_test_users)' },
-  { table: 'pending_signups', where: `lower(email) LIKE '%@example.test'` },
-  { table: 'users', where: 'id IN (SELECT id FROM _clean_test_users)' },
+  {
+    table: 'pending_signups',
+    where: `lower(email) LIKE '%@example.test' OR lower(email) LIKE 'rowta-timing-decoy%'`,
+  },
+  { table: 'users', where: "id IN (SELECT id FROM _clean_test_users) OR lower(email) LIKE 'rowta-timing-decoy%'" },
 ];
 
 const db1Specs = [
