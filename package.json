@@ -17,6 +17,7 @@
     "db:psql": "node scripts/db-psql.mjs db0",
     "db:psql:db1": "node scripts/db-psql.mjs db1",
     "db:tables": "node scripts/db-tables.mjs",
+    "db:clean-test": "node scripts/db-clean-test-data.mjs",
     "web:build": "node web/build.mjs",
     "web:serve": "node web/serve.mjs",
     "web:dev": "npm run web:build && npm run web:serve",

@@ -55,6 +55,7 @@ server/prisma/generated/
 # ---- Keep the lockfile (rule S12) ----
 !package-lock.json
 rowta-old-backup/
+backups/
 rowta-scaffold*
 
 # ---- Agent context and non-functional notes ----
