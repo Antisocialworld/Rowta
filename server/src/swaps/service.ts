@@ -137,7 +137,10 @@ export async function requestSwap(
         'Idempotency key has already been used with a different request payload.',
       );
     }
-    if (existingKey.response && typeof existingKey.response === 'object') {
+    if (existingKey.state === 'in_flight') {
+      throw new HttpError(409, 'idempotency.in_flight', 'A request with this idempotency key is already in progress.');
+    }
+    if (existingKey.state === 'done' && existingKey.response && typeof existingKey.response === 'object') {
       return existingKey.response as unknown as SwapRequestView;
     }
   }
@@ -180,6 +183,16 @@ export async function requestSwap(
   if (existingPending) {
     throw new HttpError(409, 'swap.already_pending', authMessage('swap.already_pending'));
   }
+
+  // Record in_flight idempotency row outside the main transaction (mirrors shifts/service.ts)
+  await client.idempotency_keys.create({
+    data: {
+      scope,
+      key: idempotencyKey,
+      request_fingerprint: fp,
+      state: 'in_flight',
+    },
+  });
 
   let createdSwap: SwapRequestView;
   try {
@@ -272,20 +285,24 @@ export async function requestSwap(
         shiftEndsAt: iso(currentShift.ends_at),
       };
 
-      await tx.idempotency_keys.create({
-        data: {
-          scope,
-          key: idempotencyKey,
-          request_fingerprint: fp,
-          state: 'completed',
-          status_code: 200,
-          response: view as unknown as JsonInput,
-        },
-      });
-
       return view;
     });
+
+    // Update idempotency row to 'done' (state IN ('in_flight', 'done'))
+    await client.idempotency_keys.update({
+      where: { scope_key: { scope, key: idempotencyKey } },
+      data: {
+        state: 'done',
+        status_code: 201,
+        response: createdSwap as unknown as JsonInput,
+      },
+    });
   } catch (err: unknown) {
+    // Clean up in_flight row on failure so key is not stuck in_flight
+    await client.idempotency_keys
+      .delete({ where: { scope_key: { scope, key: idempotencyKey } } })
+      .catch(() => undefined);
+
     // Catch unique constraint violation (swaps_one_pending_idx)
     if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
       throw new HttpError(409, 'swap.already_pending', authMessage('swap.already_pending'));

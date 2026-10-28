@@ -4,6 +4,7 @@ import type { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { forTeam, globalDb } from '../src/db/clients.ts';
 import { signAccessToken } from '../src/security/access-token.ts';
+import { fingerprint } from '../src/security/fingerprint.ts';
 import {
   clearRateKeys,
   createVerifiedUser,
@@ -186,9 +187,39 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
       { shiftId, targetUserId: f.staff2Id },
       { ...f.staff1Auth, 'idempotency-key': key },
     );
-    expect(res2.status).toBe(200);
+    expect(res2.status).toBe(201);
     const swap2 = await dataOf(res2);
     expect(swap2.id).toBe(swap1.id);
+  });
+
+  it('returns 409 when an idempotency key is currently in_flight', async () => {
+    const shiftId = await createShift(f, f.staff1Id);
+    const key = randomUUID();
+    const scope = `request_swap:${f.teamId}:${f.staff1Id}`;
+    const fp = fingerprint(JSON.stringify({ shiftId, targetUserId: null }));
+
+    await forTeam(f.teamId).idempotency_keys.create({
+      data: {
+        scope,
+        key,
+        request_fingerprint: fp,
+        state: 'in_flight',
+      },
+    });
+
+    const res = await post(
+      app,
+      `/teams/${f.teamId}/swaps`,
+      { shiftId },
+      { ...f.staff1Auth, 'idempotency-key': key },
+    );
+    expect(res.status).toBe(409);
+    const err = await errorOf(res);
+    expect(err.code).toBe('idempotency.in_flight');
+
+    await forTeam(f.teamId).idempotency_keys.delete({
+      where: { scope_key: { scope, key } },
+    });
   });
 
   it('rejects idempotency key reuse with mismatched payload', async () => {
