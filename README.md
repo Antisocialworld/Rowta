@@ -7,7 +7,7 @@ The Rowta logo was designed by the owner. The concept (a closed book with R O W 
 
 Repository: https://github.com/Antisocialworld/Rowta (the owner commits and pushes; the build agent never does).
 
-> **Status: not built yet.** The repository holds the specification, the rules and the empty project structure. See [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md) for the real state. Nothing below is claimed as working until its phase gate has evidence in `docs/gates/`.
+> **Status: in progress.** Phases 0–3 and 11 are gated with evidence. Phase 4 built; server proven; app screens not yet verified (see docs/gates/phase-4.md). Steps that need a real Android device or a human screen-reader pass are marked NOT PROVEN in their gate files. See [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md) for the real state and [DOCUMENTATION.md](DOCUMENTATION.md) for the map. Nothing below is claimed as working until its phase gate has evidence in `docs/gates/`.
 
 | | |
 |---|---|
@@ -51,7 +51,7 @@ shared/                  Zod schemas used by BOTH app and server
 web/                     public web surface (src/, public/brand/)
 docs/                    all documentation (decisions/, gates/, a11y/, ui-matrix/)
 load-tests/              k6 scripts and the written report
-scripts/                 setup-env.mjs (environment helper); build-app-tokens.mjs is added in Phase 1
+scripts/                 setup-env.mjs (environment helper), test-database and DB-inspection scripts
 design-system/           the owner's design system (convertTokens.js, token JSON, material3 additions, verifyTokens.js, design-variables.css); colours are never changed
 docs/AGENT-PROMPT.md     the full-build prompt for the coding agent
 .env.example             every environment variable NAME, no secrets (committed)
@@ -69,7 +69,7 @@ node scripts/setup-env.mjs          # creates .env and generates the LOCAL secre
 node scripts/setup-env.mjs --check  # shows what is still empty
 ```
 
-The commands to start the databases, the server, the worker and the app are added in `docs/SETUP.md` once Phase 0 exists. The full owner setup guide is [docs/SETUP.md](docs/SETUP.md).
+The commands to start the databases, the server, the worker and the app are in the owner setup guide, [docs/SETUP.md](docs/SETUP.md). The short version and the per-phase status are in [DOCUMENTATION.md](DOCUMENTATION.md).
 
 ## Environment variables
 

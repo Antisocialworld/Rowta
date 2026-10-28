@@ -49,8 +49,9 @@ docker-data/
 k6-results/
 load-tests/.local/
 load-tests/results/*.json
-# the agent's overnight run note (local only, never committed)
+# the agent's overnight run notes (local only, never committed)
 OVERNIGHT-REPORT.md
+OVERNIGHT-REPORT-2.md
 
 # ---- Prisma: generated clients only (regenerate with `npm run generate --workspace @rowta/server`) ----
 # The schema of record is server/prisma/sql/*.sql; prisma/schema.prisma is pulled from the live database.
