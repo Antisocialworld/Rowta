@@ -3,7 +3,7 @@
 | Document | Purpose | Written in | State |
 |---|---|---|---|
 | [SETUP.md](SETUP.md) | owner setup: `.env`, secrets, databases, local test targets (§4c), running locally, pre-report checks | scaffold; extended Phase 0, Phase 3 and the 28 Oct overnight run | written (checked against the scripts in this session) |
-| [BUILD-PROGRESS.md](BUILD-PROGRESS.md) | real state of every phase, session log, known problems, not-verified list | every phase | current through Phase 4 (Phase 4 built; server proven; app screens not yet verified) |
+| [BUILD-PROGRESS.md](BUILD-PROGRESS.md) | real state of every phase, session log, known problems, not-verified list | every phase | current through Phase 5 (Phase 5 built; tests written, nothing run yet per owner test freeze) |
 | [AGENT-PROMPT.md](AGENT-PROMPT.md) | the full-build prompt to paste into the coding agent | scaffold | written |
 | [AGENT-SETUP.md](AGENT-SETUP.md) | rules, skills, activation modes and how to check them | scaffold | written |
 | [SECURITY.md](SECURITY.md) | secret handling, public values, 8 threats, dev-only code (component gallery gate added 28 Oct) | every phase | current through Phase 3 |
@@ -23,9 +23,9 @@
 | OWNER-CHECKLIST.md | what only the owner can do | end of build | not written |
 | AUDIT-NOTES.md | [VERIFY] items, deviations, unverified items | end of build | not written |
 | `legal/` | public page sources read by `web/build.mjs` (privacy, terms, billing, deletion, retention, subprocessors, accessibility, contact, landing, audit, incident response) + owner inputs and open decisions | Phase 11 (owner copy lock 20 Oct 2026) | written; open items in [legal/OWNER-INPUTS.md](legal/OWNER-INPUTS.md) |
-| `decisions/` | one short ADR per important choice | every phase | 15 ADRs (0001–0015); ADR 0015 for Phase 4 |
-| `gates/` | saved gate evidence per phase + raw evidence files (e2e, address strip, web-app button, dev tools, test isolation, db cleanup, phase-4 server/explain/app) | every phase | written for Phases 0, 0-b, 1, 2, 3, 4, 11 and the 28 Oct overnight run |
-| `a11y/` | TalkBack and NVDA checklist per screen, contrast report | every phase | auth-page, teams, phase-4, web-invite, web-magic, contrast written (device/NVDA passes still pending) |
+| `decisions/` | one short ADR per important choice | every phase | 16 ADRs (0001–0016); ADR 0016 for Phase 5 |
+| `gates/` | saved gate evidence per phase + raw evidence files (e2e, address strip, web-app button, dev tools, test isolation, db cleanup, phase-4 server/explain/app) | every phase | written for Phases 0, 0-b, 1, 2, 3, 4, 5, 11 and the 28 Oct overnight run |
+| `a11y/` | TalkBack and NVDA checklist per screen, contrast report | every phase | auth-page, teams, phase-4, phase-5, web-invite, web-magic, contrast written (device/NVDA passes still pending) |
 | `ui-matrix/` | screenshots across the size matrix + the capture procedure | Phase 1 onward | 40 files — web renders and gallery captures; the Android PRD 6.3 size matrix is NOT captured (no device/emulator) |
 
 Rule: a document is marked "written" only after the content was checked against the real code.

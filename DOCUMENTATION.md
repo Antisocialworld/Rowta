@@ -87,9 +87,10 @@ npm run app:test
 | 2 — Auth, server and app views | [docs/gates/phase-2.md](docs/gates/phase-2.md) | **Passed.** 13 `/auth/*` endpoints + countries, 17 files/124 tests at the server gate, live app e2e 45/45 × 3 runs. TalkBack device pass admitted as pending. |
 | 3 — Teams, roles, invites, seat skeleton | [docs/gates/phase-3.md](docs/gates/phase-3.md) | **Mostly proven.** Permission matrix, Staff 403, team isolation, seat cap and the web invite deep link are PROVEN. Native Android deep link is **NOT PROVEN**. Server suite at this gate: 29 files/249 tests. |
 | 4 — Shifts, calendar, activity feed, full-text search | [docs/gates/phase-4.md](docs/gates/phase-4.md) | Phase 4 built; server proven; app screens not yet verified (see gate file). |
+| 5 — Swaps | [docs/gates/phase-5.md](docs/gates/phase-5.md) | Phase 5 built; tests written, nothing run yet per owner test freeze (see gate file). |
 | 11 — Web surface | [docs/gates/phase-11.md](docs/gates/phase-11.md) | **Passed with tooling limits.** Static build, metadata checks, axe 0 violations, Lighthouse accessibility 100. A human NVDA pass is **NOT PROVEN** (no screen reader on the build machine). |
 
-Not started: Phases 5–10 and 12 (swaps, jobs/notifications/settings, billing, offline/dashboard, lifecycle,
+Not started: Phases 6–10 and 12 (jobs/notifications/settings, billing, offline/dashboard, lifecycle,
 system-design layers, load tests/delivery). Do not read a later phase as done because a table below it looks
 complete.
 
@@ -133,6 +134,7 @@ Every decision with consequences has a numbered record in `docs/decisions/`:
 | [0013](docs/decisions/0013-web-tokens-memory-only.md) | Web build keeps tokens in memory only |
 | [0014](docs/decisions/0014-server-tests-isolated-databases.md) | Server tests run on throwaway databases and a separate Redis keyspace |
 | [0015](docs/decisions/0015-shifts-calendar-activity-and-search.md) | Shifts, calendar range, activity pagination and full-text search |
+| [0016](docs/decisions/0016-swaps-state-machine-approval-and-concurrency.md) | Swaps state machine, approval atomicity, and concurrency guarantees |
 
 ## Where to look next
 
