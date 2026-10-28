@@ -23,6 +23,18 @@ export const AUTH_MESSAGES = {
   'team.name.tooLong': 'Use 80 characters or fewer.',
   'team.notFound': 'Team not found.',
   'team.forbidden': 'You do not have permission to perform this action.',
+  // Phase 4 — shifts, calendar, activity feed, search.
+  'shift.notFound': 'Shift not found.',
+  'shift.timeOrder': 'The end time must be after the start time.',
+  'shift.time.invalid': 'Enter a valid date and time.',
+  'shift.label.required': 'Enter a shift label.',
+  'shift.label.tooLong': 'Use 100 characters or fewer.',
+  'shift.notes.tooLong': 'Use 2000 characters or fewer.',
+  'shift.assignee.invalid': 'Choose an active member of this team.',
+  'shift.range.invalid': 'Choose a valid date range.',
+  'shift.range.tooLong': 'Choose a range of 42 days or fewer.',
+  'activity.cursor.invalid': 'This page link is not valid. Refresh the list.',
+  'search.query.tooShort': 'Type at least 2 characters.',
   'generic.error': 'Something went wrong. Try again.',
 } as const;
 

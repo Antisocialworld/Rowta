@@ -63,6 +63,9 @@ export function readDb(shard: Shard): AnyPrismaClient {
   return writeDb(shard);
 }
 
+/** JSON column input type, re-exported so routes never import a generated client (ADR 0002). */
+export type JsonInput = import('../../prisma/generated/db0/client.ts').Prisma.InputJsonValue;
+
 export type Shard0Tx = Parameters<Parameters<GeneratedDb0['$transaction']>[0]>[0];
 export type Shard1Tx = Parameters<Parameters<GeneratedDb1['$transaction']>[0]>[0];
 export type ShardTx = Shard0Tx & Shard1Tx;
