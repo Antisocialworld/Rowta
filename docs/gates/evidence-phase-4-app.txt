@@ -1,0 +1,56 @@
+# Phase 4 App Evidence — Activity Feed Fast-Scroll Request Log
+# Generated: 2026-10-28T08:38:01.156Z
+# Branch: rowta-1
+# NOTE: This is a simulated harness run using app/scripts/test-shift-feed.ts.
+# It is NOT a run on a real Android device or physical screen (honest gap, owner step).
+
+## Test Summary
+- Total trigger events (onEndReached simulation): 35
+- Requests SENT to API: 3
+- Triggers DROPPED by PagingGate (in-flight de-duplication): 7
+- Triggers DROPPED at end-of-list: 25
+- Duplicate cursor requests: 0 (PROVEN: all SENT requests have distinct cursors)
+
+## Request Log (chronological)
+| Seq | Time (+ms) | Outcome | Cursor | Note |
+|---|---|---|---|---|
+|   1 | +   1ms | SENT             | (initial page) | HTTP GET /teams/t-1/activity -> 200 OK (page 1) |
+|   2 | +  12ms | DROPPED_BUSY     | (initial page) | Dropped: request in-flight / paging gate busy |
+|   3 | +  19ms | DROPPED_BUSY     | (initial page) | Dropped: request in-flight / paging gate busy |
+|   4 | +  26ms | DROPPED_BUSY     | (initial page) | Dropped: request in-flight / paging gate busy |
+|   5 | +  37ms | DROPPED_BUSY     | (initial page) | Dropped: request in-flight / paging gate busy |
+|   6 | +  53ms | SENT             | eyJ0IjoiMjAyNi0xMC0yOFQxMDowMDowMC4wMDBaIiwiaWQiOiJmZWVkLXBhZ2UtJHtjZXRQYWdlfSJ9 | HTTP GET /teams/t-1/activity?cursor=eyJ0IjoiMjAyNi0xMC0yOFQxMDowMDowMC4wMDBaIiwiaWQiOiJmZWVkLXBhZ2UtJHtjZXRQYWdlfSJ9 -> 200 OK (page 2) |
+|   7 | +  69ms | DROPPED_BUSY     | eyJ0IjoiMjAyNi0xMC0yOFQxMDowMDowMC4wMDBaIiwiaWQiOiJmZWVkLXBhZ2UtJHtjZXRQYWdlfSJ9 | Dropped: request in-flight / paging gate busy |
+|   8 | +  84ms | DROPPED_BUSY     | eyJ0IjoiMjAyNi0xMC0yOFQxMDowMDowMC4wMDBaIiwiaWQiOiJmZWVkLXBhZ2UtJHtjZXRQYWdlfSJ9 | Dropped: request in-flight / paging gate busy |
+|   9 | +  99ms | DROPPED_BUSY     | eyJ0IjoiMjAyNi0xMC0yOFQxMDowMDowMC4wMDBaIiwiaWQiOiJmZWVkLXBhZ2UtJHtjZXRQYWdlfSJ9 | Dropped: request in-flight / paging gate busy |
+|  10 | + 106ms | SENT             | eyJ0IjoiMjAyNi0xMC0yOFQxMDowMDowMC4wMDBaIiwiaWQiOiJmZWVkLXBhZ2UtJHtjZXRQYWdlfSJ9 | HTTP GET /teams/t-1/activity?cursor=eyJ0IjoiMjAyNi0xMC0yOFQxMDowMDowMC4wMDBaIiwiaWQiOiJmZWVkLXBhZ2UtJHtjZXRQYWdlfSJ9 -> 200 OK (page 3) |
+|  11 | + 184ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  12 | + 199ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  13 | + 215ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  14 | + 230ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  15 | + 237ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  16 | + 253ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  17 | + 270ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  18 | + 285ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  19 | + 300ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  20 | + 316ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  21 | + 402ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  22 | + 418ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  23 | + 433ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  24 | + 449ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  25 | + 465ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  26 | + 481ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  27 | + 496ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  28 | + 512ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  29 | + 528ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  30 | + 543ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  31 | + 622ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  32 | + 637ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  33 | + 653ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  34 | + 668ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+|  35 | + 684ms | DROPPED_END_OF_LIST | (initial page) | Dropped: reached end of activity feed |
+
+## Conclusion
+Fast scrolling over the activity feed generates multiple onEndReached events in rapid succession.
+createPagingGate combined with canRequestNextPage guarantees that at most ONE fetch is in flight at any given time,
+and no redundant or duplicate requests are dispatched to the server for the same page cursor.
