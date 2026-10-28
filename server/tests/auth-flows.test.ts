@@ -157,7 +157,7 @@ describe('sign up with code', () => {
     const key = new TextEncoder().encode(env.JWT_ACCESS_SECRET);
     const { payload } = await jwtVerify(tokens.accessToken, key, { algorithms: ['HS512'] });
     expect(payload.sub).toBe(tokens.userId);
-    expect((payload.exp ?? 0) - (payload.iat ?? 0)).toBe(900); // A4: 15-minute access token
+    expect((payload.exp ?? 0) - (payload.iat ?? 0)).toBe(300); // A4: 5-minute access token (owner decision 25 Oct 2026)
   });
 
   it('stores the user, deletes the pending row and sends the welcome email exactly once (C4)', async () => {
@@ -337,7 +337,7 @@ describe('access tokens (A4)', () => {
     const hs256 = await new SignJWT({ sub: 'someone-else' })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt(now)
-      .setExpirationTime(now + 900)
+      .setExpirationTime(now + 300)
       .sign(signingKey());
     const expired = await new SignJWT({ sub: 'someone-else' })
       .setProtectedHeader({ alg: 'HS512' })
@@ -345,7 +345,7 @@ describe('access tokens (A4)', () => {
       .setExpirationTime(now - 60)
       .sign(signingKey());
     const noneHeader = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-    const nonePayload = Buffer.from(JSON.stringify({ sub: 'someone-else', exp: now + 900 })).toString('base64url');
+    const nonePayload = Buffer.from(JSON.stringify({ sub: 'someone-else', exp: now + 300 })).toString('base64url');
     const noneToken = `${noneHeader}.${nonePayload}.`;
 
     const cases = [hs256, expired, noneToken, 'not.a.token'];
@@ -373,7 +373,7 @@ describe('access tokens (A4)', () => {
     const token = await new SignJWT({ sub: 'aaaaaaaa-0000-0000-0000-000000000001' })
       .setProtectedHeader({ alg: 'HS512' })
       .setIssuedAt()
-      .setExpirationTime(Math.floor(Date.now() / 1000) + 900)
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 300)
       .sign(signingKey());
     const [header, payload, signature] = token.split('.');
     const last = payload?.at(-1) ?? 'A';

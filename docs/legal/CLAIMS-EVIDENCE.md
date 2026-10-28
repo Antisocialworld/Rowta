@@ -23,7 +23,7 @@ Every factual claim in the web copy, with its status and the evidence behind it 
 | Activity events lose the user reference at account purge | PLANNED | PRD 8.10 |
 | Team deletion keeps ledger + minimal tombstone team row | PLANNED | PRD 8.10 |
 | Sign-in links expire after 5 minutes (owner decision), single use | PLANNED | Owner input 20 Oct 2026; conflicts with PRD/rule A13 "15 minutes" (mismatch listed in OWNER-INPUTS.md); auth not built |
-| Access token 15 minutes / refresh token 30 days | PLANNED | PRD 15 defaults; not built |
+| Access token 5 minutes / refresh token 30 days | ACTIVE | Owner decision 25 Oct 2026 (supersedes the PRD default); `server/tests/auth-security.test.ts` asserts the 5-minute TTL |
 | Website stores nothing: no cookies, no localStorage, no analytics | ACTIVE | `web/build.mjs` output + `web/tests/test-content-safety.mjs` and `test-links.mjs`; only same-origin assets |
 
 ## Accounts and security

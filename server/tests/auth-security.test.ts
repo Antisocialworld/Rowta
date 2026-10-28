@@ -1,6 +1,6 @@
 ﻿// Phase 2 security evidence (rules S1, S9, A1 to A4, A7): nothing secret ever reaches the logs
 // or a table in the clear, every stored secret is an Argon2id PHC string, refresh rows carry the
-// 30-day TTL, access tokens last 15 minutes, subjects carry no digits â€” and the A7 timing
+// 30-day TTL, access tokens last 5 minutes, subjects carry no digits â€” and the A7 timing
 // measurement compares the pair that matters on every dummy-verify route: unknown email vs
 // known row + WRONG secret, asserted within 25% of each other.
 // The timing numbers printed here are copied into docs/SECURITY.md as gate evidence.
@@ -154,7 +154,7 @@ describe('secrets never leak', () => {
     const ttlMs = REFRESH_TOKEN_TTL_SECONDS * 1_000;
     expect(remaining).toBeGreaterThan(ttlMs - 120_000);
     expect(remaining).toBeLessThanOrEqual(ttlMs);
-    expect(ACCESS_TOKEN_TTL_SECONDS).toBe(900);
+    expect(ACCESS_TOKEN_TTL_SECONDS).toBe(300);
   });
 
   it('no delivered subject contains a digit (skill section 7)', async () => {

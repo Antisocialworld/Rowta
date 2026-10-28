@@ -2,7 +2,7 @@
 //
 // - HS512 only: the verify call allows ONLY 'HS512', so `none` and every other algorithm
 //   are rejected (A4).
-// - Claims: subject (user ID), issued-at, expiry 15 minutes (A11), a token ID (jti). NO role and
+// - Claims: subject (user ID), issued-at, expiry 5 minutes (A11; owner decision 25 Oct 2026), a token ID (jti). NO role and
 //   no team role anywhere in the token (S8).
 // - The signing secret comes from env JWT_ACCESS_SECRET, validated to >= 64 characters at boot
 //   by config/env.ts; it is never logged (S1, A4).

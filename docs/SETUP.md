@@ -22,7 +22,7 @@ npm run gen:secret
 - Generates 64 cryptographically secure random bytes printed as 128 lowercase hex characters using `crypto.randomBytes`.
 - Paste the generated value into `.env` as `JWT_ACCESS_SECRET`.
 - Never share, commit, or log this value.
-- Changing `JWT_ACCESS_SECRET` immediately ends all active 15-minute access tokens; existing refresh tokens keep working and obtain new access tokens on their next refresh.
+- Changing `JWT_ACCESS_SECRET` immediately ends all active 5-minute access tokens; existing refresh tokens keep working and obtain new access tokens on their next refresh.
 - Restart the API after changing it.
 
 ## 2. Secrets only you can provide (all optional until their phase)

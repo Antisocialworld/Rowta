@@ -11,7 +11,7 @@ export const CODE_MAX_ATTEMPTS = 5; // A9: 5 wrong attempts, then the code is de
 export const MAGIC_LINK_TTL_SECONDS = 300;
 
 export const RESET_GRANT_TTL_SECONDS = 600; // A10: a verified code yields a 10-minute grant.
-export const ACCESS_TOKEN_TTL_SECONDS = 900; // A11: access token 15 minutes.
+export const ACCESS_TOKEN_TTL_SECONDS = 300; // A11: access token 5 minutes (owner decision 25 Oct 2026).
 export const REFRESH_TOKEN_TTL_SECONDS = 2_592_000; // A11: refresh token 30 days.
 
 export const PASSWORD_MIN_LENGTH = 8; // A8: owner rule.

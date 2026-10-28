@@ -23,7 +23,7 @@ describe('access-token security (HS512, pinned alg, minimal claims)', () => {
       .setSubject('usr_wrong_key')
       .setJti(randomUUID())
       .setIssuedAt()
-      .setExpirationTime(Math.floor(Date.now() / 1000) + 900)
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 300)
       .sign(wrongKey);
 
     const claims = await verifyAccessToken(token);
@@ -36,7 +36,7 @@ describe('access-token security (HS512, pinned alg, minimal claims)', () => {
       .setSubject('usr_alt_alg')
       .setJti(randomUUID())
       .setIssuedAt()
-      .setExpirationTime(Math.floor(Date.now() / 1000) + 900)
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 300)
       .sign(REAL_KEY);
 
     const claims = await verifyAccessToken(token);
@@ -50,7 +50,7 @@ describe('access-token security (HS512, pinned alg, minimal claims)', () => {
         sub: 'usr_unsigned',
         jti: randomUUID(),
         iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 900,
+        exp: Math.floor(Date.now() / 1000) + 300,
       }),
     ).toString('base64url');
     const unsignedToken = `${headerB64}.${payloadB64}.`;

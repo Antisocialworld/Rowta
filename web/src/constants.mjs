@@ -28,7 +28,7 @@ export const C = {
 
   // --- auth (RULES A13 / PRD 8.1; PLANNED — server auth lands in Phase 2) ---
   magicLinkMinutes: 5, // OWNER decision (20 Oct 2026) — conflicts with PRD A13's 15 minutes; see OWNER-INPUTS.md
-  accessTokenMinutes: 15, // PRD 15 defaults
+  accessTokenMinutes: 5, // OWNER decision 25 Oct 2026 (supersedes the PRD default)
   refreshTokenDays: 30, // PRD 15 defaults
 
   // --- people (OWNER, 20 Oct 2026; PRD 3.2) ---
