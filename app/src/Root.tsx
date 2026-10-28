@@ -8,6 +8,7 @@
 import { AuthPage } from './screens/AuthPage';
 import { GalleryScreen } from './screens/GalleryScreen';
 import { TeamsRouter } from './screens/TeamsRouter';
+import { devToolsVisible } from './lib/dev-tools';
 import { useAuthSession } from './state/auth-session';
 
 export function Root() {
@@ -15,6 +16,8 @@ export function Root() {
   const screen = useAuthSession((state) => state.screen);
   if (status === 'restoring') return null;
   if (status === 'signedOut') return <AuthPage />;
-  if (screen === 'gallery') return <GalleryScreen />;
+  // Dev tools are development-only (P7, owner decision 28 Oct 2026): outside development a stray
+  // 'gallery' screen value falls through to the normal signed-in router (defence in depth).
+  if (screen === 'gallery' && devToolsVisible(__DEV__)) return <GalleryScreen />;
   return <TeamsRouter />;
 }

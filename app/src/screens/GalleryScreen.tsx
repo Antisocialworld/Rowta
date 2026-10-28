@@ -1,7 +1,8 @@
 // GalleryScreen — every kit component in every state, on one scrollable screen (Phase 1 step 4).
 // Purpose: the human review surface for the component kit and the target the size-matrix capture script
-// screenshots (PRD 6.3). Reachable only from the signed-in Phase 1 branch, which refuses a release build
-// (docs/SECURITY.md section 3). The size panel reports the live window and font scale so any phone can be
+// screenshots (PRD 6.3). Development builds only (P7, owner decision 28 Oct 2026): Root and the team
+// list both gate it behind lib/dev-tools + __DEV__, so a release build can neither show nor open it.
+// The size panel reports the live window and font scale so any phone can be
 // compared against the PRD cases without guessing.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';

@@ -11,6 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, EmptyState, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
+import { devToolsVisible } from '../../lib/dev-tools';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthSession } from '../../state/auth-session';
 import { resolveSelectedTeamId, useTeams, useTeamsList } from '../../state/teams';
@@ -139,7 +140,9 @@ export function TeamListScreen() {
             </View>
           )}
           <Button label="action.createTeam" icon="group-add" onPress={() => go('createTeam')} testID="team-create-entry" />
-          <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
+          {devToolsVisible(__DEV__) ? (
+            <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
+          ) : null}
           <Button label="action.signOut" variant="ghost" onPress={() => { void signOut(); }} />
         </View>
       </View>
