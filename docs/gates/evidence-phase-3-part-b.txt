@@ -1,0 +1,128 @@
+FIX ROUND 2 EVIDENCE - Phase 3 Part B
+=======================================
+
+The four app commands below were re-run on 2026-10-27 with shell redirection. Their real tool
+output and exit code are appended after this block; they replace the earlier entries for the same
+commands (the earlier file recorded "TRUE" from a PowerShell success check, not a real exit code).
+
+Earlier records (server/env; NOT re-run in this round - kept verbatim for the F2 trail):
+5. npm run typecheck --workspace @rowta/server
+   Result: 0 errors, exit 0 (TRUE)
+6. npm test --workspace @rowta/server
+   Result: 29 test files / 248 tests passed, exit 0 (TRUE)
+7. npm run check:hashing
+   Result: BANNED ALGORITHM SCAN PASSED: 0 hits across 114 files, exit 0 (TRUE)
+8. node scripts/setup-env.mjs --check
+   Result: ok, exit 0 (TRUE)
+9. node scripts/setup-env.mjs --audit-example
+   Result: OK: 49 names in .env.example; every sensitive name is empty, exit 0 (TRUE)
+
+=== FIX ROUND 2 RE-RUNS - real output, exit code last ===
+
+1. npm run typecheck --workspace @rowta/app
+
+> @rowta/app@0.0.0 typecheck
+> tsc --noEmit
+
+EXIT CODE: 0
+
+2. npm run lint --workspace @rowta/app
+
+> @rowta/app@0.0.0 lint
+> eslint . && node ../scripts/check-ui-tokens.mjs && node ../scripts/check-app-strings.mjs && node ../scripts/check-app-a11y.mjs
+
+scanned files: 103
+UI TOKEN GATE PASSED: no hard-coded colours, font sizes, spacing numbers, radii, shadows or opacities outside the design system.
+scanned files: 61
+STRING GATE PASSED: no hard-coded user-facing text in app/src (catalog only, rule U8).
+scanned files: 61
+A11Y GATE PASSED: no capped font scale, no deprecated focus call, icons decorative or named, pressables roled, no native disabled (X1/X7/X14a).
+EXIT CODE: 0
+
+3. npm exec --workspace @rowta/app -- tsx scripts/test-invite-token-lifecycle.ts
+PASS: case 1: token cleared after a successful accept
+PASS: case 1: result is joined after a successful accept
+PASS: case 1: the joined result carries the fetched team name (decision 1 text)
+PASS: case 2inv (auth.code_invalid): token cleared after an invitation error (400)
+PASS: case 2inv (auth.code_invalid): result is the uniform failed state (400)
+PASS: case 2inv (team.forbidden): token cleared after an invitation error (403)
+PASS: case 2inv (team.forbidden): result is the uniform failed state (403)
+PASS: case 2inv (team.notFound): token cleared after an invitation error (404)
+PASS: case 2inv (team.notFound): result is the uniform failed state (404)
+PASS: case 2inv (idempotency.in_flight): token cleared after an invitation error (409)
+PASS: case 2inv (idempotency.in_flight): result is the uniform failed state (409)
+PASS: case 2inv (auth.link.invalid): token cleared after an invitation error (410)
+PASS: case 2inv (auth.link.invalid): result is the uniform failed state (410)
+PASS: case 2inv (team.seatLimit): token cleared after an invitation error (422)
+PASS: case 2inv (team.seatLimit): result is the uniform failed state (422)
+PASS: case 2ret (auth.not_authenticated): token KEPT after a transient/auth error (401)
+PASS: case 2ret (auth.not_authenticated): result is the retry state (401)
+PASS: case 2ret (generic.error): token KEPT after a transient/auth error (408)
+PASS: case 2ret (generic.error): result is the retry state (408)
+PASS: case 2ret (rate.limited): token KEPT after a transient/auth error (429)
+PASS: case 2ret (rate.limited): result is the retry state (429)
+PASS: case 2ret (generic.error): token KEPT after a transient/auth error (500)
+PASS: case 2ret (generic.error): result is the retry state (500)
+PASS: case 2ret (generic.error): token KEPT after a transient/auth error (503)
+PASS: case 2ret (generic.error): result is the retry state (503)
+PASS: disposition (400): failed
+PASS: disposition (401): retry
+PASS: disposition (403): failed
+PASS: disposition (404): failed
+PASS: disposition (408): retry
+PASS: disposition (409): failed
+PASS: disposition (410): failed
+PASS: disposition (422): failed
+PASS: disposition (429): retry
+PASS: disposition (500): retry
+PASS: disposition (503): retry
+PASS: case 3: token KEPT after a network failure (decision 3 retry)
+PASS: case 3: result is the retry state after a network failure
+PASS: case 3: the retry of the same attempt clears the token on success
+PASS: case 3: token KEPT after a client.timeout (no server answer)
+PASS: case 3: result is the retry state after a client.timeout
+PASS: follow-up fetch: token cleared because the accept itself succeeded
+PASS: follow-up fetch: a failed team-name fetch still reports joined with the generic name
+PASS: G5: consumeInviteToken resolves after an unexpected non-ApiError
+PASS: G5: an unexpected error clears the token (uniform failed path)
+PASS: G5: an unexpected error stores the uniform failed result
+PASS: G5: consumeInviteToken resolves when the token-clear setter throws
+PASS: G5: the uniform failed result is recorded even when the token-clear setter throws
+PASS: G5: the token remains only because the throwing setter could not clear it
+PASS: case 4: first user token cleared after their attempt
+PASS: case 4: second user sees no inherited invite token
+PASS: case 4 setup: network-error token still held
+PASS: case 4: sign-out clears a network-error leftover token
+PASS: decision 1: success text is "You joined <team name>."
+PASS: decision 1: failure text is the ONE uniform line for every failure kind
+
+ALL PASSED
+EXIT CODE: 0
+
+4. npm exec --workspace @rowta/app -- tsx scripts/test-teams-store.ts
+PASS: switcher: keeps the preferred team while it is in the list
+PASS: switcher: falls back to the FIRST team when the preferred one is gone
+PASS: switcher: picks the first team when nothing is preferred
+PASS: switcher: null when the list is empty (never invents a team)
+PASS: switcher: null when the list is empty and nothing is preferred
+PASS: roles: Owner may invite Manager and Staff
+PASS: roles: Owner is never invitable
+PASS: roles: Manager sees Staff ONLY
+PASS: roles: Manager cannot invite Manager or Owner
+PASS: roles: a Staff viewer (server edge) is limited to Staff
+PASS: idempotency: the first submit generates a key
+PASS: idempotency: a RETRY of the same attempt REUSES the key
+PASS: idempotency: a NEW attempt (after success or an edit) gets a NEW key
+PASS: view: the list focuses its heading (U7)
+PASS: view: create-team focuses its first input (U7)
+PASS: view: members focuses its heading (U7)
+PASS: view: invite focuses its first input (U7)
+PASS: view: go(members) keeps the list in history
+PASS: view: go(invite) pushes members onto the stack
+PASS: view: back() from invite returns to members
+PASS: view: back() from members returns to the list
+PASS: view: back() at the list REFUSES (Android exits the app, U1)
+
+ALL PASSED
+EXIT CODE: 0
+
