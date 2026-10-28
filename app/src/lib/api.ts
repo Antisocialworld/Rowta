@@ -41,18 +41,27 @@ import {
   verifyCodeSchema,
   acceptInviteResponseSchema,
   acceptInviteSchema,
+  activityPageSchema,
+  calendarResponseSchema,
   changeMemberRoleSchema,
+  createShiftSchema,
   createTeamSchema,
   inviteListResponseSchema,
   inviteMemberSchema,
   memberListResponseSchema,
   memberRoleResponseSchema,
+  searchResultsSchema,
+  shiftDetailViewSchema,
+  shiftViewSchema,
   teamListResponseSchema,
   teamResponseSchema,
   teamSettingsResponseSchema,
+  updateShiftSchema,
   updateTeamSettingsSchema,
   type AcceptInviteResponse,
+  type ActivityPagePayload,
   type AuthTokensResponse,
+  type CalendarResponse,
   type CodeTimerMeta,
   type CountryItem,
   type GrantTimerMeta,
@@ -62,6 +71,9 @@ import {
   type MemberRoleResponse,
   type MessageResponse,
   type ResetGrantResponse,
+  type SearchResultsPayload,
+  type ShiftDetailPayload,
+  type ShiftView,
   type TeamListResponse,
   type TeamResponse,
   type TeamSettingsResponse,
@@ -110,6 +122,20 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'team.notFound': 'team.notFound',
   'team.forbidden': 'team.forbidden',
   'team.seatLimit': 'team.seatLimit',
+  'shift.notFound': 'shift.notFound',
+  'shift.timeOrder': 'shift.timeOrder',
+  'shift.time.invalid': 'shift.time.invalid',
+  'shift.label.required': 'shift.label.required',
+  'shift.label.tooLong': 'shift.label.tooLong',
+  'shift.notes.tooLong': 'shift.notes.tooLong',
+  'shift.assignee.invalid': 'shift.assignee.invalid',
+  'shift.range.invalid': 'shift.range.invalid',
+  'shift.range.tooLong': 'shift.range.tooLong',
+  'activity.cursor.invalid': 'activity.cursor.invalid',
+  'search.query.tooShort': 'search.query.tooShort',
+  'idempotency.missing': 'idempotency.missing',
+  'idempotency.fingerprint_mismatch': 'idempotency.fingerprint_mismatch',
+  'idempotency.in_flight': 'idempotency.in_flight',
   'rate.limited': 'auth.rateLimited',
   'validation.failed': 'generic.error',
   'request.malformed': 'generic.error',
@@ -568,5 +594,97 @@ export const teamsApi = {
       dataSchema: teamSettingsResponseSchema,
     });
     return out.data as TeamSettingsResponse;
+  },
+};
+
+/** Phase 4: shifts, calendar, activity feed and search (PRD 6.1, 8.3, 8.4). Every call is team
+ *  scoped and authenticated; the shared schemas validate input here and every response byte. */
+export const shiftsApi = {
+  async listCalendar(teamId: string, from: string, to: string): Promise<CalendarResponse> {
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/shifts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      auth: true,
+      dataSchema: calendarResponseSchema,
+    });
+    return out.data as CalendarResponse;
+  },
+
+  async getShift(teamId: string, shiftId: string): Promise<ShiftDetailPayload> {
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/shifts/${encodeURIComponent(shiftId)}`,
+      auth: true,
+      dataSchema: shiftDetailViewSchema,
+    });
+    return out.data as ShiftDetailPayload;
+  },
+
+  async createShift(
+    teamId: string,
+    input: z.input<typeof createShiftSchema>,
+    idempotencyKey: string,
+  ): Promise<ShiftView> {
+    createShiftSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/shifts`,
+      body: input,
+      headers: { 'idempotency-key': idempotencyKey },
+      auth: true,
+      dataSchema: shiftViewSchema,
+    });
+    return out.data as ShiftView;
+  },
+
+  async updateShift(teamId: string, shiftId: string, input: z.input<typeof updateShiftSchema>): Promise<ShiftView> {
+    updateShiftSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/shifts/${encodeURIComponent(shiftId)}/update`,
+      body: input,
+      auth: true,
+      dataSchema: shiftViewSchema,
+    });
+    return out.data as ShiftView;
+  },
+
+  async deleteShift(teamId: string, shiftId: string): Promise<{ deleted: true }> {
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/shifts/${encodeURIComponent(shiftId)}/delete`,
+      body: {},
+      auth: true,
+      dataSchema: z.object({ deleted: z.literal(true) }),
+    });
+    return out.data as { deleted: true };
+  },
+
+  async listActivity(
+    teamId: string,
+    cursor?: string,
+    limit?: number,
+  ): Promise<ActivityPagePayload> {
+    const params = new URLSearchParams();
+    if (cursor !== undefined) params.set('cursor', cursor);
+    if (limit !== undefined) params.set('limit', String(limit));
+    const suffix = params.toString().length === 0 ? '' : `?${params.toString()}`;
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/activity${suffix}`,
+      auth: true,
+      dataSchema: activityPageSchema,
+    });
+    return out.data as ActivityPagePayload;
+  },
+
+  async search(teamId: string, q: string): Promise<SearchResultsPayload> {
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/search?q=${encodeURIComponent(q)}`,
+      auth: true,
+      dataSchema: searchResultsSchema,
+    });
+    return out.data as SearchResultsPayload;
   },
 };
