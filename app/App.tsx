@@ -5,7 +5,7 @@
 // and still hides the splash: never a white screen. TanStack Query (Phase 2) wraps the whole tree; its
 // client is module-level so the provider never remounts the app.
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, useFonts } from '@expo-google-fonts/poppins';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
@@ -15,6 +15,7 @@ import { Root } from './src/Root';
 import './src/lib/token-platform';
 import { hideNativePasswordReveal } from './src/platform/web-native-reveal';
 import { parseDeepLink } from './src/lib/deep-links';
+import { stripTokenFromAddress } from './src/lib/web-address';
 import { useAuthFlow } from './src/state/auth-context';
 import { useAuthSession } from './src/state/auth-session';
 import { AUTH_ENTRY, useAuthViewStore } from './src/state/auth-view';
@@ -43,6 +44,11 @@ function handleDeepLink(url: string): void {
     } else {
       useAuthViewStore.getState().enter(AUTH_ENTRY.invite);
     }
+  }
+  // Web only, and ONLY after the token above is in memory (parse first, strip second; owner
+  // request 28 Oct 2026): remove it from the address bar. Native behaviour never changes.
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    stripTokenFromAddress(window.history, window.location);
   }
 }
 
