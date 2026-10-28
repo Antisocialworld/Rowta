@@ -81,6 +81,13 @@ export const LIMITS: readonly LimitDef[] = [
   { id: 'shift.write', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'shift create, edit and soft-delete writes' },
   { id: 'activity.read', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap cursor-paginated feed read' },
   { id: 'search.read', key: 'user', max: 60, windowSec: 60, failMode: 'O', reason: 'cheap team-scoped search read' },
+
+  // Phase 5 — Swaps.
+  { id: 'swap.request', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'swap request write' },
+  { id: 'swaps.list', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap swaps list read' },
+  { id: 'swap.get', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap swap detail read' },
+  { id: 'swap.decide', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'swap decide (approve/reject) write' },
+  { id: 'swap.cancel', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'swap cancel write' },
 ];
 
 const BY_ID = new Map(LIMITS.map((def) => [def.id, def]));
