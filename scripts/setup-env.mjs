@@ -61,6 +61,7 @@ const OPTIONAL_EMPTY = {
   SENTRY_DSN_SERVER: 'optional',
   EXPO_PUBLIC_SENTRY_DSN: 'optional',
   EXPO_PUBLIC_EAS_PROJECT_ID: 'Phase 12 (EAS build)',
+  WEB_APP_URL: 'dev-only optional; set it to the local Expo web origin to show the web-app button',
 };
 const SENSITIVE = /(SECRET|PASSWORD|TOKEN|PRIVATE|KEY|DSN)/;
 const MUST_BE_EMPTY_IN_EXAMPLE = (k) => SENSITIVE.test(k) || /(_WRITE_URL|_READ_URL|_ADMIN_URL|^REDIS_URL)$/.test(k);
@@ -101,13 +102,15 @@ if (arg === '--check') {
   let fail = false;
   if (!existsSync(TARGET)) { console.error('FAIL: .env does not exist. Run: node scripts/setup-env.mjs'); process.exit(1); }
   const env = parse(read(TARGET));
-  const missing = Object.keys(example).filter((k) => !(k in env));
+  const missing = Object.keys(example).filter((k) => !(k in env) && !(k in OPTIONAL_EMPTY));
   const empty = Object.keys(example).filter((k) => k in env && env[k] === '');
   const needed = empty.filter((k) => !(k in OPTIONAL_EMPTY));
   const optional = empty.filter((k) => k in OPTIONAL_EMPTY);
+  const notSet = Object.keys(example).filter((k) => !(k in env) && k in OPTIONAL_EMPTY);
   if (missing.length) { fail = true; console.log('MISSING names (run setup to add them):', missing.join(', ')); }
   if (needed.length) { fail = true; console.log('EMPTY but required:', needed.join(', ')); }
   for (const k of optional) console.log(`empty (ok): ${k} - ${OPTIONAL_EMPTY[k]}`);
+  for (const k of notSet) console.log(`not set (ok): ${k} - ${OPTIONAL_EMPTY[k]}`);
   const gi = existsSync(GITIGNORE) ? read(GITIGNORE).split(/\r?\n/).map((l) => l.trim()) : [];
   if (!gi.includes('.env') || !gi.includes('.env.*') || !gi.includes('!.env.example')) { fail = true; console.log('FAIL: .gitignore must ignore .env and .env.* but keep !.env.example'); }
   if (env.NODE_ENV === 'production' && env.PAYMENT_SIMULATOR_ENABLED === 'true') { fail = true; console.log('FAIL: PAYMENT_SIMULATOR_ENABLED must be false when NODE_ENV=production'); }

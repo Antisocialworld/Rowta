@@ -123,6 +123,10 @@ const EnvObject = z.object({
   EXPO_PUBLIC_API_URL: nonEmpty,
   EXPO_PUBLIC_SENTRY_DSN: z.string().optional().default(''),
   EXPO_PUBLIC_EAS_PROJECT_ID: z.string().optional().default(''),
+
+  // ---- Web surface (web/build.mjs reads these from process.env; declared here for parity only) ----
+  // Dev-only web-app button origin on the token pages; blank in production. The server never uses it.
+  WEB_APP_URL: z.string().optional().default(''),
 });
 
 export type Env = z.infer<typeof EnvObject>;
@@ -169,6 +173,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (cached) return cached;
   const parsed = parseEnv(source);
   assertNotProductionSimulator(parsed);
+  assertProductionPublicWebUrl(parsed);
   cached = parsed;
   return cached;
 }
@@ -187,6 +192,19 @@ export function assertNotProductionSimulator(env: Env): void {
     throw new Error(
       'Refusing to boot: PAYMENT_SIMULATOR_ENABLED is true while NODE_ENV is production (rule P7). ' +
         'Set PAYMENT_SIMULATOR_ENABLED=false and provide real FLW_* test/live keys.',
+    );
+  }
+}
+
+/**
+ * Boot guard (28 Oct 2026): production must serve public links over https. Throws with the NAME
+ * only — the value is never echoed (S1).
+ */
+export function assertProductionPublicWebUrl(env: Env): void {
+  if (env.NODE_ENV === 'production' && !env.PUBLIC_WEB_URL.startsWith('https://')) {
+    throw new Error(
+      'Refusing to boot: NODE_ENV is production but PUBLIC_WEB_URL is not an https address. ' +
+        'Set PUBLIC_WEB_URL to an https origin before starting in production.',
     );
   }
 }

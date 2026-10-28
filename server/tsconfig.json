@@ -19,6 +19,7 @@
   "include": [
     "src/**/*.ts",
     "tests/**/*.ts",
+    "scripts/**/*.ts",
     "prisma/generated/**/*.ts",
     "prisma/db0/prisma.config.ts",
     "prisma/db1/prisma.config.ts",

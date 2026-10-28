@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# server test-target example (fake values only); server/.env.test itself stays ignored
+!.env.test.example
 # owner's one-shot name-fix script (contains .env handling; never committed)
 fix-env-name.mjs
 *.pem
@@ -47,6 +49,8 @@ docker-data/
 k6-results/
 load-tests/.local/
 load-tests/results/*.json
+# the agent's overnight run note (local only, never committed)
+OVERNIGHT-REPORT.md
 
 # ---- Prisma: generated clients only (regenerate with `npm run generate --workspace @rowta/server`) ----
 # The schema of record is server/prisma/sql/*.sql; prisma/schema.prisma is pulled from the live database.
@@ -71,8 +75,7 @@ rowta-scaffold*
 # .windsurf, .gemini, .antigravity, .github/copilot-instructions, docs-for-agents).
 .agents/
 # Top-level agent context file (owner decision, 22 Oct 2026 — supersedes the 21 Oct decision to
-# keep it tracked). Already tracked, so this line alone does nothing until the owner runs
-# `git rm --cached AGENTS.md` (see the NOTE above).
+# keep it tracked).
 AGENTS.md
 #
 # Agent-facing markdown in /docs (explicit paths; no blanket *.md, no negations).

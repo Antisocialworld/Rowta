@@ -140,6 +140,26 @@ npm run db:tables
 - Prints every table across both `db0` and `db1` with its current row count and column definitions.
 - **Privacy & Secret Safety**: Queries schema metadata (`information_schema`) and `COUNT(*)` only; it never queries or prints values of any column whose name contains `hash`, `token`, `secret`, `password`, or `code`.
 
+## 4c. Server tests run on throwaway databases (never the dev data)
+
+The server suite is a real-database suite, so it runs against **separate test databases** and a
+**separate Redis keyspace** (ADR 0014). Your dev databases and the dev Redis index are never touched.
+
+```
+node scripts/db-create-test-databases.mjs   # once, idempotent: creates rowta_db0_test / rowta_db1_test + baseline
+npm test --workspace @rowta/server          # the suite redirects itself to the test targets first
+node scripts/redis-key-counts.mjs           # optional: read-only key counts, dev vs test keyspace
+```
+
+- Default (nothing to configure): the suite derives `<your db name>_test` and Redis index 15 from the
+  dev URLs in `.env`. This is how the owner's machine is set up today.
+- Explicit mode: set `TEST_DB0_WRITE_URL`, `TEST_DB1_WRITE_URL`, `TEST_REDIS_URL` in your shell, or copy
+  `server/.env.test.example` to `server/.env.test` (git-ignored) and fill in your local values.
+- A refusal guard runs before any test can import the server code: non-local hosts, database names not
+  ending in `_test`, the dev database names, or the dev Redis keyspace make the suite stop with an
+  error that names the variables (never the values). See `docs/decisions/0014`.
+- Before/after proof for the current machine: `docs/gates/evidence-test-isolation.txt`.
+
 ## 5. Running the server and worker (Phase 0 part B and later)
 
 With the containers from §3 running and `.env` in place:

@@ -1,7 +1,7 @@
 // Env validation fails fast by NAME, never by value (S1, S2). The production simulator guard (P7)
 // refuses to boot when PAYMENT_SIMULATOR_ENABLED is true in production.
 import { describe, expect, it } from 'vitest';
-import { assertNotProductionSimulator, parseEnv, type Env } from '../src/config/env.ts';
+import { assertNotProductionSimulator, assertProductionPublicWebUrl, parseEnv, type Env } from '../src/config/env.ts';
 
 // A complete, obviously fake env. Never derived from the real .env (S2).
 function completeEnv(): Record<string, string> {
@@ -112,5 +112,26 @@ describe('env validation', () => {
     const parsed = parseEnv({ ...completeEnv(), NODE_ENV: 'production', PAYMENT_SIMULATOR_ENABLED: 'true' });
     expect(() => assertNotProductionSimulator(parsed)).toThrow(/PAYMENT_SIMULATOR_ENABLED/);
     expect(() => assertNotProductionSimulator(parsed)).toThrow(/production/);
+  });
+
+  it('refuses to boot in production when PUBLIC_WEB_URL is not https (28 Oct 2026 guard)', () => {
+    const http = parseEnv({ ...completeEnv(), NODE_ENV: 'production', PUBLIC_WEB_URL: 'http://public.example' });
+    expect(() => assertProductionPublicWebUrl(http)).toThrow(/PUBLIC_WEB_URL/);
+    expect(() => assertProductionPublicWebUrl(http)).toThrow(/https/);
+    expect(() => assertProductionPublicWebUrl(http)).toThrow(/production/);
+    // The message never echoes the value (S1).
+    const message = (() => {
+      try {
+        assertProductionPublicWebUrl(http);
+      } catch (err) {
+        return (err as Error).message;
+      }
+      return '';
+    })();
+    expect(message).not.toContain('http://public.example');
+    const https = parseEnv({ ...completeEnv(), NODE_ENV: 'production', PUBLIC_WEB_URL: 'https://public.example' });
+    expect(() => assertProductionPublicWebUrl(https)).not.toThrow();
+    const dev = parseEnv({ ...completeEnv() });
+    expect(() => assertProductionPublicWebUrl(dev)).not.toThrow();
   });
 });

@@ -25,10 +25,11 @@ describe('env parity', () => {
     expect([...ENV_NAMES]).toEqual(exampleNames());
   });
 
-  // 49 = 50 minus MAILPIT_UI_PORT, removed with the mail catcher (owner decision 22 Oct 2026).
-  // The count is a drift LOCK: if a name is added or removed anywhere, update it here on purpose.
-  it('.env.example declares exactly 49 names', () => {
-    expect(exampleNames()).toHaveLength(49);
+  // 50 = 49 plus WEB_APP_URL (dev-only web-button origin, added 28 Oct 2026; declared optional in
+  // the schema for parity, never used by the server). The count is a drift LOCK: if a name is
+  // added or removed anywhere, update it here on purpose.
+  it('.env.example declares exactly 50 names', () => {
+    expect(exampleNames()).toHaveLength(50);
   });
 
   it('ENV_NAMES is sorted and unique', () => {
