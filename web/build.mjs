@@ -11,6 +11,12 @@
 //   WEB_DRAFT_BANNER           'on' shows the DRAFT banner. Default: off — the owner removed the banner
 //                              from the public pages (decision of 20 Oct 2026); docs/legal files keep their
 //                              banner line (L1) and this flag can turn the page banner back on.
+//   WEB_APP_URL                OPTIONAL, DEV ONLY (owner decision 28 Oct 2026). The origin of the local Expo
+//                              web app behind the "Open in the web app" button on the /magic and /invite
+//                              fallback pages. Absent or empty = the default build (no second button). When
+//                              set it must be a plain http(s) origin (host, optional port, nothing else) and
+//                              PUBLIC_WEB_URL must NOT be https: this is a local-browser convenience that must
+//                              never ship, so an https production build refuses to run with it set.
 //
 // Run:  node web/build.mjs     (from the repo root)
 import fs from 'node:fs';
@@ -36,6 +42,36 @@ if (!rawBase) {
 const base = rawBase.replace(/\/+$/, '');
 const downloadUrl = (process.env.PUBLIC_ANDROID_DOWNLOAD_URL ?? '').trim();
 const bannerOn = (process.env.WEB_DRAFT_BANNER ?? 'off').toLowerCase() === 'on';
+
+// WEB_APP_URL (DEV ONLY): a plain origin only. The raw value is NEVER echoed in an error — it could
+// contain credentials (rule S1), so every failure prints the requirement, not the value.
+const rawWebAppUrl = (process.env.WEB_APP_URL ?? '').trim();
+let webAppUrl = '';
+if (rawWebAppUrl !== '') {
+  let parsed = null;
+  try {
+    parsed = new URL(rawWebAppUrl);
+  } catch {
+    parsed = null;
+  }
+  if (
+    parsed === null ||
+    (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
+    parsed.username !== '' ||
+    parsed.password !== '' ||
+    (parsed.pathname !== '' && parsed.pathname !== '/') ||
+    parsed.search !== '' ||
+    parsed.hash !== ''
+  ) {
+    console.error('INVALID env: WEB_APP_URL must be a plain origin (http or https, host and optional port) with no path, query, fragment or credentials.');
+    process.exit(2);
+  }
+  if (base.startsWith('https://')) {
+    console.error('REFUSED env: WEB_APP_URL is a development convenience for local browser testing and must never be set when PUBLIC_WEB_URL is https (a production build). Unset WEB_APP_URL for production builds.');
+    process.exit(2);
+  }
+  webAppUrl = parsed.origin;
+}
 
 /** Existing design-system token, resolved at build time (no colour literal in our code; rule: tokens only). */
 function tokenColor(name) {
@@ -92,10 +128,10 @@ for (const page of PAGES) {
     });
   } else if (page.special === 'magic') {
     // /magic (PRD 8.1): static fallback; the fragment is read at RUNTIME only, so no token here.
-    main = magicMain();
+    main = magicMain(webAppUrl);
   } else if (page.special === 'invite') {
     // /invite/:token (PRD 8.2): one static page for any token; same runtime-only rule.
-    main = inviteMain(downloadUrl);
+    main = inviteMain(downloadUrl, webAppUrl);
   } else if (page.special === 'notfound') {
     outputPath = '404.html';
     main = `<section class="prose">
@@ -188,7 +224,14 @@ fs.mkdirSync(path.join(DIST, 'assets', 'fonts'), { recursive: true });
 fs.copyFileSync(path.join(ROOT, 'design-system', 'design-variables.css'), path.join(DIST, 'assets', 'design-variables.css'));
 fs.copyFileSync(path.join(HERE, 'src', 'styles.css'), path.join(DIST, 'assets', 'styles.css'));
 fs.copyFileSync(path.join(HERE, 'src', 'rowta.js'), path.join(DIST, 'assets', 'rowta.js'));
-fs.copyFileSync(path.join(HERE, 'src', 'token-page.js'), path.join(DIST, 'assets', 'token-page.js'));
+// token-page.js is copied verbatim when WEB_APP_URL is unset (the default build is byte-identical to
+// the plain page). When WEB_APP_URL is set, the dev-only capture block is PREPENDED: it must read the
+// token BEFORE the base script's start() strips the address (under `defer` the base runs immediately,
+// so an appended block would arrive too late — owner browser check, 28 Oct 2026).
+const tokenPageBase = fs.readFileSync(path.join(HERE, 'src', 'token-page.js'), 'utf8');
+const tokenPageExtra =
+  webAppUrl === '' ? '' : `${fs.readFileSync(path.join(HERE, 'src', 'token-page-web-app.js'), 'utf8')}\n`;
+fs.writeFileSync(path.join(DIST, 'assets', 'token-page.js'), tokenPageExtra + tokenPageBase);
 for (const weight of ['400Regular', '600SemiBold']) {
   // @expo-google-fonts/poppins keeps each weight in its own folder (400Regular/Poppins_400Regular.ttf, ...).
   fs.copyFileSync(
@@ -199,4 +242,4 @@ for (const weight of ['400Regular', '600SemiBold']) {
 
 console.log(`web build OK: ${built.length} pages -> ${path.relative(ROOT, DIST)}`);
 for (const page of built) console.log(`  ${page.path}  ${page.bytes}B  ${page.title}`);
-console.log(`base=${base} banner=${bannerOn ? 'on' : 'off'} download=${downloadUrl ? 'set' : 'empty (button hidden)'}`);
+console.log(`base=${base} banner=${bannerOn ? 'on' : 'off'} download=${downloadUrl ? 'set' : 'empty (button hidden)'} webApp=${webAppUrl === '' ? 'unset (no web-app button)' : webAppUrl}`);

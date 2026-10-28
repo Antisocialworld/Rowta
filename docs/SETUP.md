@@ -9,6 +9,7 @@ node scripts/setup-env.mjs --audit-example   # fails if .env.example holds a val
 ```
 
 - `.env` is ignored by git. `.env.example` is committed and holds names only.
+- `WEB_APP_URL` is a DEV-ONLY optional name: set it to your local Expo web origin (e.g. `WEB_APP_URL=http://localhost:8081`) to add the "Open in the web app" button to the `/magic` and `/invite` fallback pages for local browser testing. Leave it blank everywhere else — the web build refuses to run with it set while `PUBLIC_WEB_URL` is https.
 - The script generates: `DB0_PASSWORD`, `DB1_PASSWORD`, `REDIS_PASSWORD`, `JWT_ACCESS_SECRET`, and builds the connection strings from them. Re-running never overwrites a value that is already set.
 - If you change a database password after the containers were first started, run `docker compose down -v` once (this wipes the local data) so the containers restart with the new password.
 - Never paste the contents of `.env` into chat, an issue, a pull request or a commit message.

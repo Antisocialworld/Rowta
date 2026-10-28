@@ -105,6 +105,26 @@ check(inviteHtml.includes('send a new invitation'), '/invite says in words how t
 check(/<a id="open-app" class="button" hidden>Open in the app<\/a>/.test(magicHtml), '/magic button exists, is hidden until a token is read');
 check(/<a id="open-app" class="button" hidden>Open in the app<\/a>/.test(inviteHtml), '/invite button exists, is hidden until a token is read');
 
+// The DEV-ONLY "Open in the web app" link (owner decision 28 Oct 2026): a default (WEB_APP_URL
+// unset) build has no such markup; when the build had WEB_APP_URL set, the link exists hidden with
+// rel="noreferrer noopener", carries only the ORIGIN in a data attribute (the href is built at
+// runtime), and the two pages agree.
+const WEB_APP_LINK = /<a id="open-web-app" class="button" data-web-app-origin="http[^"]*" rel="noreferrer noopener" hidden>Open in the web app<\/a>/;
+const webAppOnMagic = magicHtml.includes('open-web-app');
+const webAppOnInvite = inviteHtml.includes('open-web-app');
+check(webAppOnMagic === webAppOnInvite, '/magic and /invite agree on whether the web-app link exists');
+if (webAppOnMagic) {
+  check(WEB_APP_LINK.test(magicHtml), '/magic web-app link exists hidden, no-referrer rel, origin only (no href)');
+  check(WEB_APP_LINK.test(inviteHtml), '/invite web-app link exists hidden, no-referrer rel, origin only (no href)');
+  check(!/open-web-app[^>]*\shref=/.test(magicHtml + inviteHtml), 'web-app link href is never written into the HTML (built at runtime)');
+  check(
+    !/data-web-app-origin="https?:\/\/[^\/?#"]+[\/?#]/.test(magicHtml + inviteHtml),
+    'web-app origin attribute is a plain origin (no path, query or fragment)',
+  );
+} else {
+  check(true, 'WEB_APP_URL unset: no web-app link markup on either token page (default build)');
+}
+
 // --- 7. no account-existence wording (A5, A6) --------------------------------------------------------
 const FORBIDDEN = /incorrect (password|email)|wrong password|email not found|user not found|no account|account does not exist|already (registered|in use|exists|taken)/i;
 check(!FORBIDDEN.test(magicHtml), '/magic never says whether an account exists');
