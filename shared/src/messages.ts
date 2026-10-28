@@ -35,6 +35,20 @@ export const AUTH_MESSAGES = {
   'shift.range.tooLong': 'Choose a range of 42 days or fewer.',
   'activity.cursor.invalid': 'This page link is not valid. Refresh the list.',
   'search.query.tooShort': 'Type at least 2 characters.',
+  // Phase 5 — swaps.
+  'swap.notFound': 'Swap request not found.',
+  'swap.shift.notFound': 'Shift not found.',
+  'swap.shift.inPast': 'Cannot swap a shift that has already ended.',
+  'swap.shift.notAssigned': 'You can only request swaps on shifts assigned to you.',
+  'swap.already_pending': 'A swap request is already pending for this shift.',
+  'swap.target_invalid': 'Target colleague must be an active member of this team.',
+  'swap.target_required': 'Approval requires a target colleague to reassign the shift to.',
+  'swap.self_swap': 'Cannot request a swap with yourself.',
+  'swap.not_pending': 'Swap request is not pending.',
+  'swap.conflict': 'This swap request was already decided.',
+  'swap.cannot_cancel': 'Cannot cancel a swap that is no longer pending.',
+  'swap.assignee_changed': 'The shift is no longer assigned to the requester.',
+  'swap.requester_removed': 'The requester is no longer an active member of this team.',
   'generic.error': 'Something went wrong. Try again.',
 } as const;
 
