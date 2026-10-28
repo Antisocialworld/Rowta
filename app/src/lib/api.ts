@@ -58,6 +58,8 @@ import {
   teamSettingsResponseSchema,
   updateShiftSchema,
   updateTeamSettingsSchema,
+  decideSwapSchema,
+  requestSwapSchema,
   type AcceptInviteResponse,
   type ActivityPagePayload,
   type AuthTokensResponse,
@@ -74,6 +76,8 @@ import {
   type SearchResultsPayload,
   type ShiftDetailPayload,
   type ShiftView,
+  type SwapListResponse,
+  type SwapRequestView,
   type TeamListResponse,
   type TeamResponse,
   type TeamSettingsResponse,
@@ -133,6 +137,19 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'shift.range.tooLong': 'shift.range.tooLong',
   'activity.cursor.invalid': 'activity.cursor.invalid',
   'search.query.tooShort': 'search.query.tooShort',
+  'swap.notFound': 'swap.notFound',
+  'swap.shift.notFound': 'swap.shift.notFound',
+  'swap.shift.inPast': 'swap.shift.inPast',
+  'swap.shift.notAssigned': 'swap.shift.notAssigned',
+  'swap.already_pending': 'swap.already_pending',
+  'swap.target_invalid': 'swap.target_invalid',
+  'swap.target_required': 'swap.target_required',
+  'swap.self_swap': 'swap.self_swap',
+  'swap.not_pending': 'swap.not_pending',
+  'swap.conflict': 'swap.conflict',
+  'swap.cannot_cancel': 'swap.cannot_cancel',
+  'swap.assignee_changed': 'swap.assignee_changed',
+  'swap.requester_removed': 'swap.requester_removed',
   'idempotency.missing': 'idempotency.missing',
   'idempotency.fingerprint_mismatch': 'idempotency.fingerprint_mismatch',
   'idempotency.in_flight': 'idempotency.in_flight',
@@ -686,5 +703,103 @@ export const shiftsApi = {
       dataSchema: searchResultsSchema,
     });
     return out.data as SearchResultsPayload;
+  },
+};
+
+const swapViewSchema = z.object({
+  id: z.string().uuid(),
+  teamId: z.string().uuid(),
+  shiftId: z.string().uuid(),
+  requestedBy: z.string().uuid(),
+  targetUserId: z.string().uuid().nullable(),
+  status: z.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  decidedBy: z.string().uuid().nullable(),
+  decidedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  shiftLabel: z.string().optional(),
+  shiftStartsAt: z.string().optional(),
+  shiftEndsAt: z.string().optional(),
+  requesterName: z.string().optional(),
+  targetName: z.string().nullable().optional(),
+});
+
+const swapListSchema = z.object({
+  swaps: z.array(swapViewSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const swapsApi = {
+  async requestSwap(
+    teamId: string,
+    input: { shiftId: string; targetUserId?: string | null },
+    idempotencyKey: string,
+  ): Promise<SwapRequestView> {
+    requestSwapSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/swaps`,
+      body: input,
+      headers: { 'idempotency-key': idempotencyKey },
+      auth: true,
+      dataSchema: swapViewSchema,
+    });
+    return out.data as SwapRequestView;
+  },
+
+  async listSwaps(
+    teamId: string,
+    query?: { cursor?: string; limit?: number; status?: 'pending' | 'approved' | 'rejected' | 'cancelled'; shiftId?: string },
+  ): Promise<SwapListResponse> {
+    const params = new URLSearchParams();
+    if (query?.cursor !== undefined) params.set('cursor', query.cursor);
+    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    if (query?.status !== undefined) params.set('status', query.status);
+    if (query?.shiftId !== undefined) params.set('shiftId', query.shiftId);
+    const suffix = params.toString().length === 0 ? '' : `?${params.toString()}`;
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/swaps${suffix}`,
+      auth: true,
+      dataSchema: swapListSchema,
+    });
+    return out.data as SwapListResponse;
+  },
+
+  async getSwap(teamId: string, swapId: string): Promise<SwapRequestView> {
+    const out = await send({
+      method: 'GET',
+      path: `/teams/${encodeURIComponent(teamId)}/swaps/${encodeURIComponent(swapId)}`,
+      auth: true,
+      dataSchema: swapViewSchema,
+    });
+    return out.data as SwapRequestView;
+  },
+
+  async decideSwap(
+    teamId: string,
+    swapId: string,
+    input: { status: 'approved' | 'rejected'; targetUserId?: string | null },
+  ): Promise<SwapRequestView> {
+    decideSwapSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/swaps/${encodeURIComponent(swapId)}/decide`,
+      body: input,
+      auth: true,
+      dataSchema: swapViewSchema,
+    });
+    return out.data as SwapRequestView;
+  },
+
+  async cancelSwap(teamId: string, swapId: string): Promise<SwapRequestView> {
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/swaps/${encodeURIComponent(swapId)}/cancel`,
+      body: {},
+      auth: true,
+      dataSchema: swapViewSchema,
+    });
+    return out.data as SwapRequestView;
   },
 };

@@ -10,7 +10,8 @@ export type ShiftRoute =
   | { name: 'create' }
   | { name: 'edit'; shiftId: string }
   | { name: 'activity' }
-  | { name: 'search' };
+  | { name: 'search' }
+  | { name: 'swaps' };
 
 export type ShiftNavState = { route: ShiftRoute | null; stack: readonly ShiftRoute[] };
 export type ShiftNavAction = { type: 'open'; route: ShiftRoute } | { type: 'back' } | { type: 'reset' };

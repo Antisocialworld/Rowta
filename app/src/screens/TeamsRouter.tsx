@@ -16,6 +16,7 @@ import { CalendarScreen } from './shifts/CalendarScreen';
 import { SearchScreen } from './shifts/SearchScreen';
 import { ShiftCreateEditScreen } from './shifts/ShiftCreateEditScreen';
 import { ShiftDetailScreen } from './shifts/ShiftDetailScreen';
+import { SwapsListScreen } from './shifts/SwapsListScreen';
 import { useTeamsView } from '../state/teams-view';
 import { useShiftNav } from '../state/shift-nav';
 
@@ -44,6 +45,7 @@ export function TeamsRouter() {
     if (shiftRoute.name === 'edit') return <ShiftCreateEditScreen />;
     if (shiftRoute.name === 'activity') return <ActivityScreen />;
     if (shiftRoute.name === 'search') return <SearchScreen />;
+    if (shiftRoute.name === 'swaps') return <SwapsListScreen />;
   }
 
   // Teams layer
