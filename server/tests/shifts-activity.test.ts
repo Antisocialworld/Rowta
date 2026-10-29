@@ -238,6 +238,43 @@ describe('Phase 4 shifts, calendar, activity feed and search', () => {
       const body = await dataOf(res);
       expect(body.id).toBe(shiftId);
       expect((body.assignee as { displayName: string }).displayName).toBe('Sam Staff');
+      const createdBy = body.createdBy as { userId: string; displayName: string; role: string | null };
+      expect(createdBy).toBeDefined();
+      expect(createdBy.displayName).toBe('Zara Owner');
+      expect(createdBy.role).toBe('owner');
+      expect((createdBy as Record<string, unknown>).email).toBeUndefined();
+    });
+
+    it('returns createdBy with display name and null role when creator is removed from the team', async () => {
+      const email = uniqueEmail('shift-temp-creator');
+      const creatorId = await createVerifiedUser(email, 'TempCreatorPass123#');
+      await globalDb().users.update({ where: { id: creatorId }, data: { display_name: 'Terry Temp' } });
+      await addMember(f.teamId, creatorId, 'manager');
+      const creatorAuth = { authorization: `Bearer ${await signAccessToken(creatorId)}` };
+
+      const resCreate = await post(
+        app,
+        `/teams/${f.teamId}/shifts`,
+        shiftBody({ assignedUserId: f.staffId, label: 'Temp creator shift' }),
+        { ...creatorAuth, 'idempotency-key': randomUUID() },
+      );
+      expect(resCreate.status).toBe(201);
+      const tempShiftId = (await dataOf(resCreate)).id as string;
+
+      // Soft-delete membership: creator is removed from the team
+      await forTeam(f.teamId).memberships.update({
+        where: { team_id_user_id: { team_id: f.teamId, user_id: creatorId } },
+        data: { removed_at: new Date() },
+      });
+
+      const resDetail = await get(`/teams/${f.teamId}/shifts/${tempShiftId}`, f.staffAuth);
+      expect(resDetail.status).toBe(200);
+      const body = await dataOf(resDetail);
+      const createdBy = body.createdBy as { userId: string; displayName: string; role: string | null };
+      expect(createdBy).toBeDefined();
+      expect(createdBy.displayName).toBe('Terry Temp');
+      expect(createdBy.role).toBeNull();
+      expect((createdBy as Record<string, unknown>).email).toBeUndefined();
     });
 
     it('returns the calendar range, including a shift that starts before it and ends inside', async () => {

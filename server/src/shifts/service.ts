@@ -156,6 +156,7 @@ async function assertShiftReadable(
   ends_at: Date;
   label: string;
   notes: string | null;
+  created_by: string;
   created_at: Date;
   updated_at: Date;
 }> {
@@ -254,12 +255,28 @@ export async function getShift(userId: string, teamId: string, shiftId: string):
   requireAction(userId, membership, 'view_shifts');
   const shift = await assertShiftReadable(client, teamId, shiftId);
 
-  const user = await globalDb().users.findUnique({ where: { id: shift.assigned_user_id } });
+  const assigneeUser = await globalDb().users.findUnique({ where: { id: shift.assigned_user_id } });
+
+  // Creator resolution: name + current role in this team (D9)
+  const creatorUser = await globalDb().users.findUnique({ where: { id: shift.created_by } });
+  const creatorMembership = await client.memberships.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: shift.created_by } },
+  });
+  const creatorRole =
+    creatorMembership && creatorMembership.removed_at === null
+      ? (creatorMembership.role as 'owner' | 'manager' | 'staff')
+      : null;
+
   return {
     ...toShiftView(shift),
     assignee: {
       userId: shift.assigned_user_id,
-      displayName: user?.display_name ?? '',
+      displayName: assigneeUser?.display_name ?? '',
+    },
+    createdBy: {
+      userId: shift.created_by,
+      displayName: creatorUser?.display_name ?? '',
+      role: creatorRole,
     },
   };
 }
@@ -450,6 +467,7 @@ interface ShiftSearchRow {
   ends_at: Date;
   label: string;
   notes: string | null;
+  created_by: string;
   created_at: Date;
   updated_at: Date;
 }
