@@ -184,15 +184,48 @@ export async function requestSwap(
     throw new HttpError(409, 'swap.already_pending', authMessage('swap.already_pending'));
   }
 
-  // Record in_flight idempotency row outside the main transaction (mirrors shifts/service.ts)
-  await client.idempotency_keys.create({
-    data: {
-      scope,
-      key: idempotencyKey,
-      request_fingerprint: fp,
-      state: 'in_flight',
-    },
-  });
+  // Record in_flight idempotency row outside the main transaction (mirrors shifts/service.ts).
+  // Wrapped in its own try/catch: if two identical requests race at the exact same instant, the
+  // second create throws P2002 on (scope, key), which we catch to resolve cleanly instead of returning 500.
+  let keyCreatedByThisRequest = false;
+  try {
+    await client.idempotency_keys.create({
+      data: {
+        scope,
+        key: idempotencyKey,
+        request_fingerprint: fp,
+        state: 'in_flight',
+      },
+    });
+    keyCreatedByThisRequest = true;
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
+      // Race: another concurrent request inserted the same scope_key first. Inspect its state.
+      const racedKey = await client.idempotency_keys.findUnique({
+        where: { scope_key: { scope, key: idempotencyKey } },
+      });
+      if (racedKey) {
+        if (racedKey.request_fingerprint !== fp) {
+          throw new HttpError(
+            422,
+            'idempotency.fingerprint_mismatch',
+            'Idempotency key was previously used with different request parameters.',
+          );
+        }
+        if (racedKey.state === 'in_flight') {
+          throw new HttpError(
+            409,
+            'idempotency.in_flight',
+            'A request with this idempotency key is already in progress.',
+          );
+        }
+        if (racedKey.state === 'done' && racedKey.response && typeof racedKey.response === 'object') {
+          return racedKey.response as unknown as SwapRequestView;
+        }
+      }
+    }
+    throw err;
+  }
 
   let createdSwap: SwapRequestView;
   try {
@@ -298,10 +331,14 @@ export async function requestSwap(
       },
     });
   } catch (err: unknown) {
-    // Clean up in_flight row on failure so key is not stuck in_flight
-    await client.idempotency_keys
-      .delete({ where: { scope_key: { scope, key: idempotencyKey } } })
-      .catch(() => undefined);
+    // ONLY delete the in_flight key if THIS request created it.
+    // If another concurrent request created the key, or if this request was replaying a raced key,
+    // deleting the key would delete the other request's valid row and introduce a race bug.
+    if (keyCreatedByThisRequest) {
+      await client.idempotency_keys
+        .delete({ where: { scope_key: { scope, key: idempotencyKey } } })
+        .catch(() => undefined);
+    }
 
     // Catch unique constraint violation (swaps_one_pending_idx)
     if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
@@ -365,6 +402,7 @@ export async function listSwaps(
           label: true,
           starts_at: true,
           ends_at: true,
+          deleted_at: true,
         },
       },
     },
@@ -405,6 +443,7 @@ export async function listSwaps(
     shiftLabel: s.shifts?.label,
     shiftStartsAt: s.shifts?.starts_at ? iso(s.shifts.starts_at) : undefined,
     shiftEndsAt: s.shifts?.ends_at ? iso(s.shifts.ends_at) : undefined,
+    shiftDeleted: s.shifts ? s.shifts.deleted_at !== null : undefined,
     requesterName: namesMap.get(s.requested_by),
     targetName: s.target_user_id ? namesMap.get(s.target_user_id) : null,
   }));
@@ -436,6 +475,7 @@ export async function getSwap(
           label: true,
           starts_at: true,
           ends_at: true,
+          deleted_at: true,
         },
       },
     },
@@ -467,6 +507,7 @@ export async function getSwap(
     shiftLabel: s.shifts?.label,
     shiftStartsAt: s.shifts?.starts_at ? iso(s.shifts.starts_at) : undefined,
     shiftEndsAt: s.shifts?.ends_at ? iso(s.shifts.ends_at) : undefined,
+    shiftDeleted: s.shifts ? s.shifts.deleted_at !== null : undefined,
     requesterName: namesMap.get(s.requested_by),
     targetName: s.target_user_id ? namesMap.get(s.target_user_id) : null,
   };
@@ -535,8 +576,11 @@ export async function decideSwap(
       FOR UPDATE`;
 
     const lockedShift = lockedShifts[0];
-    if (!lockedShift || lockedShift.deleted_at !== null) {
-      throw new HttpError(422, 'swap.shift.notFound', authMessage('swap.shift.notFound'));
+    if (!lockedShift) {
+      throw new HttpError(404, 'shift.notFound', authMessage('shift.notFound'));
+    }
+    if (lockedShift.deleted_at !== null) {
+      throw new HttpError(409, 'swap.shift_deleted', authMessage('swap.shift_deleted'));
     }
 
     const now = new Date();

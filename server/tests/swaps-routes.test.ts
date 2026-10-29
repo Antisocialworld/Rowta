@@ -222,6 +222,28 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     });
   });
 
+  it('handles simultaneous duplicate swap requests without 500 (returns 201 or 409 in_flight)', async () => {
+    const shiftId = await createShift(f, f.staff1Id);
+    const key = randomUUID();
+    const payload = { shiftId, targetUserId: f.staff2Id };
+
+    const [resA, resB] = await Promise.all([
+      post(app, `/teams/${f.teamId}/swaps`, payload, { ...f.staff1Auth, 'idempotency-key': key }),
+      post(app, `/teams/${f.teamId}/swaps`, payload, { ...f.staff1Auth, 'idempotency-key': key }),
+    ]);
+
+    expect(resA.status).not.toBe(500);
+    expect(resB.status).not.toBe(500);
+
+    const statuses = [resA.status, resB.status].sort();
+    expect([[201, 201], [201, 409]]).toContainEqual(statuses);
+
+    const swaps = await forTeam(f.teamId).swap_requests.findMany({
+      where: { shift_id: shiftId },
+    });
+    expect(swaps).toHaveLength(1);
+  });
+
   it('rejects idempotency key reuse with mismatched payload', async () => {
     const shiftId = await createShift(f, f.staff1Id);
     const key = randomUUID();
@@ -475,6 +497,37 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     expect(err.code).toBe('swap.conflict');
   });
 
+  it('handles concurrent decisions with row locking (exactly one 200 and one 409)', async () => {
+    const shiftId = await createShift(f, f.staff1Id);
+    const createRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps`,
+      { shiftId, targetUserId: f.staff2Id },
+      { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+    );
+    expect(createRes.status).toBe(201);
+    const swap = await dataOf(createRes);
+
+    const [resA, resB] = await Promise.all([
+      post(app, `/teams/${f.teamId}/swaps/${swap.id}/decide`, { status: 'approved' }, f.managerAuth),
+      post(app, `/teams/${f.teamId}/swaps/${swap.id}/decide`, { status: 'approved' }, f.ownerAuth),
+    ]);
+
+    expect(resA.status).not.toBe(500);
+    expect(resB.status).not.toBe(500);
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const shift = await forTeam(f.teamId).shifts.findUnique({ where: { id: shiftId } });
+    expect(shift?.assigned_user_id).toBe(f.staff2Id);
+
+    const events = await forTeam(f.teamId).activity_events.findMany({
+      where: { team_id: f.teamId, kind: 'swap.approved', subject_id: swap.id as string },
+    });
+    expect(events).toHaveLength(1);
+  });
+
   it('allows requester to cancel their own pending swap', async () => {
     const shiftId = await createShift(f, f.staff1Id);
     const createRes = await post(
@@ -654,5 +707,114 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     expect(shift?.assigned_user_id).toBe(extraId);
     const swapAfter = await forTeam(f.teamId).swap_requests.findUnique({ where: { id: swap.id as string } });
     expect(swapAfter?.status).toBe('pending');
+  });
+
+  it('refuses swap approval and rejection if the shift was deleted (409 swap.shift_deleted) [D4]', async () => {
+    const shiftId = await createShift(f, f.staff1Id);
+    const createRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps`,
+      { shiftId, targetUserId: f.staff2Id },
+      { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+    );
+    expect(createRes.status).toBe(201);
+    const swap = await dataOf(createRes);
+
+    // Soft-delete the shift
+    await forTeam(f.teamId).shifts.update({
+      where: { id: shiftId },
+      data: { deleted_at: new Date(), deleted_by: f.ownerId },
+    });
+
+    // Manager attempts to approve
+    const approveRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+      { status: 'approved' },
+      f.managerAuth,
+    );
+    expect(approveRes.status).toBe(409);
+    const approveErr = await errorOf(approveRes);
+    expect(approveErr.code).toBe('swap.shift_deleted');
+
+    // Manager attempts to reject
+    const rejectRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+      { status: 'rejected' },
+      f.managerAuth,
+    );
+    expect(rejectRes.status).toBe(409);
+    const rejectErr = await errorOf(rejectRes);
+    expect(rejectErr.code).toBe('swap.shift_deleted');
+
+    // Swap remains pending
+    const swapAfter = await forTeam(f.teamId).swap_requests.findUnique({ where: { id: swap.id as string } });
+    expect(swapAfter?.status).toBe('pending');
+  });
+
+  it('allows cancellation of a pending swap even if the shift was deleted [D5]', async () => {
+    const shiftId = await createShift(f, f.staff1Id);
+    const createRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps`,
+      { shiftId, targetUserId: f.staff2Id },
+      { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+    );
+    expect(createRes.status).toBe(201);
+    const swap = await dataOf(createRes);
+
+    // Soft-delete the shift
+    await forTeam(f.teamId).shifts.update({
+      where: { id: shiftId },
+      data: { deleted_at: new Date(), deleted_by: f.ownerId },
+    });
+
+    // Requester cancels swap
+    const cancelRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps/${swap.id}/cancel`,
+      {},
+      f.staff1Auth,
+    );
+    expect(cancelRes.status).toBe(200);
+    const cancelled = await dataOf(cancelRes);
+    expect(cancelled.status).toBe('cancelled');
+
+    // Verify DB row
+    const swapAfter = await forTeam(f.teamId).swap_requests.findUnique({ where: { id: swap.id as string } });
+    expect(swapAfter?.status).toBe('cancelled');
+  });
+
+  it('exposes shiftDeleted: true on list and getSwap when shift is deleted', async () => {
+    const shiftId = await createShift(f, f.staff1Id);
+    const createRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps`,
+      { shiftId, targetUserId: f.staff2Id },
+      { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+    );
+    expect(createRes.status).toBe(201);
+    const swap = await dataOf(createRes);
+
+    // Soft-delete the shift
+    await forTeam(f.teamId).shifts.update({
+      where: { id: shiftId },
+      data: { deleted_at: new Date(), deleted_by: f.ownerId },
+    });
+
+    // Get single swap
+    const getRes = await get(`/teams/${f.teamId}/swaps/${swap.id}`, f.staff1Auth);
+    expect(getRes.status).toBe(200);
+    const singleData = await dataOf(getRes);
+    expect(singleData.shiftDeleted).toBe(true);
+    expect(singleData.shiftLabel).toBeDefined();
+
+    // List swaps
+    const listRes = await get(`/teams/${f.teamId}/swaps`, f.staff1Auth);
+    expect(listRes.status).toBe(200);
+    const listData = (await dataOf(listRes)) as { swaps: Array<{ id: string; shiftDeleted?: boolean }> };
+    const found = listData.swaps.find((s) => s.id === swap.id);
+    expect(found?.shiftDeleted).toBe(true);
   });
 });
