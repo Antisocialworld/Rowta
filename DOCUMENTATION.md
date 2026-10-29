@@ -68,8 +68,8 @@ npm run web:test
 npm run app:test
 ```
 
-- Server suite: real PostgreSQL and Redis on the test targets; `29` files and `249` tests at the last verified
-  run (28 Oct 2026). It runs through the isolation guard; do not run the live e2e-auth suite or the DB smoke
+- Server suite: real PostgreSQL and Redis on the test targets; `34` files and `298` tests at the verified
+  run (28 Oct 2026, owner run). It runs through the isolation guard; do not run the live e2e-auth suite or the DB smoke
   scripts while the development stack is in use — they are write tests against a live stack.
 - Web: `npm run web:test` (metadata, content safety, links, token pages, web-app button, button behaviour).
 - App pure-logic scripts: `npm run app:test` (12 scripts: API client, auth machine, deep links, token store,
@@ -87,7 +87,7 @@ npm run app:test
 | 2 — Auth, server and app views | [docs/gates/phase-2.md](docs/gates/phase-2.md) | **Passed.** 13 `/auth/*` endpoints + countries, 17 files/124 tests at the server gate, live app e2e 45/45 × 3 runs. TalkBack device pass admitted as pending. |
 | 3 — Teams, roles, invites, seat skeleton | [docs/gates/phase-3.md](docs/gates/phase-3.md) | **Mostly proven.** Permission matrix, Staff 403, team isolation, seat cap and the web invite deep link are PROVEN. Native Android deep link is **NOT PROVEN**. Server suite at this gate: 29 files/249 tests. |
 | 4 — Shifts, calendar, activity feed, full-text search | [docs/gates/phase-4.md](docs/gates/phase-4.md) | Phase 4 built; server proven; app screens not yet verified (see gate file). |
-| 5 — Swaps | [docs/gates/phase-5.md](docs/gates/phase-5.md) | Phase 5 built; tests written, nothing run yet per owner test freeze (see gate file). |
+| 5 — Swaps | [docs/gates/phase-5.md](docs/gates/phase-5.md) | Phase 5 built; server & pure-logic proven by owner test runs (28 Oct 2026; 34 files / 298 tests); app screens pending review (see gate file). |
 | 11 — Web surface | [docs/gates/phase-11.md](docs/gates/phase-11.md) | **Passed with tooling limits.** Static build, metadata checks, axe 0 violations, Lighthouse accessibility 100. A human NVDA pass is **NOT PROVEN** (no screen reader on the build machine). |
 
 Not started: Phases 6–10 and 12 (jobs/notifications/settings, billing, offline/dashboard, lifecycle,

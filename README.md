@@ -7,7 +7,7 @@ The Rowta logo was designed by the owner. The concept (a closed book with R O W 
 
 Repository: https://github.com/Antisocialworld/Rowta (the owner commits and pushes; the build agent never does).
 
-> **Status: in progress.** Phases 0–3 and 11 are gated with evidence. Phase 4 built; server proven; app screens not yet verified (see docs/gates/phase-4.md). Phase 5 built; tests written, nothing run yet per owner test freeze (see docs/gates/phase-5.md). Steps that need a real Android device or a human screen-reader pass are marked NOT PROVEN in their gate files. See [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md) for the real state and [DOCUMENTATION.md](DOCUMENTATION.md) for the map. Nothing below is claimed as working until its phase gate has evidence in `docs/gates/`.
+> **Status: in progress.** Phases 0–3 and 11 are gated with evidence. Phase 4 built; server proven; app screens not yet verified (see docs/gates/phase-4.md). Phase 5 built; server proven (34 files / 298 tests); app screens pending review (see docs/gates/phase-5.md). Steps that need a real Android device or a human screen-reader pass are marked NOT PROVEN in their gate files. See [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md) for the real state and [DOCUMENTATION.md](DOCUMENTATION.md) for the map. Nothing below is claimed as working until its phase gate has evidence in `docs/gates/`.
 
 | | |
 |---|---|

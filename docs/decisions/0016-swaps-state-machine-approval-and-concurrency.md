@@ -1,6 +1,6 @@
 # 0016. Swaps state machine, approval atomicity, and concurrency guarantees
 
-Date: 2026-10-28. Status: accepted (agent decision, Phase 5 built; tests written, nothing run yet per owner test freeze; owner to confirm).
+Date: 2026-10-28. Status: proposed (agent decision, Phase 5 built; server & pure logic proven by owner test runs 28 Oct 2026; owner to confirm).
 Applies to Phase 5 server routes (`server/src/swaps/`), shared contracts (`shared/src/swaps.ts`), and app UI (`app/src/screens/shifts/`).
 
 ## Problem
@@ -42,10 +42,10 @@ Key engineering problems:
 - **Requester membership staleness check:**
   - Inside the approval transaction, the server re-verifies that the requester is still an active member of the team
     (`memberships.removed_at IS NULL`). If the requester was removed, approval is refused with HTTP 409 (`swap.requester_removed`).
-- **Target resolution:**
-  - If the swap request specified a `target_user_id`, that user becomes the new assignee.
-  - If the swap was an open request (`target_user_id IS NULL`), the deciding manager MUST supply `targetUserId` in the
-    decision payload (`decideSwapSchema`).
+- **Target resolution and OWNER DECISION D1 (28 Oct 2026):**
+  - If the swap request specified a `target_user_id`, that user becomes the new assignee and the swap approves directly without a colleague picker.
+  - If the swap was an open request (`target_user_id IS NULL`), OWNER DECISION D1 dictates that the deciding Owner or Manager picks the colleague at approval time using an in-app colleague picker modal (`SwapTargetModal`). Selecting a colleague and confirming sends `targetUserId` in `decideSwapSchema`.
+  - The alternative workflow where "target colleague accepts first" before manager review is deferred.
   - If no target user is provided for an open swap approval, the server rejects the request with HTTP 422 (`swap.target_required`).
   - The target user MUST be an active member of the team (`membership.status = 'active'`). Soft-deleted or removed members
     are rejected with HTTP 422 (`swap.target_invalid`).
@@ -75,9 +75,19 @@ Key engineering problems:
 - **Row locking on decisions:** Both `swap_requests` and `shifts` rows are selected using `SELECT ... FOR UPDATE`
   inside the decision transaction. If two managers attempt to decide the same swap simultaneously, the first commits
   and the second encounters a non-pending status, safely failing with HTTP 409.
-- **Idempotency-Key required on swap requests:** `POST /teams/:teamId/swaps` requires an `Idempotency-Key` header.
-  The server fingerprints the payload using `blake2b512` (SHA-256 is strictly banned per rule A4). Replays return
-  the original response; payload mismatches return HTTP 422.
+- **Idempotency-Key required on swap requests (DECISION-6):** `POST /teams/:teamId/swaps` requires an `Idempotency-Key` header.
+  Follows the exact two-phase pattern established in shifts (`server/src/shifts/service.ts`):
+  1. Checks for existing key: fingerprint mismatch yields 422 `idempotency.fingerprint_mismatch`; existing `in_flight` state
+     yields 409 `idempotency.in_flight`; `done` state replays the cached 201 response with identical body.
+  2. Writes an `in_flight` row in `idempotency_keys` outside the swap transaction (satisfying database constraint
+     `CHECK (state IN ('in_flight', 'done'))`).
+  3. Executes `teamTransaction` with row-locked validations, swap creation, and activity logging.
+  4. On commit, updates the key to `done` with `status_code: 201` and cached response.
+  5. On failure or rollback, catches and deletes the `in_flight` key row so the client is not permanently locked out.
+  - **Known limits:**
+    (a) **Fixed (pending owner test run):** Two identical requests arriving at the exact same instant previously could race on `idempotency_keys.create` and throw a unique constraint violation (P2002), resulting in a 500 error. This was resolved in `server/src/swaps/service.ts` by catching Prisma P2002 on `idempotency_keys.create`, re-reading the row, and returning 422 (fingerprint mismatch), 409 `idempotency.in_flight`, or a replayed 201 response. Test `'handles simultaneous duplicate swap requests without 500 (returns 201 or 409 in_flight)'` in `server/tests/swaps-routes.test.ts` covers this, pending owner execution.
+    (b) An `in_flight` key that is never completed due to a sudden process crash remains in `in_flight` state until cleanup sweeps stale rows.
+    (c) If the `done` update fails after the swap transaction commits, the catch block deletes the in-flight key row, and a subsequent retry will receive 409 `swap.already_pending` because the swap was already committed.
 
 ### 5. Notification boundary with Phase 6 and best-effort post-commit enqueue
 
@@ -86,12 +96,12 @@ Key engineering problems:
   - On decision: `notify-swap-decided` enqueued to the `push` BullMQ queue.
   - Enqueue happens **after** the database transaction commits and is **best-effort**. If the queue connection fails,
     a warning is logged and the notification is lost; the database transaction remains committed.
-- **Transactional outbox evaluation:**
+- **Transactional outbox evaluation and OWNER DECISION (28 Oct 2026):**
   - The repo database schema (`server/prisma/sql/`) was checked: no `outbox` table exists.
   - `notification_log` exists on global `db0` solely for deduplication and cannot participate in atomic transactions on
     sharded `db1`.
   - Adding a new outbox table is deferred to avoid uncoordinated schema modifications during Phase 5.
-  - **OWNER DECISION NEEDED: add a transactional outbox in Phase 6 (options and trade-offs).**
+  - **OWNER DECISION (28 Oct 2026):** Best-effort enqueue post-commit remains for now; a shard-local outbox table is planned for Phase 6 (jobs, cron registry). Note the trade-off and accepted risk: if the Node.js process crashes or the queue connection is dropped in the instant between transaction commit and enqueue, the notification will be lost while the shift assignment change remains committed.
 - Delivery via Expo Push API, device token resolution, notification payload formatting, and quiet hours filtering are
   explicit non-goals of Phase 5 and are scheduled for Phase 6.
 
@@ -101,4 +111,22 @@ Key engineering problems:
   indexes.
 - Guarantees shift assignment integrity even under high mobile concurrency and intermittent network retries.
 - Client applications can optimistically display swap requests and rollback safely if rejected.
+
+### 6. Deleted shift handling and lifecycle rules (Owner Decisions D4, D5, D6, D7 — 28 Oct 2026)
+
+- **Approve and Reject blocked on deleted shifts (Owner Decision D4):**
+  - If a shift has been soft-deleted (`shifts.deleted_at IS NOT NULL`), attempting to approve or reject the swap is blocked inside the row-locked transaction and returns HTTP 409 (`swap.shift_deleted`, catalog text: *"This shift was deleted, so this swap can no longer be approved or rejected."*).
+  - The swap remains in `pending` status.
+- **Cancellation preserved on dead swaps (Owner Decision D5):**
+  - Requester and Manager cancellation on a swap whose shift was soft-deleted continues to succeed normally (transitions to `cancelled`), enabling cleanup of dead swaps.
+  - Automatic cascade cancellation on shift deletion is explicitly NOT implemented (deferred to owner decision per D5).
+- **Shift detail retention:**
+  - Shifts use soft deletion (`deleted_at` timestamp). Because `swap_requests` foreign key uses default `NO ACTION` without cascade, swap rows and referenced shift titles/times are retained intact. `SwapRequestView` returns `shiftDeleted: boolean` alongside `shiftLabel`, `shiftStartsAt`, and `shiftEndsAt`.
+- **App presentation and action guards:**
+  - On the swaps list (`SwapsListScreen`), items with `shiftDeleted: true` display a prominent notice (*"This shift was deleted"* / `swap.notice.shiftDeleted`) and omit Approve and Reject buttons, while preserving the Cancel button.
+  - If a race occurs where a shift was deleted concurrently while a manager attempts approval, the server returns 409 `swap.shift_deleted`, and the client announces and displays the message cleanly.
+- **Staff notification deferred (Owner Decision D6):**
+  - Notifying staff about deleted shifts and impacted swaps is deferred to Phase 6 (outbox + worker + quiet hours) and is not built in Phase 5.
+- **Database schema discipline (Owner Decision D7):**
+  - Zero schema changes required for this handling; soft delete and foreign key references were already established in `020-team.sql`. Future schema changes require forward-only migrations and owner execution.
 
