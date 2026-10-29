@@ -17,3 +17,5 @@ export { BottomSheet, type BottomSheetProps } from './BottomSheet';
 export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
 export { LiveRegion, type LiveRegionProps } from './LiveRegion';
 export { PasswordRulesChecklist, type PasswordRulesChecklistProps } from './PasswordRulesChecklist';
+export { DateTimePickerModal, type DateTimePickerModalProps } from './DateTimePickerModal';
+export { SwapTargetModal, type SwapTargetModalProps } from './SwapTargetModal';

@@ -99,8 +99,15 @@ export interface ShiftView {
   updatedAt: string;
 }
 
+export interface ShiftCreatorView {
+  userId: string;
+  displayName: string;
+  role?: 'owner' | 'manager' | 'staff' | null;
+}
+
 export interface ShiftDetailView extends ShiftView {
   assignee: { userId: string; displayName: string };
+  createdBy?: ShiftCreatorView | null;
 }
 
 export interface ActivityEventView {
@@ -137,8 +144,15 @@ export const shiftViewSchema = z.object({
   updatedAt: z.string(),
 });
 
+export const shiftCreatorViewSchema = z.object({
+  userId: z.string(),
+  displayName: z.string(),
+  role: z.enum(['owner', 'manager', 'staff']).nullable().optional(),
+});
+
 export const shiftDetailViewSchema = shiftViewSchema.extend({
   assignee: z.object({ userId: z.string(), displayName: z.string() }),
+  createdBy: shiftCreatorViewSchema.nullable().optional(),
 });
 
 export const calendarResponseSchema = z.object({ shifts: z.array(shiftViewSchema) });

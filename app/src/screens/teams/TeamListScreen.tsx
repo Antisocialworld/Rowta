@@ -7,15 +7,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, EmptyState, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
+import { authApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { devToolsVisible } from '../../lib/dev-tools';
+import { formatSignedInUserName } from '../../lib/user-name';
+import { teamRoleKey } from '../../lib/team-role';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthSession } from '../../state/auth-session';
 import { resolveSelectedTeamId, useTeams, useTeamsList } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
+import { useShiftNav } from '../../state/shift-nav';
 import { colors, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 import { InviteResultCard } from './InviteResultCard';
@@ -29,6 +33,7 @@ export function TeamListScreen() {
   const signOut = useAuthSession((state) => state.signOut);
   const openGallery = useAuthSession((state) => state.openGallery);
   const go = useTeamsView((state) => state.go);
+  const openShift = useShiftNav((state) => state.open);
   const teamsQuery = useTeamsList();
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const selectTeam = useTeams((state) => state.selectTeam);
@@ -36,6 +41,13 @@ export function TeamListScreen() {
   const setInviteResult = useTeams((state) => state.setInviteResult);
   const consumeInviteToken = useTeams((state) => state.consumeInviteToken);
   const [retryBusy, setRetryBusy] = useState(false);
+
+  const meQuery = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => authApi.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const userName = formatSignedInUserName(meQuery.data);
 
   useEffect(() => {
     focusOn(headingRef.current);
@@ -66,9 +78,16 @@ export function TeamListScreen() {
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.container}>
         <View style={styles.content}>
-          <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-            {t('teams.view.list.heading')}
-          </Text>
+          <View style={styles.headerBlock}>
+            <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
+              {t('teams.view.list.heading')}
+            </Text>
+            {userName ? (
+              <Text variant="body-medium" tone="secondary" testID="user-display-name">
+                {t('teams.user.signedInAs', { name: userName })}
+              </Text>
+            ) : null}
+          </View>
           {inviteResult !== null ? (
             <InviteResultCard
               result={inviteResult}
@@ -98,9 +117,11 @@ export function TeamListScreen() {
                 return (
                   <Card key={team.id} variant={selected ? 'raised' : 'flat'} testID={`team-card-${team.id}`}>
                     <View style={styles.row}>
-                      <View style={styles.rowText}>
+                      <View style={styles.teamInfo}>
                         <Text variant="title-medium">{team.name}</Text>
-                        <Badge label={ROLE_LABEL[team.role] ?? 'role.staff'} tone={ROLE_TONE[team.role] ?? 'neutral'} />
+                        <Text variant="body-medium" tone="secondary" testID={`team-role-${team.id}`}>
+                          {t(teamRoleKey(team.role))}
+                        </Text>
                       </View>
                       {selected ? (
                         <Text variant="label-medium" tone="primary">
@@ -117,21 +138,57 @@ export function TeamListScreen() {
                       )}
                     </View>
                     {selected ? (
-                      <View style={styles.rowActions}>
-                        <Button
-                          label="action.manageMembers"
-                          variant="secondary"
-                          fullWidth={false}
-                          onPress={() => go('members')}
-                          testID="team-open-members"
-                        />
-                        <Button
-                          label="action.invitePeople"
-                          variant="secondary"
-                          fullWidth={false}
-                          onPress={() => go('invite')}
-                          testID="team-open-invite"
-                        />
+                      <View style={styles.selectedActions}>
+                        <View style={styles.rowActions}>
+                          <Button
+                            label="action.openShifts"
+                            variant="primary"
+                            icon="calendar-today"
+                            fullWidth={false}
+                            onPress={() => openShift({ name: 'calendar' })}
+                            testID="team-open-shifts"
+                          />
+                          <Button
+                            label="swap.list.title"
+                            variant="secondary"
+                            icon="sync"
+                            fullWidth={false}
+                            onPress={() => openShift({ name: 'swaps' })}
+                            testID="team-open-swaps"
+                          />
+                          <Button
+                            label="action.openActivity"
+                            variant="secondary"
+                            icon="history"
+                            fullWidth={false}
+                            onPress={() => openShift({ name: 'activity' })}
+                            testID="team-open-activity"
+                          />
+                          <Button
+                            label="action.openSearch"
+                            variant="secondary"
+                            icon="search"
+                            fullWidth={false}
+                            onPress={() => openShift({ name: 'search' })}
+                            testID="team-open-search"
+                          />
+                        </View>
+                        <View style={styles.rowActions}>
+                          <Button
+                            label="action.manageMembers"
+                            variant="secondary"
+                            fullWidth={false}
+                            onPress={() => go('members')}
+                            testID="team-open-members"
+                          />
+                          <Button
+                            label="action.invitePeople"
+                            variant="secondary"
+                            fullWidth={false}
+                            onPress={() => go('invite')}
+                            testID="team-open-invite"
+                          />
+                        </View>
                       </View>
                     ) : null}
                   </Card>
@@ -154,8 +211,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors['color-surface'] },
   container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
   content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base) },
+  headerBlock: { gap: Number(spacing.extraSmall) },
   list: { gap: Number(spacing.base) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
+  teamInfo: { gap: Number(spacing.extraSmall), flexShrink: 1 },
   rowText: { flexDirection: 'row', alignItems: 'center', gap: Number(spacing.small), flexShrink: 1 },
-  rowActions: { flexDirection: 'row', gap: Number(spacing.base), marginTop: Number(spacing.medium) },
+  selectedActions: { gap: Number(spacing.small), marginTop: Number(spacing.medium) },
+  rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Number(spacing.small) },
 });

@@ -4,12 +4,16 @@ import type { SwapRequestView } from '@rowta/shared';
 import {
   canCancelSwap,
   canDecideSwap,
+  canDecideSwapWithShift,
   canRequestSwap,
   filterSwapsByTab,
+  getEligibleSwapTargets,
   INITIAL_SHIFT_SWAP_STATE,
   mergeSwapPages,
+  needsTargetPicker,
   shiftSwapReducer,
 } from '../src/lib/swap-logic';
+import { formatSignedInUserName } from '../src/lib/user-name';
 
 function testOptimisticUpdateAndRollback() {
   // Initial state
@@ -78,6 +82,21 @@ function testCanDecideSwap() {
   assert.equal(canDecideSwap('manager'), true);
   assert.equal(canDecideSwap('staff'), false);
   assert.equal(canDecideSwap('unknown'), false);
+}
+
+function testCanDecideSwapWithShift() {
+  // If shift is deleted, neither owner nor manager can decide (D4)
+  assert.equal(canDecideSwapWithShift('owner', true), false);
+  assert.equal(canDecideSwapWithShift('manager', true), false);
+  assert.equal(canDecideSwapWithShift('staff', true), false);
+
+  // If shift is not deleted, owner and manager can decide
+  assert.equal(canDecideSwapWithShift('owner', false), true);
+  assert.equal(canDecideSwapWithShift('manager', false), true);
+  assert.equal(canDecideSwapWithShift('staff', false), false);
+
+  // Undefined shiftDeleted defaults to false
+  assert.equal(canDecideSwapWithShift('manager', undefined), true);
 }
 
 function testCanCancelSwap() {
@@ -213,14 +232,44 @@ function testMergeSwapPages() {
   assert.deepEqual(merged.map((s) => s.id), ['swap-1', 'swap-2', 'swap-3']);
 }
 
+function testNeedsTargetPicker() {
+  assert.equal(needsTargetPicker({ targetUserId: null }), true, 'open swap with no target needs picker');
+  assert.equal(needsTargetPicker({ targetUserId: 'user-2' }), false, 'targeted swap does not need picker');
+}
+
+function testGetEligibleSwapTargets() {
+  const members = [
+    { userId: 'u1', displayName: 'Requester' },
+    { userId: 'u2', displayName: 'Colleague A' },
+    { userId: 'u3', displayName: 'Colleague B' },
+  ];
+  const eligible = getEligibleSwapTargets(members, 'u1');
+  assert.equal(eligible.length, 2);
+  assert.equal(eligible.some((m) => m.userId === 'u1'), false, 'requester must be excluded (swap.self_swap rule 1b)');
+  assert.equal(eligible[0]?.userId, 'u2');
+  assert.equal(eligible[1]?.userId, 'u3');
+}
+
+function testFormatSignedInUserName() {
+  assert.equal(formatSignedInUserName(null), null);
+  assert.equal(formatSignedInUserName(undefined), null);
+  assert.equal(formatSignedInUserName({ displayName: '' }), null);
+  assert.equal(formatSignedInUserName({ displayName: '   ' }), null);
+  assert.equal(formatSignedInUserName({ displayName: 'Alex Okoro' }), 'Alex Okoro');
+}
+
 function runAll() {
   testOptimisticUpdateAndRollback();
   testCanRequestSwap();
   testCanDecideSwap();
+  testCanDecideSwapWithShift();
   testCanCancelSwap();
   testFilterSwapsByTab();
   testMergeSwapPages();
-  console.log('test-swap-logic: 6 assertion suites passed');
+  testNeedsTargetPicker();
+  testGetEligibleSwapTargets();
+  testFormatSignedInUserName();
+  console.log('test-swap-logic: 10 assertion suites passed');
 }
 
 runAll();

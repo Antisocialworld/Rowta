@@ -49,6 +49,7 @@ export const AUTH_MESSAGES = {
   'swap.cannot_cancel': 'Cannot cancel a swap that is no longer pending.',
   'swap.assignee_changed': 'The shift is no longer assigned to the requester.',
   'swap.requester_removed': 'The requester is no longer an active member of this team.',
+  'swap.shift_deleted': 'This shift was deleted, so this swap can no longer be approved or rejected.',
   'generic.error': 'Something went wrong. Try again.',
 } as const;
 

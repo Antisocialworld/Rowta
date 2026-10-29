@@ -15,6 +15,7 @@ import { ApiError, errorMessageKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
+import { useShiftNav } from '../../state/shift-nav';
 import { colors, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 
@@ -32,6 +33,7 @@ export function MembersScreen() {
   const queryClient = useQueryClient();
   const back = useTeamsView((state) => state.back);
   const go = useTeamsView((state) => state.go);
+  const openShift = useShiftNav((state) => state.open);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId);
   const membersQuery = useTeamMembers(selectedTeamId);
@@ -88,6 +90,40 @@ export function MembersScreen() {
             {t('teams.view.members.heading')}
           </Text>
           {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
+          <View style={styles.entryRow}>
+            <Button
+              label="action.openShifts"
+              variant="secondary"
+              icon="calendar-today"
+              fullWidth={false}
+              onPress={() => openShift({ name: 'calendar' })}
+              testID="members-open-shifts"
+            />
+            <Button
+              label="swap.list.title"
+              variant="secondary"
+              icon="sync"
+              fullWidth={false}
+              onPress={() => openShift({ name: 'swaps' })}
+              testID="members-open-swaps"
+            />
+            <Button
+              label="action.openActivity"
+              variant="secondary"
+              icon="history"
+              fullWidth={false}
+              onPress={() => openShift({ name: 'activity' })}
+              testID="members-open-activity"
+            />
+            <Button
+              label="action.openSearch"
+              variant="secondary"
+              icon="search"
+              fullWidth={false}
+              onPress={() => openShift({ name: 'search' })}
+              testID="members-open-search"
+            />
+          </View>
           {membersQuery.isLoading ? (
             <Skeleton variant="text" />
           ) : membersQuery.isError ? (
@@ -204,5 +240,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
   rowText: { flexDirection: 'column', gap: Number(spacing.extraSmall), flexShrink: 1 },
   rowActions: { flexDirection: 'row', gap: Number(spacing.small), flexShrink: 0 },
+  entryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Number(spacing.small) },
   settingsLabel: { flexShrink: 1 },
 });

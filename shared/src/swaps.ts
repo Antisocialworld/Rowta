@@ -57,6 +57,7 @@ export interface SwapRequestView {
   readonly shiftLabel?: string;
   readonly shiftStartsAt?: string;
   readonly shiftEndsAt?: string;
+  readonly shiftDeleted?: boolean;
   readonly requesterName?: string;
   readonly targetName?: string | null;
 }

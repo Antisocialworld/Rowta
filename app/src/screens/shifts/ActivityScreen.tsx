@@ -54,13 +54,18 @@ export function ActivityScreen() {
   };
 
   const renderFooter = () => {
-    if (query.isFetchingNextPage) {
-      return <Skeleton variant="text" />;
-    }
-    if (query.hasNextPage) {
-      return <Button label="action.loadMore" variant="secondary" onPress={requestMore} testID="activity-load-more" />;
-    }
-    return <LiveRegion>{END_KEY}</LiveRegion>;
+    return (
+      <View style={styles.footerContainer}>
+        {query.isFetchingNextPage ? (
+          <Skeleton variant="text" />
+        ) : query.hasNextPage ? (
+          <Button label="action.loadMore" variant="secondary" onPress={requestMore} testID="activity-load-more" />
+        ) : (
+          <LiveRegion style={styles.visuallyHidden}>{END_KEY}</LiveRegion>
+        )}
+        <Button label="action.back" variant="ghost" onPress={back} />
+      </View>
+    );
   };
 
   if (selectedTeamId === null) {
@@ -85,9 +90,15 @@ export function ActivityScreen() {
             <Skeleton variant="block" />
           </View>
         ) : query.isError ? (
-          <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void query.refetch() }} />
+          <View style={styles.emptyContainer}>
+            <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void query.refetch() }} />
+            <Button label="action.back" variant="ghost" onPress={back} />
+          </View>
         ) : events.length === 0 ? (
-          <EmptyState kind="empty" titleKey="activity.empty.title" bodyKey="activity.empty.body" />
+          <View style={styles.emptyContainer}>
+            <EmptyState kind="empty" titleKey="activity.empty.title" bodyKey="activity.empty.body" />
+            <Button label="action.back" variant="ghost" onPress={back} />
+          </View>
         ) : (
           <FlatList
             style={styles.list}
@@ -100,7 +111,6 @@ export function ActivityScreen() {
             ListFooterComponent={renderFooter}
           />
         )}
-        <Button label="action.back" variant="ghost" onPress={back} />
       </View>
     </SafeAreaView>
   );
@@ -111,4 +121,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center', padding: Number(spacing.base), gap: Number(spacing.base) },
   list: { flex: 1 },
   listContent: { gap: Number(spacing.base), paddingBottom: Number(spacing.base) },
+  footerContainer: { gap: Number(spacing.base), marginTop: Number(spacing.base) },
+  emptyContainer: { gap: Number(spacing.base) },
+  visuallyHidden: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: 'hidden',
+    opacity: 0,
+  },
 });

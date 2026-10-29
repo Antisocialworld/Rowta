@@ -6,7 +6,8 @@
 // Phase 4 adds shift screens: when the shift machine has a route, the shift screen renders over the
 // teams surface (same conditional pattern, no navigation library).
 import { useEffect } from 'react';
-import { BackHandler } from 'react-native';
+import { BackHandler, Platform } from 'react-native';
+import { shouldListenForHardwareBack } from '../lib/hardware-back';
 import { TeamListScreen } from './teams/TeamListScreen';
 import { CreateTeamScreen } from './teams/CreateTeamScreen';
 import { MembersScreen } from './teams/MembersScreen';
@@ -27,6 +28,7 @@ export function TeamsRouter() {
   const shiftBack = useShiftNav((state) => state.back);
 
   useEffect(() => {
+    if (!shouldListenForHardwareBack(Platform.OS)) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       // Shift layer handles back first; falls through to teams layer if nothing to pop.
       if (shiftRoute !== null) {

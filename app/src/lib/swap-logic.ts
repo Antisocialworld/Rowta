@@ -116,6 +116,15 @@ export function canDecideSwap(role: string): boolean {
 }
 
 /**
+ * Check whether a user role can decide (approve/reject) swaps given the shift's deleted state (Owner Decision D4).
+ * Owner and Manager only; blocked if shift was deleted.
+ */
+export function canDecideSwapWithShift(role: string, shiftDeleted?: boolean): boolean {
+  if (shiftDeleted) return false;
+  return canDecideSwap(role);
+}
+
+/**
  * Check whether a user can cancel a swap.
  * Requester may cancel their own pending swap; Owner/Manager may cancel any pending swap.
  */
@@ -155,4 +164,24 @@ export function mergeSwapPages(
 
   return merged;
 }
+
+/**
+ * D1: Whether approving this swap requires picking a target colleague.
+ * Targeted swaps approve directly without a picker; open swaps require the manager to pick a colleague.
+ */
+export function needsTargetPicker(swap: { readonly targetUserId: string | null }): boolean {
+  return swap.targetUserId === null;
+}
+
+/**
+ * Filter team members eligible for swap reassignment.
+ * The requester cannot be reassigned their own shift (rule 1b: swap.self_swap).
+ */
+export function getEligibleSwapTargets<T extends { readonly userId: string; readonly displayName: string }>(
+  members: readonly T[],
+  requestedBy: string,
+): readonly T[] {
+  return members.filter((m) => m.userId !== requestedBy);
+}
+
 

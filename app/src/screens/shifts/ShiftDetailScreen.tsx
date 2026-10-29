@@ -10,6 +10,8 @@ import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, authApi, errorMessageKey, shiftsApi, swapsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { canManageShifts } from '../../lib/shift-access';
+import { evictDeletedShiftFromQueryClient } from '../../lib/shift-cache';
+import { formatShiftCreator } from '../../lib/shift-creator';
 import {
   canRequestSwap,
   INITIAL_SHIFT_SWAP_STATE,
@@ -105,8 +107,7 @@ export function ShiftDetailScreen() {
     setAnnouncement(null);
     try {
       await shiftsApi.deleteShift(selectedTeamId, shiftId);
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
-      await queryClient.invalidateQueries({ queryKey: ['teams'] });
+      await evictDeletedShiftFromQueryClient(queryClient, selectedTeamId, shiftId);
       setAnnouncement('shift.toast.deleted');
       setConfirming(false);
       back();
@@ -185,6 +186,14 @@ export function ShiftDetailScreen() {
                 </Text>
                 <Text variant="body-medium">{shift.assignee.displayName}</Text>
               </View>
+
+              {shift.createdBy ? (
+                <View style={styles.field} testID="shift-detail-created-by">
+                  <Text variant="body-medium" tone="secondary">
+                    {formatShiftCreator(shift.createdBy)}
+                  </Text>
+                </View>
+              ) : null}
 
               {shift.notes !== null && shift.notes.length > 0 ? (
                 <View style={styles.field}>

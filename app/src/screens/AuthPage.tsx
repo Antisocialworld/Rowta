@@ -35,6 +35,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, LiveRegion, Text } from '../components';
 import { t } from '../i18n/en';
 import { focusOn } from '../lib/a11y';
+import { shouldListenForHardwareBack } from '../lib/hardware-back';
 import { AUTH_VIEWS, isFormView, useAuthViewStore, type AuthView } from '../state/auth-view';
 import { colors, spacing } from '../theme/tokens';
 import { CONTENT_MAX_WIDTH } from '../theme/layout';
@@ -80,6 +81,7 @@ export function AuthPage() {
   const showChromeBack = !isFormView(view) && stack.length > 0;
 
   useEffect(() => {
+    if (!shouldListenForHardwareBack(Platform.OS)) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       const moved = back();
       // false when the machine refuses (root) -> the listener returns false -> the OS exits the app (U1).

@@ -6,19 +6,21 @@
 // is generated once when the form mounts and reused on retry. Four states: loading (Skeleton),
 // error (EmptyState + retry), ready (form), busy (spinner on button).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, type TextInputInstance, type TextInstance } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createShiftSchema, SHIFT_LABEL_MAX_LENGTH, SHIFT_NOTES_MAX_LENGTH } from '@rowta/shared';
-import { Button, EmptyState, Input, LiveRegion, Skeleton, Text } from '../../components';
+import { Button, DateTimePickerModal, EmptyState, Input, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, errorTextKey, fieldErrorKey, shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
+import { clampEndToStart, isEndBeforeStart } from '../../lib/date-picker';
 import { isoToLocalInput, parseLocalDateTime } from '../../lib/shift-time';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeamMembers, useTeams } from '../../state/teams';
 import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH, iconSize } from '../../theme/layout';
 
 function newIdempotencyKey(): string {
   // A fresh random key per form mount. crypto.randomUUID is available in React Native (Hermes).
@@ -30,6 +32,9 @@ function newIdempotencyKey(): string {
 
 export function ShiftCreateEditScreen() {
   const headingRef = useRef<TextInstance>(null);
+  const startsInputRef = useRef<TextInputInstance>(null);
+  const endsInputRef = useRef<TextInputInstance>(null);
+  const [activePickerField, setActivePickerField] = useState<'starts' | 'ends' | null>(null);
   const queryClient = useQueryClient();
   const back = useShiftNav((state) => state.back);
   const route = useShiftNav((state) => state.route);
@@ -83,6 +88,47 @@ export function ShiftCreateEditScreen() {
 
   const members = membersQuery.data?.members ?? [];
 
+  const handlePickerConfirm = (formatted: string) => {
+    const field = activePickerField;
+    setActivePickerField(null);
+
+    if (field === 'starts') {
+      setStartsAt(formatted);
+      setStartsAtError(undefined);
+      if (endsAt.trim().length === 0) {
+        // Choosing a start sets Ends to the same day if Ends is empty
+        const clampedEnd = clampEndToStart(formatted, '');
+        setEndsAt(clampedEnd);
+        setEndsAtError(undefined);
+      } else if (isEndBeforeStart(formatted, endsAt)) {
+        // Clamp end if now before start
+        const clampedEnd = clampEndToStart(formatted, endsAt);
+        setEndsAt(clampedEnd);
+        setEndsAtError(undefined);
+      }
+      focusOn(startsInputRef.current);
+    } else if (field === 'ends') {
+      if (startsAt.trim().length > 0 && isEndBeforeStart(startsAt, formatted)) {
+        const clampedEnd = clampEndToStart(startsAt, formatted);
+        setEndsAt(clampedEnd);
+      } else {
+        setEndsAt(formatted);
+      }
+      setEndsAtError(undefined);
+      focusOn(endsInputRef.current);
+    }
+  };
+
+  const handlePickerCancel = () => {
+    const field = activePickerField;
+    setActivePickerField(null);
+    if (field === 'starts') {
+      focusOn(startsInputRef.current);
+    } else if (field === 'ends') {
+      focusOn(endsInputRef.current);
+    }
+  };
+
   const validate = useCallback((): boolean => {
     let ok = true;
     if (label.trim().length === 0) {
@@ -99,14 +145,14 @@ export function ShiftCreateEditScreen() {
     }
     const start = parseLocalDateTime(startsAt);
     if (start === null) {
-      setStartsAtError('shift.time.invalid');
+      setStartsAtError('shift.form.timeFormat');
       ok = false;
     } else {
       setStartsAtError(undefined);
     }
     const end = parseLocalDateTime(endsAt);
     if (end === null) {
-      setEndsAtError('shift.time.invalid');
+      setEndsAtError('shift.form.timeFormat');
       ok = false;
     } else if (start !== null && new Date(end).getTime() <= new Date(start).getTime()) {
       setEndsAtError('shift.timeOrder');
@@ -121,14 +167,27 @@ export function ShiftCreateEditScreen() {
     label.trim().length > 0 &&
     assignedUserId.trim().length > 0 &&
     parseLocalDateTime(startsAt) !== null &&
-    parseLocalDateTime(endsAt) !== null;
+    parseLocalDateTime(endsAt) !== null &&
+    (() => {
+      const s = parseLocalDateTime(startsAt);
+      const e = parseLocalDateTime(endsAt);
+      return s !== null && e !== null && new Date(e).getTime() > new Date(s).getTime();
+    })();
 
   const submit = async (): Promise<void> => {
     if (!validate()) return;
     if (selectedTeamId === null) return;
     const startIso = parseLocalDateTime(startsAt);
     const endIso = parseLocalDateTime(endsAt);
-    if (startIso === null || endIso === null) return;
+    if (startIso === null || endIso === null) {
+      if (startIso === null) setStartsAtError('shift.form.timeFormat');
+      if (endIso === null) setEndsAtError('shift.form.timeFormat');
+      return;
+    }
+    if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+      setEndsAtError('shift.timeOrder');
+      return;
+    }
 
     const body = {
       label: label.trim(),
@@ -145,10 +204,11 @@ export function ShiftCreateEditScreen() {
       for (const issue of issues) {
         const msg = issue.message as MessageKey;
         const path = issue.path[0];
-        if (path === 'endsAt') setEndsAtError(msg);
-        else if (path === 'startsAt') setStartsAtError(msg);
-        else if (path === 'label') setLabelError(msg);
-        else if (path === 'assignedUserId') setAssigneeError(msg);
+        const displayKey = msg === 'shift.time.invalid' ? 'shift.form.timeFormat' : msg;
+        if (path === 'endsAt') setEndsAtError(displayKey);
+        else if (path === 'startsAt') setStartsAtError(displayKey);
+        else if (path === 'label') setLabelError(displayKey);
+        else if (path === 'assignedUserId') setAssigneeError(displayKey);
       }
       return;
     }
@@ -251,6 +311,15 @@ export function ShiftCreateEditScreen() {
                     testID={`assignee-${member.userId}`}
                   >
                     <Text variant="body-medium">{member.displayName}</Text>
+                    {assignedUserId === member.userId ? (
+                      <MaterialIcons
+                        name="check"
+                        size={iconSize('body-medium')}
+                        color={colors['color-on-surface']}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                      />
+                    ) : null}
                   </Pressable>
                 ))}
                 {assigneeError !== undefined ? (
@@ -259,28 +328,55 @@ export function ShiftCreateEditScreen() {
                   </Text>
                 ) : null}
               </View>
-              <Input
-                label="field.shiftStartsAt"
-                value={startsAt}
-                onChangeText={(v) => {
-                  setStartsAt(v);
-                  setStartsAtError(undefined);
-                }}
-                errorKey={startsAtError}
-                hintKey="shift.form.timeHint"
-                testID="shift-starts-input"
-              />
-              <Input
-                label="field.shiftEndsAt"
-                value={endsAt}
-                onChangeText={(v) => {
-                  setEndsAt(v);
-                  setEndsAtError(undefined);
-                }}
-                errorKey={endsAtError}
-                hintKey="shift.form.timeHint"
-                testID="shift-ends-input"
-              />
+              <View style={styles.timeInputRow}>
+                <View style={styles.timeInputFlex}>
+                  <Input
+                    ref={startsInputRef}
+                    label="field.shiftStartsAt"
+                    value={startsAt}
+                    onChangeText={(v) => {
+                      setStartsAt(v);
+                      setStartsAtError(undefined);
+                    }}
+                    errorKey={startsAtError}
+                    hintKey="shift.form.timeHint"
+                    testID="shift-starts-input"
+                  />
+                </View>
+                <Button
+                  label="action.pickDateTime"
+                  icon="calendar-today"
+                  variant="secondary"
+                  fullWidth={false}
+                  onPress={() => setActivePickerField('starts')}
+                  testID="shift-starts-picker-btn"
+                />
+              </View>
+
+              <View style={styles.timeInputRow}>
+                <View style={styles.timeInputFlex}>
+                  <Input
+                    ref={endsInputRef}
+                    label="field.shiftEndsAt"
+                    value={endsAt}
+                    onChangeText={(v) => {
+                      setEndsAt(v);
+                      setEndsAtError(undefined);
+                    }}
+                    errorKey={endsAtError}
+                    hintKey="shift.form.timeHint"
+                    testID="shift-ends-input"
+                  />
+                </View>
+                <Button
+                  label="action.pickDateTime"
+                  icon="calendar-today"
+                  variant="secondary"
+                  fullWidth={false}
+                  onPress={() => setActivePickerField('ends')}
+                  testID="shift-ends-picker-btn"
+                />
+              </View>
               <Input
                 label="field.shiftNotes"
                 value={notes}
@@ -293,7 +389,7 @@ export function ShiftCreateEditScreen() {
           {announcement !== null ? <LiveRegion>{announcement}</LiveRegion> : null}
           {!isLoading && !isError ? (
             <Button
-              label={isEdit ? 'action.edit' : 'action.newShift'}
+              label={isEdit ? 'shift.form.editSubmit' : 'shift.form.createSubmit'}
               busy={busy}
               onPress={() => void submit()}
               onNotReady={validate}
@@ -305,6 +401,15 @@ export function ShiftCreateEditScreen() {
           <Button label="action.back" variant="ghost" onPress={back} />
         </ScrollView>
       </View>
+      <DateTimePickerModal
+        visible={activePickerField !== null}
+        value={activePickerField === 'starts' ? startsAt : endsAt}
+        titleKey={activePickerField === 'starts' ? 'field.shiftStartsAt' : 'field.shiftEndsAt'}
+        minDate={activePickerField === 'ends' ? startsAt : undefined}
+        onConfirm={handlePickerConfirm}
+        onCancel={handlePickerCancel}
+        testID="shift-date-time-picker"
+      />
     </SafeAreaView>
   );
 }
@@ -319,12 +424,22 @@ const styles = StyleSheet.create({
     paddingBottom: Number(spacing.base),
   },
   stack: { gap: Number(spacing.base) },
+  timeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Number(spacing.small),
+  },
+  timeInputFlex: {
+    flex: 1,
+  },
   memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: Number(spacing.small),
     borderRadius: Number(spacing.small),
     backgroundColor: colors['color-surface-container-high'],
     minHeight: 44, // accessible touch target (X6)
-    justifyContent: 'center',
   },
   memberRowSelected: { backgroundColor: colors['color-primary-container'] },
 });

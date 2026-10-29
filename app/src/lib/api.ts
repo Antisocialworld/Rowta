@@ -150,6 +150,7 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'swap.cannot_cancel': 'swap.cannot_cancel',
   'swap.assignee_changed': 'swap.assignee_changed',
   'swap.requester_removed': 'swap.requester_removed',
+  'swap.shift_deleted': 'swap.shift_deleted',
   'idempotency.missing': 'idempotency.missing',
   'idempotency.fingerprint_mismatch': 'idempotency.fingerprint_mismatch',
   'idempotency.in_flight': 'idempotency.in_flight',
@@ -706,7 +707,7 @@ export const shiftsApi = {
   },
 };
 
-const swapViewSchema = z.object({
+export const swapViewSchema = z.object({
   id: z.string().uuid(),
   teamId: z.string().uuid(),
   shiftId: z.string().uuid(),
@@ -720,9 +721,17 @@ const swapViewSchema = z.object({
   shiftLabel: z.string().optional(),
   shiftStartsAt: z.string().optional(),
   shiftEndsAt: z.string().optional(),
+  shiftDeleted: z.boolean().optional(),
   requesterName: z.string().optional(),
   targetName: z.string().nullable().optional(),
 });
+
+export type InferredSwapView = z.infer<typeof swapViewSchema>;
+
+/** Parse a raw swap payload into a typed SwapRequestView without type assertions. */
+export function parseSwapView(input: unknown): SwapRequestView {
+  return swapViewSchema.parse(input);
+}
 
 const swapListSchema = z.object({
   swaps: z.array(swapViewSchema),

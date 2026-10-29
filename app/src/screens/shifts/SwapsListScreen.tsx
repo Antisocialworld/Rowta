@@ -6,15 +6,24 @@ import { FlatList, Pressable, StyleSheet, View, type TextInstance } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SwapRequestView } from '@rowta/shared';
-import { Button, ConfirmDialog, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
+import { Button, ConfirmDialog, EmptyState, LiveRegion, Skeleton, SwapTargetModal, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { authApi, errorMessageKey, swapsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { canRequestNextPage, createPagingGate } from '../../lib/shift-feed';
-import { canCancelSwap, canDecideSwap, filterSwapsByTab, mergeSwapPages, type SwapFilterTab } from '../../lib/swap-logic';
+import {
+  canCancelSwap,
+  canDecideSwap,
+  canDecideSwapWithShift,
+  filterSwapsByTab,
+  getEligibleSwapTargets,
+  mergeSwapPages,
+  needsTargetPicker,
+  type SwapFilterTab,
+} from '../../lib/swap-logic';
 import { formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
 import { useShiftNav } from '../../state/shift-nav';
-import { useTeam, useTeams } from '../../state/teams';
+import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { colors, shape, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 
@@ -35,8 +44,14 @@ export function SwapsListScreen() {
 
   const [tab, setTab] = useState<SwapFilterTab>('pending');
   const [cancellingSwapId, setCancellingSwapId] = useState<string | null>(null);
+  const [approvingSwap, setApprovingSwap] = useState<SwapRequestView | null>(null);
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState<MessageKey | null>(null);
+
+  const membersQuery = useTeamMembers(selectedTeamId);
+  const eligibleMembers = approvingSwap
+    ? getEligibleSwapTargets(membersQuery.data?.members ?? [], approvingSwap.requestedBy)
+    : [];
 
   const query = useInfiniteQuery({
     queryKey: ['swaps', selectedTeamId, tab],
@@ -78,15 +93,16 @@ export function SwapsListScreen() {
     void gate.request();
   };
 
-  const handleDecide = async (swapId: string, status: 'approved' | 'rejected') => {
+  const handleDecide = async (swapId: string, status: 'approved' | 'rejected', targetUserId?: string) => {
     if (!selectedTeamId) return;
     setBusy(true);
     setAnnouncement(null);
     try {
-      await swapsApi.decideSwap(selectedTeamId, swapId, { status });
+      await swapsApi.decideSwap(selectedTeamId, swapId, { status, targetUserId: targetUserId ?? null });
       await queryClient.invalidateQueries({ queryKey: ['swaps'] });
       await queryClient.invalidateQueries({ queryKey: ['shifts'] });
       setAnnouncement(status === 'approved' ? 'swap.toast.approved' : 'swap.toast.rejected');
+      setApprovingSwap(null);
     } catch (err: unknown) {
       const code = err instanceof Error && 'code' in err ? String((err as { code: string }).code) : 'generic.error';
       setAnnouncement(errorMessageKey(code));
@@ -118,18 +134,24 @@ export function SwapsListScreen() {
   const isManager = canDecideSwap(role);
 
   const renderFooter = () => {
-    if (query.isFetchingNextPage) {
-      return <Skeleton variant="text" />;
-    }
-    if (query.hasNextPage) {
-      return <Button label="action.loadMore" variant="secondary" onPress={requestMore} testID="swaps-load-more" />;
-    }
-    return <LiveRegion>{END_KEY}</LiveRegion>;
+    return (
+      <View style={styles.footerContainer}>
+        {query.isFetchingNextPage ? (
+          <Skeleton variant="text" />
+        ) : query.hasNextPage ? (
+          <Button label="action.loadMore" variant="secondary" onPress={requestMore} testID="swaps-load-more" />
+        ) : (
+          <LiveRegion style={styles.visuallyHidden}>{END_KEY}</LiveRegion>
+        )}
+        <Button label="action.back" variant="ghost" onPress={back} />
+      </View>
+    );
   };
 
   const renderSwapItem = ({ item }: { item: SwapRequestView }) => {
     const isPending = item.status === 'pending';
     const canCancel = canCancelSwap(item, currentUserId, role);
+    const canDecide = canDecideSwapWithShift(role, item.shiftDeleted);
 
     const shiftTimeText =
       item.shiftStartsAt && item.shiftEndsAt
@@ -147,6 +169,14 @@ export function SwapsListScreen() {
           </Text>
         </View>
 
+        {item.shiftDeleted ? (
+          <View style={styles.deletedNotice} testID={`swap-shift-deleted-${item.id}`}>
+            <Text variant="label-medium" tone="error">
+              {t('swap.notice.shiftDeleted')}
+            </Text>
+          </View>
+        ) : null}
+
         {shiftTimeText ? (
           <Text variant="body-medium" tone="secondary">
             {shiftTimeText}
@@ -161,14 +191,20 @@ export function SwapsListScreen() {
 
         {isPending ? (
           <View style={styles.cardActions}>
-            {isManager ? (
+            {canDecide ? (
               <>
                 <Button
                   label="swap.action.approve"
                   variant="primary"
                   busy={busy}
                   ready={!busy}
-                  onPress={() => void handleDecide(item.id, 'approved')}
+                  onPress={() => {
+                    if (needsTargetPicker(item)) {
+                      setApprovingSwap(item);
+                    } else {
+                      void handleDecide(item.id, 'approved');
+                    }
+                  }}
                   testID={`swap-approve-${item.id}`}
                 />
                 <Button
@@ -244,9 +280,15 @@ export function SwapsListScreen() {
             <Skeleton variant="block" />
           </View>
         ) : query.isError ? (
-          <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void query.refetch() }} />
+          <View style={styles.emptyContainer}>
+            <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void query.refetch() }} />
+            <Button label="action.back" variant="ghost" onPress={back} />
+          </View>
         ) : swaps.length === 0 ? (
-          <EmptyState kind="empty" titleKey="swap.empty.title" bodyKey="swap.empty.body" />
+          <View style={styles.emptyContainer}>
+            <EmptyState kind="empty" titleKey="swap.empty.title" bodyKey="swap.empty.body" />
+            <Button label="action.back" variant="ghost" onPress={back} />
+          </View>
         ) : (
           <FlatList
             style={styles.list}
@@ -261,9 +303,23 @@ export function SwapsListScreen() {
         )}
 
         {announcement !== null ? <LiveRegion>{announcement}</LiveRegion> : null}
-
-        <Button label="action.back" variant="ghost" onPress={back} />
       </View>
+
+      <SwapTargetModal
+        visible={approvingSwap !== null}
+        members={eligibleMembers}
+        isLoading={membersQuery.isLoading}
+        isError={membersQuery.isError}
+        submitting={busy}
+        onRetry={() => void membersQuery.refetch()}
+        onConfirm={(targetUserId) => {
+          if (approvingSwap) {
+            void handleDecide(approvingSwap.id, 'approved', targetUserId);
+          }
+        }}
+        onCancel={() => setApprovingSwap(null)}
+        testID="swap-target-picker-modal"
+      />
 
       <ConfirmDialog
         visible={cancellingSwapId !== null}
@@ -324,9 +380,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  deletedNotice: {
+    paddingVertical: Number(spacing.extraSmall),
+    paddingHorizontal: Number(spacing.small),
+    backgroundColor: colors['color-error-container'],
+    borderRadius: Number(shape.small),
+    alignSelf: 'flex-start',
+  },
   cardActions: {
     flexDirection: 'row',
     gap: Number(spacing.small),
     marginTop: Number(spacing.small),
+  },
+  visuallyHidden: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: 'hidden',
+    opacity: 0,
+  },
+  footerContainer: {
+    gap: Number(spacing.base),
+    marginTop: Number(spacing.base),
+  },
+  emptyContainer: {
+    gap: Number(spacing.base),
   },
 });

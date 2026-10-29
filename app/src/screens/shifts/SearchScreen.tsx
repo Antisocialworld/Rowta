@@ -5,11 +5,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import type { SearchResultsPayload } from '@rowta/shared';
 import { Badge, Button, Card, EmptyState, Input, LiveRegion, ShiftCard, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, errorTextKey, shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
+import { shiftQueryKeys } from '../../lib/shift-cache';
 import { SEARCH_QUERY_MIN_LENGTH } from '@rowta/shared';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeamMembers, useTeams } from '../../state/teams';
@@ -31,36 +33,39 @@ export function SearchScreen() {
   const membersQuery = useTeamMembers(selectedTeamId);
   const [query, setQuery] = useState('');
   const [lastQuery, setLastQuery] = useState<string | null>(null);
-  const [results, setResults] = useState<SearchResultsPayload | null>(null);
-  const [busy, setBusy] = useState(false);
   const [fieldError, setFieldError] = useState<MessageKey | null>(null);
-  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
+
+  const searchQuery = useQuery({
+    queryKey: shiftQueryKeys.search(selectedTeamId ?? '', lastQuery ?? ''),
+    queryFn: () => shiftsApi.search(selectedTeamId as string, lastQuery as string),
+    enabled: selectedTeamId !== null && lastQuery !== null && lastQuery.length >= SEARCH_QUERY_MIN_LENGTH,
+  });
+
+  const results = searchQuery.data ?? null;
+  const busy = searchQuery.isFetching;
+  const errorKey = searchQuery.isError
+    ? searchQuery.error instanceof ApiError
+      ? errorTextKey(searchQuery.error)
+      : 'generic.error'
+    : null;
 
   useEffect(() => {
     focusOn(headingRef.current);
   }, []);
 
-  const run = async (raw: string): Promise<void> => {
+  const run = (raw: string): void => {
     const trimmed = raw.trim();
     if (selectedTeamId === null) return;
     if (trimmed.length < SEARCH_QUERY_MIN_LENGTH) {
       setFieldError('search.query.tooShort');
-      setErrorKey(null);
       focusOn(inputRef.current);
       return;
     }
     setFieldError(null);
-    setErrorKey(null);
-    setBusy(true);
-    try {
-      const found = await shiftsApi.search(selectedTeamId, trimmed);
-      setResults(found);
+    if (lastQuery === trimmed) {
+      void searchQuery.refetch();
+    } else {
       setLastQuery(trimmed);
-    } catch (error) {
-      setErrorKey(error instanceof ApiError ? errorTextKey(error) : 'generic.error');
-      setResults(null);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -81,7 +86,6 @@ export function SearchScreen() {
             onChangeText={(value) => {
               setQuery(value);
               setFieldError(null);
-              setErrorKey(null);
             }}
             errorKey={fieldError ?? undefined}
             maxLength={100}
