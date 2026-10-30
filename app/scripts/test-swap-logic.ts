@@ -9,6 +9,7 @@ import {
   filterSwapsByTab,
   getEligibleSwapTargets,
   INITIAL_SHIFT_SWAP_STATE,
+  hasPendingSwapRequest,
   mergeSwapPages,
   needsTargetPicker,
   shiftSwapReducer,
@@ -258,6 +259,26 @@ function testFormatSignedInUserName() {
   assert.equal(formatSignedInUserName({ displayName: 'Alex Okoro' }), 'Alex Okoro');
 }
 
+function testSwapButtonConditions() {
+  // Button condition: only pending disables/hides the button (Phase 1 bug)
+  assert.equal(hasPendingSwapRequest([{ status: 'pending' }]), true, 'pending must mark hasPendingSwap');
+  assert.equal(hasPendingSwapRequest([{ status: 'cancelled' }]), false, 'cancelled must not mark hasPendingSwap');
+  assert.equal(hasPendingSwapRequest([{ status: 'rejected' }]), false, 'rejected must not mark hasPendingSwap');
+  assert.equal(hasPendingSwapRequest([{ status: 'approved' }]), false, 'approved must not mark hasPendingSwap');
+  assert.equal(hasPendingSwapRequest([]), false, 'empty swaps must not mark hasPendingSwap');
+  assert.equal(hasPendingSwapRequest(null), false, 'null swaps must not mark hasPendingSwap');
+  assert.equal(hasPendingSwapRequest(undefined), false, 'undefined swaps must not mark hasPendingSwap');
+
+  const now = 1_000_000;
+  const futureShift = { assignedUserId: 'u1', endsAt: new Date(now + 10_000).toISOString() };
+
+  // Eligible to request swap when no pending swap exists
+  assert.equal(canRequestSwap(futureShift, 'u1', hasPendingSwapRequest([{ status: 'pending' }]), now), false);
+  assert.equal(canRequestSwap(futureShift, 'u1', hasPendingSwapRequest([{ status: 'cancelled' }]), now), true);
+  assert.equal(canRequestSwap(futureShift, 'u1', hasPendingSwapRequest([{ status: 'rejected' }]), now), true);
+  assert.equal(canRequestSwap(futureShift, 'u1', hasPendingSwapRequest([]), now), true);
+}
+
 function runAll() {
   testOptimisticUpdateAndRollback();
   testCanRequestSwap();
@@ -269,7 +290,8 @@ function runAll() {
   testNeedsTargetPicker();
   testGetEligibleSwapTargets();
   testFormatSignedInUserName();
-  console.log('test-swap-logic: 10 assertion suites passed');
+  testSwapButtonConditions();
+  console.log('test-swap-logic: 11 assertion suites passed');
 }
 
 runAll();

@@ -558,6 +558,37 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     expect(newSwapRes.status).toBe(201);
   });
 
+  it('allows requesting a new swap on the same shift after previous swap was cancelled (returns 201)', async () => {
+    const shiftId = await createShift(f, f.staff1Id);
+    const firstReq = await post(
+      app,
+      `/teams/${f.teamId}/swaps`,
+      { shiftId },
+      { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+    );
+    expect(firstReq.status).toBe(201);
+    const swap1 = await dataOf(firstReq);
+
+    const cancelRes = await post(
+      app,
+      `/teams/${f.teamId}/swaps/${swap1.id}/cancel`,
+      {},
+      f.staff1Auth,
+    );
+    expect(cancelRes.status).toBe(200);
+
+    const secondReq = await post(
+      app,
+      `/teams/${f.teamId}/swaps`,
+      { shiftId },
+      { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+    );
+    expect(secondReq.status).toBe(201);
+    const swap2 = await dataOf(secondReq);
+    expect(swap2.id).not.toBe(swap1.id);
+    expect(swap2.status).toBe('pending');
+  });
+
   it('refuses cancellation from a different staff member (403 team.forbidden)', async () => {
     const shiftId = await createShift(f, f.staff1Id);
     const createRes = await post(

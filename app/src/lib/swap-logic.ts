@@ -91,6 +91,19 @@ export function filterSwapsByTab(
 }
 
 /**
+ * Determines whether the swap button should show "Swap requested" (disabled)
+ * or allow requesting a new swap.
+ * ONLY a swap with status 'pending' disables/hides the button;
+ * cancelled, rejected, approved, or none must not.
+ */
+export function hasPendingSwapRequest(
+  swaps: readonly { readonly status: SwapStatus }[] | null | undefined,
+): boolean {
+  if (!swaps || swaps.length === 0) return false;
+  return swaps.some((s) => s.status === 'pending');
+}
+
+/**
  * Check whether a user is eligible to request a swap on a shift.
  * Must be the shift's assigned user, shift must not have ended, and no swap is pending.
  */

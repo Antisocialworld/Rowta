@@ -99,8 +99,12 @@ export function SwapsListScreen() {
     setAnnouncement(null);
     try {
       await swapsApi.decideSwap(selectedTeamId, swapId, { status, targetUserId: targetUserId ?? null });
-      await queryClient.invalidateQueries({ queryKey: ['swaps'] });
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['swaps', selectedTeamId] }),
+        queryClient.invalidateQueries({ queryKey: ['shifts', selectedTeamId] }),
+        queryClient.invalidateQueries({ queryKey: ['swaps'] }),
+        queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+      ]);
       setAnnouncement(status === 'approved' ? 'swap.toast.approved' : 'swap.toast.rejected');
       setApprovingSwap(null);
     } catch (err: unknown) {
@@ -117,8 +121,12 @@ export function SwapsListScreen() {
     setAnnouncement(null);
     try {
       await swapsApi.cancelSwap(selectedTeamId, cancellingSwapId);
-      await queryClient.invalidateQueries({ queryKey: ['swaps'] });
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['swaps', selectedTeamId] }),
+        queryClient.invalidateQueries({ queryKey: ['shifts', selectedTeamId] }),
+        queryClient.invalidateQueries({ queryKey: ['swaps'] }),
+        queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+      ]);
       setAnnouncement('swap.toast.cancelled');
       setCancellingSwapId(null);
     } catch (err: unknown) {

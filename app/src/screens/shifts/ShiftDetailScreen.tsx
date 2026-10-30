@@ -79,10 +79,12 @@ export function ShiftDetailScreen() {
   }, []);
 
   useEffect(() => {
-    if (pendingSwapQuery.data && pendingSwapQuery.data.swaps.length > 0) {
-      const pending = pendingSwapQuery.data.swaps[0];
+    if (pendingSwapQuery.data) {
+      const pending = pendingSwapQuery.data.swaps.find((s) => s.status === 'pending');
       if (pending) {
         dispatchSwap({ type: 'request_success', swapId: pending.id });
+      } else {
+        dispatchSwap({ type: 'cancel_success' });
       }
     }
   }, [pendingSwapQuery.data]);
