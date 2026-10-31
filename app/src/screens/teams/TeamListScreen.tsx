@@ -5,7 +5,7 @@
 // CTA), ready (one Card per team). Every string is a catalog key (U8); the server list is the only
 // source of truth (S5).
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, type TextInstance } from 'react-native';
+import { StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
@@ -14,15 +14,16 @@ import { focusOn } from '../../lib/a11y';
 import { devToolsVisible } from '../../lib/dev-tools';
 import { formatSignedInUserName } from '../../lib/user-name';
 import { canInviteMembers, canManageTeamSettings, teamRoleKey } from '../../lib/team-role';
-import { formatDisplayDate } from '../../lib/shift-time';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthSession } from '../../state/auth-session';
-import { calculateDaysLeftToRestore, resolveSelectedTeamId, useDeletedTeams, useTeams, useTeamsList } from '../../state/teams';
+import { resolveSelectedTeamId, useDeletedTeams, useTeams, useTeamsList } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { useShiftNav } from '../../state/shift-nav';
 import { spacing } from '../../theme/tokens';
 import { InviteResultCard } from './InviteResultCard';
 import { TeamScreenLayout } from './TeamScreenLayout';
+import { DeletedTeamsModal } from './DeletedTeamsModal';
+import { shouldCloseDeletedTeamsModal, shouldShowDeletedTeamsTrigger } from '../../lib/deleted-teams-logic';
 
 const ROLE_LABEL: Record<string, MessageKey> = { owner: 'role.owner', manager: 'role.manager', staff: 'role.staff' };
 const ROLE_TONE: Record<string, 'primary' | 'neutral'> = { owner: 'primary', manager: 'neutral', staff: 'neutral' };
@@ -44,9 +45,27 @@ export function TeamListScreen() {
   const [retryBusy, setRetryBusy] = useState(false);
   const [restoreBusyId, setRestoreBusyId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<MessageKey | null>(null);
+  const [deletedModalOpen, setDeletedModalOpen] = useState(false);
+  const deletedTriggerRef = useRef<ViewInstance>(null);
 
   const deletedTeamsQuery = useDeletedTeams();
   const deletedTeams = deletedTeamsQuery.data?.teams;
+
+  useEffect(() => {
+    if (deletedModalOpen && deletedTeams !== undefined && shouldCloseDeletedTeamsModal(deletedTeams.length)) {
+      setDeletedModalOpen(false);
+      focusOn(headingRef.current);
+    }
+  }, [deletedModalOpen, deletedTeams]);
+
+  const handleCloseDeletedModal = () => {
+    setDeletedModalOpen(false);
+    if (deletedTriggerRef.current) {
+      focusOn(deletedTriggerRef.current);
+    } else {
+      focusOn(headingRef.current);
+    }
+  };
 
   const handleRestore = async (teamId: string): Promise<void> => {
     setRestoreBusyId(teamId);
@@ -262,47 +281,34 @@ export function TeamListScreen() {
               })}
             </View>
           )}
-          {deletedTeams && deletedTeams.length > 0 ? (
-            <View style={styles.deletedSection} testID="deleted-teams-section">
-              <Text variant="title-medium" tone="secondary">
-                {t('teams.deleted.heading')}
-              </Text>
-              {deletedTeams.map((dTeam) => {
-                const daysLeft = calculateDaysLeftToRestore(dTeam.restoreUntil);
-                const dateFormatted = formatDisplayDate(dTeam.deletedAt);
-                const isBusy = restoreBusyId === dTeam.id;
-                return (
-                  <Card key={dTeam.id} variant="flat" testID={`deleted-team-card-${dTeam.id}`}>
-                    <View style={styles.row}>
-                      <View style={styles.teamInfo}>
-                        <Text variant="title-medium">{dTeam.name}</Text>
-                        <Text variant="body-small" tone="secondary">
-                          {t('teams.deletedAt', { date: dateFormatted })}
-                        </Text>
-                        <Text variant="body-small" tone="secondary">
-                          {t('teams.daysLeftToRestore', { count: daysLeft })}
-                        </Text>
-                      </View>
-                      <Button
-                        label="teams.restore.action"
-                        variant="secondary"
-                        fullWidth={false}
-                        busy={isBusy}
-                        onPress={() => void handleRestore(dTeam.id)}
-                        testID={`team-restore-${dTeam.id}`}
-                      />
-                    </View>
-                  </Card>
-                );
-              })}
+          <Button label="action.createTeam" icon="group-add" onPress={() => go('createTeam')} testID="team-create-entry" />
+          {shouldShowDeletedTeamsTrigger(deletedTeams) ? (
+            <View ref={deletedTriggerRef}>
+              <Button
+                label="teams.deleted.button"
+                labelParams={{ count: deletedTeams?.length ?? 0 }}
+                variant="ghost"
+                onPress={() => setDeletedModalOpen(true)}
+                testID="deleted-teams-trigger"
+              />
             </View>
           ) : null}
-          <Button label="action.createTeam" icon="group-add" onPress={() => go('createTeam')} testID="team-create-entry" />
           {devToolsVisible(__DEV__) ? (
             <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
           ) : null}
           <Button label="action.signOut" variant="ghost" onPress={() => { void signOut(); }} />
           {toastMessage !== null ? <LiveRegion>{toastMessage}</LiveRegion> : null}
+          <DeletedTeamsModal
+            visible={deletedModalOpen}
+            teams={deletedTeams ?? []}
+            isLoading={deletedTeamsQuery.isLoading}
+            isError={deletedTeamsQuery.isError}
+            restoreBusyId={restoreBusyId}
+            onRetry={() => void deletedTeamsQuery.refetch()}
+            onRestore={handleRestore}
+            onClose={handleCloseDeletedModal}
+            testID="deleted-teams-modal"
+          />
     </TeamScreenLayout>
   );
 }
@@ -310,7 +316,6 @@ export function TeamListScreen() {
 const styles = StyleSheet.create({
   headerBlock: { gap: Number(spacing.extraSmall) },
   list: { gap: Number(spacing.base) },
-  deletedSection: { gap: Number(spacing.base), marginTop: Number(spacing.small) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
   teamInfo: { gap: Number(spacing.extraSmall), flexShrink: 1, flex: 1 },
   rowText: { flexDirection: 'row', alignItems: 'center', gap: Number(spacing.small), flexWrap: 'wrap', flexShrink: 1 },

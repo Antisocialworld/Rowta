@@ -6,6 +6,7 @@
 // Run from repo root:
 //   npm exec --workspace @rowta/app -- tsx scripts/test-team-restore.ts
 import { calculateDaysLeftToRestore } from '../src/state/teams';
+import { shouldShowDeletedTeamsTrigger } from '../src/lib/deleted-teams-logic';
 import { t } from '../src/i18n/en';
 
 let failures = 0;
@@ -45,17 +46,13 @@ const pastDate = new Date('2026-10-15T12:00:00.000Z');
 check(calculateDaysLeftToRestore(pastDate, now) === 0, 'expired date in past clamps to 0');
 
 // ---------------------------------------------------------------------------------------------
-// 2. Visibility rule for Deleted teams section
+// 2. Visibility rule for Deleted teams trigger button
 // ---------------------------------------------------------------------------------------------
-console.log('\n--- 2. Visibility rule for Deleted teams section ---');
-function shouldShowDeletedSection(teams: unknown[] | undefined | null): boolean {
-  return Boolean(teams && teams.length > 0);
-}
-
-check(shouldShowDeletedSection(undefined) === false, 'undefined teams hides section');
-check(shouldShowDeletedSection(null) === false, 'null teams hides section');
-check(shouldShowDeletedSection([]) === false, 'empty teams array hides section');
-check(shouldShowDeletedSection([{ id: 'team-1', name: 'Deleted Team' }]) === true, 'array with items shows section');
+console.log('\n--- 2. Visibility rule for Deleted teams trigger button ---');
+check(shouldShowDeletedTeamsTrigger(undefined) === false, 'undefined teams hides trigger button');
+check(shouldShowDeletedTeamsTrigger(null) === false, 'null teams hides trigger button');
+check(shouldShowDeletedTeamsTrigger([]) === false, 'empty teams array hides trigger button');
+check(shouldShowDeletedTeamsTrigger([{ id: 'team-1', name: 'Deleted Team' }]) === true, 'array with items shows trigger button');
 
 // ---------------------------------------------------------------------------------------------
 // 3. Copy audit: danger zone warning and DeleteTeamModal

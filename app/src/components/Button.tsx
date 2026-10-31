@@ -46,6 +46,7 @@ const VARIANTS: Record<ButtonVariant, { bg: string; content: string }> = {
 export type ButtonProps = {
   /** Catalog key for the words AND the accessible name. */
   label: MessageKey;
+  labelParams?: Record<string, string | number>;
   onPress: () => void;
   variant?: ButtonVariant;
   /** Form validity; false = not ready (X14a). */
@@ -67,6 +68,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Button({
   label,
+  labelParams,
   onPress,
   variant = 'primary',
   ready = true,
@@ -128,7 +130,7 @@ export function Button({
         onBlur={() => setFocused(false)}
         accessible
         accessibilityRole="button"
-        accessibilityLabel={t(label)}
+        accessibilityLabel={t(label, labelParams)}
         accessibilityHint={waiting && reason !== undefined ? t(reason) : undefined}
         accessibilityState={{ disabled: waiting || busy, busy }}
         // X14b web half: react-native-web never renders accessibilityHint (it has no mapping), so
@@ -144,7 +146,7 @@ export function Button({
         ) : null}
         {iconOnly ? null : (
           <Text variant="label-large" style={{ color: v.content }}>
-            {t(label)}
+            {t(label, labelParams)}
           </Text>
         )}
       </AnimatedPressable>
