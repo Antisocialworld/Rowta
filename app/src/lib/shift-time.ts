@@ -52,6 +52,13 @@ export function formatShiftDay(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).format(date);
 }
 
+/** Format an ISO instant as day-first + month name + year (e.g. "31 Oct 2026") in en-GB. */
+export function formatDisplayDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+}
+
 /** The time line for a card: "09:00 – 17:00" in device local time. */
 export function formatShiftTimeRange(startIso: string, endIso: string): string {
   const format = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });

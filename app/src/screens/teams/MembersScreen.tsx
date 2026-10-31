@@ -7,7 +7,6 @@
 // polite live region (X3) and never leak raw server text (V5).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
@@ -21,8 +20,8 @@ import {
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { useShiftNav } from '../../state/shift-nav';
-import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { spacing } from '../../theme/tokens';
+import { TeamScreenLayout } from './TeamScreenLayout';
 
 const ROLE_LABEL: Record<string, MessageKey> = { owner: 'role.owner', manager: 'role.manager', staff: 'role.staff' };
 const ROLE_TONE: Record<string, 'primary' | 'neutral'> = { owner: 'primary', manager: 'neutral', staff: 'neutral' };
@@ -39,8 +38,8 @@ export function MembersScreen() {
   const go = useTeamsView((state) => state.go);
   const openShift = useShiftNav((state) => state.open);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
-  const teamQuery = useTeam(selectedTeamId);
-  const membersQuery = useTeamMembers(selectedTeamId);
+  const teamQuery = useTeam(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
+  const membersQuery = useTeamMembers(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState<MessageKey | null>(null);
@@ -88,14 +87,12 @@ export function MembersScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-            {t('teams.view.members.heading')}
-          </Text>
-          {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
-          <View style={styles.entryRow}>
+    <TeamScreenLayout testID="team-members-screen">
+      <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
+        {t('teams.view.members.heading')}
+      </Text>
+      {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
+      <View style={styles.entryRow}>
             <Button
               label="action.openShifts"
               variant="secondary"
@@ -200,8 +197,6 @@ export function MembersScreen() {
           {announcement !== null ? (
             <LiveRegion>{announcement}</LiveRegion>
           ) : null}
-        </View>
-      </View>
       <ConfirmDialog
         visible={pending !== null}
         titleKey={
@@ -224,14 +219,11 @@ export function MembersScreen() {
         onConfirm={confirm}
         onCancel={() => setPending(null)}
       />
-    </SafeAreaView>
+    </TeamScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
-  content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base) },
   list: { gap: Number(spacing.medium) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
   rowText: { flexDirection: 'column', gap: Number(spacing.extraSmall), flexShrink: 1 },

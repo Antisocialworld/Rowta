@@ -73,7 +73,7 @@ export function handleTeamDecommissioned(
  *   so on-screen views (Members, Team settings) update their permissions with zero reload
  */
 export function setTeamForbiddenHandler(queryClient: QueryClient): void {
-  setOnTeamForbidden(async (teamId) => {
+  setOnTeamForbidden((teamId) => {
     const now = Date.now();
     if (!shouldTriggerRoleRefetch(lastForbiddenRefetchAtMs, now)) {
       return;
@@ -82,7 +82,7 @@ export function setTeamForbiddenHandler(queryClient: QueryClient): void {
 
     const targetTeamId = teamId ?? useTeams.getState().selectedTeamId;
 
-    try {
+    void (async () => {
       const updatedList = await queryClient.fetchQuery({
         queryKey: ['teams', 'list'],
         queryFn: () => teamsApi.listTeams(),
@@ -103,9 +103,9 @@ export function setTeamForbiddenHandler(queryClient: QueryClient): void {
         void queryClient.invalidateQueries({ queryKey: ['teams', 'members', targetTeamId] });
         void queryClient.invalidateQueries({ queryKey: ['teams', targetTeamId] });
       }
-    } catch {
+    })().catch(() => {
       // Background refetch failure must not throw or crash
-    }
+    });
   });
 }
 

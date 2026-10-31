@@ -5,8 +5,6 @@
 // 3. Copy audit: confirms "schedules data removal" has been removed and 30-day restore window is stated.
 // Run from repo root:
 //   npm exec --workspace @rowta/app -- tsx scripts/test-team-restore.ts
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { calculateDaysLeftToRestore } from '../src/state/teams';
 import { t } from '../src/i18n/en';
 

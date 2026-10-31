@@ -6,7 +6,6 @@
 // source of truth (S5).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
@@ -15,14 +14,15 @@ import { focusOn } from '../../lib/a11y';
 import { devToolsVisible } from '../../lib/dev-tools';
 import { formatSignedInUserName } from '../../lib/user-name';
 import { canInviteMembers, canManageTeamSettings, teamRoleKey } from '../../lib/team-role';
+import { formatDisplayDate } from '../../lib/shift-time';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthSession } from '../../state/auth-session';
 import { calculateDaysLeftToRestore, resolveSelectedTeamId, useDeletedTeams, useTeams, useTeamsList } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { useShiftNav } from '../../state/shift-nav';
-import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { spacing } from '../../theme/tokens';
 import { InviteResultCard } from './InviteResultCard';
+import { TeamScreenLayout } from './TeamScreenLayout';
 
 const ROLE_LABEL: Record<string, MessageKey> = { owner: 'role.owner', manager: 'role.manager', staff: 'role.staff' };
 const ROLE_TONE: Record<string, 'primary' | 'neutral'> = { owner: 'primary', manager: 'neutral', staff: 'neutral' };
@@ -34,7 +34,7 @@ export function TeamListScreen() {
   const openGallery = useAuthSession((state) => state.openGallery);
   const go = useTeamsView((state) => state.go);
   const openShift = useShiftNav((state) => state.open);
-  const teamsQuery = useTeamsList({ refetchInterval: 60_000 });
+  const teamsQuery = useTeamsList({ refetchInterval: 15_000, refetchIntervalInBackground: false });
   const message = useTeamsView((state) => state.message);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const selectTeam = useTeams((state) => state.selectTeam);
@@ -88,6 +88,14 @@ export function TeamListScreen() {
     if (next !== selectedTeamId) selectTeam(next);
   }, [teams, selectedTeamId, selectTeam]);
 
+  // Live update on invite acceptance (Task 1): when an invite is accepted, refetch the team list at once
+  useEffect(() => {
+    if (inviteResult?.kind === 'joined') {
+      void queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
+      void queryClient.refetchQueries({ queryKey: ['teams', 'list'] });
+    }
+  }, [inviteResult, queryClient]);
+
   const retryAccept = useCallback(() => {
     // The memory token is re-read here (never logged, never displayed — S1/A13).
     const token = useAuthFlow.getState().inviteToken;
@@ -98,15 +106,15 @@ export function TeamListScreen() {
 
   const dismissResult = useCallback(() => {
     setInviteResult(null);
+    void queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
+    void queryClient.refetchQueries({ queryKey: ['teams', 'list'] });
     void queryClient.invalidateQueries({ queryKey: ['teams'] });
   }, [setInviteResult, queryClient]);
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <View style={styles.headerBlock}>
-            <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
+    <TeamScreenLayout testID="team-list-screen">
+      <View style={styles.headerBlock}>
+        <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
               {t('teams.view.list.heading')}
             </Text>
             {userName ? (
@@ -227,7 +235,7 @@ export function TeamListScreen() {
                             onPress={() => go('members')}
                             testID="team-open-members"
                           />
-                          {team.role === 'owner' ? (
+                          {canManageTeamSettings(team.role) ? (
                             <Button
                               label="action.teamSettings"
                               variant="secondary"
@@ -261,7 +269,7 @@ export function TeamListScreen() {
               </Text>
               {deletedTeams.map((dTeam) => {
                 const daysLeft = calculateDaysLeftToRestore(dTeam.restoreUntil);
-                const dateFormatted = new Date(dTeam.deletedAt).toLocaleDateString();
+                const dateFormatted = formatDisplayDate(dTeam.deletedAt);
                 const isBusy = restoreBusyId === dTeam.id;
                 return (
                   <Card key={dTeam.id} variant="flat" testID={`deleted-team-card-${dTeam.id}`}>
@@ -295,22 +303,17 @@ export function TeamListScreen() {
           ) : null}
           <Button label="action.signOut" variant="ghost" onPress={() => { void signOut(); }} />
           {toastMessage !== null ? <LiveRegion>{toastMessage}</LiveRegion> : null}
-        </View>
-      </View>
-    </SafeAreaView>
+    </TeamScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
-  content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base) },
   headerBlock: { gap: Number(spacing.extraSmall) },
   list: { gap: Number(spacing.base) },
   deletedSection: { gap: Number(spacing.base), marginTop: Number(spacing.small) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
-  teamInfo: { gap: Number(spacing.extraSmall), flexShrink: 1 },
-  rowText: { flexDirection: 'row', alignItems: 'center', gap: Number(spacing.small), flexShrink: 1 },
+  teamInfo: { gap: Number(spacing.extraSmall), flexShrink: 1, flex: 1 },
+  rowText: { flexDirection: 'row', alignItems: 'center', gap: Number(spacing.small), flexWrap: 'wrap', flexShrink: 1 },
   selectedActions: { gap: Number(spacing.small), marginTop: Number(spacing.medium) },
   rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Number(spacing.small) },
 });

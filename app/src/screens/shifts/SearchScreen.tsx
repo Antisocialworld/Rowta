@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import type { SearchResultsPayload } from '@rowta/shared';
 import { Badge, Button, Card, EmptyState, Input, LiveRegion, ShiftCard, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, errorTextKey, shiftsApi } from '../../lib/api';

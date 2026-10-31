@@ -11,6 +11,10 @@ import {
   type AuthMachineState,
   type AuthView,
 } from '../src/state/auth-view';
+import {
+  resetMagicRequestState,
+  resolveMagicRequestPhase,
+} from '../src/lib/magic-request-logic';
 
 let failures = 0;
 const check = (ok: boolean, label: string): void => {
@@ -19,7 +23,8 @@ const check = (ok: boolean, label: string): void => {
 };
 
 const views = Object.keys(AUTH_VIEWS) as AuthView[];
-check(views.length === 10, 'the machine knows all ten PRD 6.1 states');
+check(views.length === 9, 'the machine knows all nine PRD 6.1 states');
+check(!('magicSent' in AUTH_VIEWS), 'no magicSent view exists in AUTH_VIEWS (M1 consolidation)');
 check(FORM_VIEWS.length === 3, 'exactly three FORM states share the one card (item 1)');
 check(
   views.every((view) => AUTH_VIEWS[view].title.length > 0 && AUTH_VIEWS[view].heading.length > 0),
@@ -70,11 +75,16 @@ state = authReducer(state, { type: 'go', view: 'resetCode', message: 'auth.forgo
 state = authReducer(state, { type: 'back' });
 check(state.view === 'forgotPassword', 'back() from resetCode returns to forgotPassword');
 
-// magic link chain: signIn link -> magicRequest -> magicSent -> back -> magicRequest
+// magic link chain: signIn link -> magicRequest -> back -> signIn
 state = authReducer(initialAuthState, { type: 'go', view: 'magicRequest' });
-state = authReducer(state, { type: 'go', view: 'magicSent', message: 'auth.magic.submitted' });
 state = authReducer(state, { type: 'back' });
-check(state.view === 'magicRequest', 'back() from magicSent returns to magicRequest (email-link flow intact, item 4)');
+check(state.view === 'signIn', 'back() from magicRequest returns to signIn');
+
+// M1 pure logic: inline confirmation and different-email reset
+check(resolveMagicRequestPhase(false) === 'request', 'magicRequestPhase before submit is "request"');
+check(resolveMagicRequestPhase(true) === 'submitted', 'magicRequestPhase after submit is "submitted"');
+const resetState = resetMagicRequestState();
+check(resetState.submitted === false && resetState.email === '', 'resetMagicRequestState resets submitted and email');
 
 // reset completion lands on signIn with its message (switch carries it)
 state = authReducer(initialAuthState, { type: 'switch', view: 'signIn', message: 'auth.reset.done' });

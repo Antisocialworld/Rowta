@@ -166,28 +166,44 @@ export function inviteRoleOptions(viewerRole: TeamRole): readonly TeamRole[] {
 // Server-data hooks (TanStack Query; the server decides — S5)
 // ---------------------------------------------------------------------------------------------
 
-export function useTeamsList(options?: { refetchInterval?: number }) {
+export type TeamQueryOptions = {
+  refetchInterval?: number;
+  refetchIntervalInBackground?: boolean;
+};
+
+export function useTeamsList(options?: TeamQueryOptions) {
   return useQuery({
     queryKey: ['teams', 'list'],
     queryFn: () => teamsApi.listTeams(),
     refetchOnWindowFocus: true,
     ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
+    ...(options?.refetchIntervalInBackground !== undefined
+      ? { refetchIntervalInBackground: options.refetchIntervalInBackground }
+      : { refetchIntervalInBackground: false }),
   });
 }
 
-export function useTeam(teamId: string | null) {
+export function useTeam(teamId: string | null, options?: TeamQueryOptions) {
   return useQuery({
     queryKey: ['teams', 'detail', teamId],
     queryFn: () => teamsApi.getTeam(teamId as string),
     enabled: teamId !== null,
+    ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
+    ...(options?.refetchIntervalInBackground !== undefined
+      ? { refetchIntervalInBackground: options.refetchIntervalInBackground }
+      : { refetchIntervalInBackground: false }),
   });
 }
 
-export function useTeamMembers(teamId: string | null) {
+export function useTeamMembers(teamId: string | null, options?: TeamQueryOptions) {
   return useQuery({
     queryKey: ['teams', teamId, 'members'],
     queryFn: () => teamsApi.listMembers(teamId as string),
     enabled: teamId !== null,
+    ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
+    ...(options?.refetchIntervalInBackground !== undefined
+      ? { refetchIntervalInBackground: options.refetchIntervalInBackground }
+      : { refetchIntervalInBackground: false }),
   });
 }
 

@@ -5,7 +5,6 @@
 // 3. Members screen keeps only people and no longer exposes delete or transfer.
 // Run from repo root:
 //   npm exec --workspace @rowta/app -- tsx scripts/test-team-settings-screen.ts
-import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { canManageTeamSettings } from '../src/lib/team-role';

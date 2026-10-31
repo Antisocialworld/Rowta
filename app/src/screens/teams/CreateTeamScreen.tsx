@@ -7,8 +7,7 @@
 // reuses it; clearCreateKey() runs whenever the name changes (a changed body must never reuse a key
 // — the server would answer 422 fingerprint_mismatch) and after a success. Never logged (S1).
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, type TextInputInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { type TextInputInstance } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { createTeamSchema } from '@rowta/shared';
 import { Button, Input, LiveRegion, Text } from '../../components';
@@ -17,8 +16,7 @@ import { ApiError, errorTextKey, fieldErrorKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
-import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { TeamScreenLayout } from './TeamScreenLayout';
 
 export function CreateTeamScreen() {
   const nameRef = useRef<TextInputInstance>(null);
@@ -58,6 +56,8 @@ export function CreateTeamScreen() {
       const team = await teamsApi.createTeam(parsed.data, idempotencyKey);
       clearCreateKey();
       selectTeam(team.id);
+      await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
+      await queryClient.refetchQueries({ queryKey: ['teams', 'list'] });
       await queryClient.invalidateQueries({ queryKey: ['teams'] });
       setAnnouncement('teams.toast.teamCreated');
       back();
@@ -78,12 +78,10 @@ export function CreateTeamScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <Text variant="headline-small" accessibilityRole="header">
-            {t('teams.view.create.heading')}
-          </Text>
+    <TeamScreenLayout testID="team-create-screen">
+      <Text variant="headline-small" accessibilityRole="header">
+        {t('teams.view.create.heading')}
+      </Text>
           <Input
             ref={nameRef}
             label="field.teamName"
@@ -115,14 +113,6 @@ export function CreateTeamScreen() {
           {announcement !== null && announcement !== errorKey ? (
             <LiveRegion>{announcement}</LiveRegion>
           ) : null}
-        </View>
-      </View>
-    </SafeAreaView>
+    </TeamScreenLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
-  content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base) },
-});

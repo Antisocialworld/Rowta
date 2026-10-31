@@ -44,7 +44,6 @@ import { AcceptInviteView } from './auth/AcceptInviteView';
 import { ForgotView } from './auth/ForgotView';
 import { MagicConfirmView } from './auth/MagicConfirmView';
 import { MagicRequestView } from './auth/MagicRequestView';
-import { MagicSentView } from './auth/MagicSentView';
 import { ResetCodeView } from './auth/ResetCodeView';
 import { ResetNewPasswordView } from './auth/ResetNewPasswordView';
 import { SignInView } from './auth/SignInView';
@@ -59,7 +58,6 @@ const VIEWS_BY_NAME = {
   resetCode: ResetCodeView,
   resetPassword: ResetNewPasswordView,
   magicRequest: MagicRequestView,
-  magicSent: MagicSentView,
   magicConfirm: MagicConfirmView,
   acceptInvite: AcceptInviteView,
 } as const;

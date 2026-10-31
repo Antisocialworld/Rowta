@@ -13,7 +13,6 @@ import { focusOn } from '../../lib/a11y';
 import { canRequestNextPage, createPagingGate } from '../../lib/shift-feed';
 import {
   canCancelSwap,
-  canDecideSwap,
   canDecideSwapWithShift,
   filterSwapsByTab,
   getEligibleSwapTargets,
@@ -139,7 +138,6 @@ export function SwapsListScreen() {
   };
 
   const role = teamQuery.data?.role ?? 'staff';
-  const isManager = canDecideSwap(role);
 
   const renderFooter = () => {
     return (
@@ -161,10 +159,9 @@ export function SwapsListScreen() {
     const canCancel = canCancelSwap(item, currentUserId, role);
     const canDecide = canDecideSwapWithShift(role, item.shiftDeleted);
 
-    const shiftTimeText =
-      item.shiftStartsAt && item.shiftEndsAt
-        ? `${formatShiftDay(item.shiftStartsAt)} ${formatShiftTimeRange(item.shiftStartsAt, item.shiftEndsAt)}`
-        : '';
+    const shiftTimeText = (item.shiftStartsAt && item.shiftEndsAt)
+      ? `${formatShiftDay(item.shiftStartsAt)} ${formatShiftTimeRange(item.shiftStartsAt, item.shiftEndsAt)}`
+      : '';
 
     const statusKey: MessageKey = `swap.status.${item.status}` as MessageKey;
 
@@ -404,8 +401,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 1,
     height: 1,
-    padding: 0,
-    margin: -1,
     overflow: 'hidden',
     opacity: 0,
   },

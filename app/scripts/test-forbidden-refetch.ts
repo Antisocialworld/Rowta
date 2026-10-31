@@ -234,7 +234,10 @@ async function run(): Promise<void> {
 
     try {
       await teamsApi.updateTeamSettings('team-active-1', { managers_can_revoke_invites: true });
-    } catch {}
+      check(false, 'first updateTeamSettings should have thrown 403');
+    } catch (err) {
+      check(err instanceof ApiError && err.status === 403, 'first updateTeamSettings threw ApiError 403');
+    }
 
     // Wait microtask tick for async onTeamForbidden
     await new Promise((r) => setTimeout(r, 20));
@@ -248,7 +251,10 @@ async function run(): Promise<void> {
     // Trigger 2 immediately (within 5s cooldown)
     try {
       await teamsApi.updateTeamSettings('team-active-1', { managers_can_revoke_invites: true });
-    } catch {}
+      check(false, 'second updateTeamSettings should have thrown 403');
+    } catch (err) {
+      check(err instanceof ApiError && err.status === 403, 'second updateTeamSettings threw ApiError 403');
+    }
 
     await new Promise((r) => setTimeout(r, 20));
     check(fetchQueries.length === 1, 'second 403 within 5s was throttled (no new fetchQuery)');
@@ -283,7 +289,10 @@ async function run(): Promise<void> {
 
     try {
       await teamsApi.updateTeamSettings('team-active-1', { managers_can_revoke_invites: true });
-    } catch {}
+      check(false, 'third updateTeamSettings should have thrown 403');
+    } catch (err) {
+      check(err instanceof ApiError && err.status === 403, 'third updateTeamSettings threw ApiError 403');
+    }
 
     await new Promise((r) => setTimeout(r, 20));
 

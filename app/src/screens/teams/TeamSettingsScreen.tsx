@@ -8,7 +8,6 @@
 // Destructive operations decommission the team and return immediately to Your teams (U1).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Switch, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
@@ -17,18 +16,18 @@ import { focusOn } from '../../lib/a11y';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { colors, shape, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 import { DeleteTeamModal } from './DeleteTeamModal';
 import { TransferOwnershipModal } from './TransferOwnershipModal';
 import { handleTeamDecommissioned } from '../../lib/team-lifecycle';
+import { TeamScreenLayout } from './TeamScreenLayout';
 
 export function TeamSettingsScreen() {
   const headingRef = useRef<TextInstance>(null);
   const queryClient = useQueryClient();
   const back = useTeamsView((state) => state.back);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
-  const teamQuery = useTeam(selectedTeamId);
-  const membersQuery = useTeamMembers(selectedTeamId);
+  const teamQuery = useTeam(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
+  const membersQuery = useTeamMembers(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
 
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState<MessageKey | null>(null);
@@ -47,36 +46,40 @@ export function TeamSettingsScreen() {
     await queryClient.invalidateQueries({ queryKey: ['teams'] });
   };
 
-  const handleTransfer = async (targetUserId: string): Promise<void> => {
+  const handleTransfer = (targetUserId: string): void => {
     if (selectedTeamId === null) return;
     setBusy(true);
-    try {
+    void (async () => {
       await teamsApi.transferTeam(selectedTeamId, { targetUserId });
       setTransferModalVisible(false);
       handleTeamDecommissioned(queryClient, selectedTeamId, {
         message: 'teams.toast.transferred',
       });
-    } catch (error) {
-      setAnnouncement(error instanceof ApiError ? errorMessageKey(error.code) : 'generic.error');
-    } finally {
-      setBusy(false);
-    }
+    })()
+      .catch((error: unknown) => {
+        setAnnouncement(error instanceof ApiError ? errorMessageKey(error.code) : 'generic.error');
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   };
 
-  const handleDelete = async (confirmName: string): Promise<void> => {
+  const handleDelete = (confirmName: string): void => {
     if (selectedTeamId === null) return;
     setBusy(true);
-    try {
+    void (async () => {
       await teamsApi.deleteTeam(selectedTeamId, { confirmName });
       setDeleteModalVisible(false);
       handleTeamDecommissioned(queryClient, selectedTeamId, {
         message: 'teams.toast.deleted',
       });
-    } catch (error) {
-      setAnnouncement(error instanceof ApiError ? errorMessageKey(error.code) : 'generic.error');
-    } finally {
-      setBusy(false);
-    }
+    })()
+      .catch((error: unknown) => {
+        setAnnouncement(error instanceof ApiError ? errorMessageKey(error.code) : 'generic.error');
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   };
 
   const run = async (action: () => Promise<unknown>, message: MessageKey): Promise<void> => {
@@ -93,12 +96,10 @@ export function TeamSettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']} testID="team-settings-screen">
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-            {t('teams.view.settings.heading')}
-          </Text>
+    <TeamScreenLayout testID="team-settings-screen">
+      <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
+        {t('teams.view.settings.heading')}
+      </Text>
           {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
 
           {teamQuery.isLoading ? (
@@ -170,8 +171,6 @@ export function TeamSettingsScreen() {
 
           <Button label="action.back" variant="ghost" onPress={back} testID="settings-back" />
           {announcement !== null ? <LiveRegion>{announcement}</LiveRegion> : null}
-        </View>
-      </View>
 
       <TransferOwnershipModal
         visible={transferModalVisible}
@@ -187,14 +186,11 @@ export function TeamSettingsScreen() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteModalVisible(false)}
       />
-    </SafeAreaView>
+    </TeamScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
-  content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
   settingsLabel: { flexShrink: 1 },
   transferCard: { gap: Number(spacing.small) },

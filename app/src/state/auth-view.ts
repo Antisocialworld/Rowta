@@ -24,7 +24,6 @@ export type AuthView =
   | 'resetCode'
   | 'resetPassword'
   | 'magicRequest'
-  | 'magicSent'
   | 'magicConfirm'
   | 'acceptInvite';
 
@@ -50,7 +49,6 @@ export const AUTH_VIEWS = {
     focus: 'input',
   },
   magicRequest: { title: 'auth.view.magicRequest.title', heading: 'auth.view.magicRequest.heading', focus: 'input' },
-  magicSent: { title: 'auth.view.magicSent.title', heading: 'auth.view.magicSent.heading', focus: 'heading' },
   // PRD 8.1: magicConfirm has ONE button and no field; its heading is the fixed "Sign in to Rowta" line.
   magicConfirm: { title: 'auth.view.signIn.title', heading: 'auth.magic.confirm', focus: 'heading' },
   acceptInvite: { title: 'auth.view.acceptInvite.title', heading: 'auth.view.acceptInvite.heading', focus: 'heading' },

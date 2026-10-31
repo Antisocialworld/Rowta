@@ -8,7 +8,6 @@
 // through errorMessageKey (V5, team.seatLimit).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance, type TextInputInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { inviteMemberSchema, type TeamRole } from '@rowta/shared';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, Input, LiveRegion, Skeleton, Text } from '../../components';
@@ -18,8 +17,8 @@ import { focusOn } from '../../lib/a11y';
 import { canRevokeInvite } from '../../lib/team-role';
 import { inviteRoleOptions, useTeam, useTeamInvites, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
-import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { spacing } from '../../theme/tokens';
+import { TeamScreenLayout } from './TeamScreenLayout';
 
 const ROLE_LABEL: Record<string, MessageKey> = { owner: 'role.owner', manager: 'role.manager', staff: 'role.staff' };
 const ROLE_TONE: Record<string, 'primary' | 'neutral'> = { owner: 'primary', manager: 'neutral', staff: 'neutral' };
@@ -130,12 +129,10 @@ export function InviteScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-            {t('teams.view.invite.heading')}
-          </Text>
+    <TeamScreenLayout testID="team-invite-screen">
+      <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
+        {t('teams.view.invite.heading')}
+      </Text>
           <Input
             ref={emailRef}
             label="field.email"
@@ -202,8 +199,6 @@ export function InviteScreen() {
           {announcement !== null && announcement !== errorKey ? (
             <LiveRegion>{announcement}</LiveRegion>
           ) : null}
-        </View>
-      </View>
       <ConfirmDialog
         visible={revokeId !== null}
         titleKey="teams.confirm.revoke.title"
@@ -214,14 +209,11 @@ export function InviteScreen() {
         onConfirm={onRevoke}
         onCancel={() => setRevokeId(null)}
       />
-    </SafeAreaView>
+    </TeamScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
-  content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base) },
   list: { gap: Number(spacing.medium) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
   rowText: { flexDirection: 'column', gap: Number(spacing.extraSmall), flexShrink: 1 },

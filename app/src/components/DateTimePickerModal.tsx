@@ -213,7 +213,13 @@ export function DateTimePickerModal({
                 accessibilityLabel={t('action.previousMonth')}
                 testID={`${testID}-prev-month`}
               >
-                <MaterialIcons name="chevron-left" size={iconSize('title-medium')} color={colors['color-on-surface']} />
+                <MaterialIcons
+                  name="chevron-left"
+                  size={iconSize('title-medium')}
+                  color={colors['color-on-surface']}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
               </Pressable>
               <Text variant="title-medium" style={styles.monthTitle}>
                 {monthName} {year}
@@ -226,7 +232,13 @@ export function DateTimePickerModal({
                 accessibilityLabel={t('action.nextMonth')}
                 testID={`${testID}-next-month`}
               >
-                <MaterialIcons name="chevron-right" size={iconSize('title-medium')} color={colors['color-on-surface']} />
+                <MaterialIcons
+                  name="chevron-right"
+                  size={iconSize('title-medium')}
+                  color={colors['color-on-surface']}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
               </Pressable>
             </View>
 
@@ -297,10 +309,16 @@ export function DateTimePickerModal({
                       onPress={() => changeHour(-1)}
                       accessible
                       accessibilityRole="button"
-                      accessibilityLabel="Decrease hour"
+                      accessibilityLabel={t('action.decreaseHour')}
                       testID={`${testID}-hour-minus`}
                     >
-                      <MaterialIcons name="remove" size={iconSize('body-medium')} color={colors['color-on-surface']} />
+                      <MaterialIcons
+                        name="remove"
+                        size={iconSize('body-medium')}
+                        color={colors['color-on-surface']}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                      />
                     </Pressable>
                     <Text variant="title-large" style={styles.stepperValue} testID={`${testID}-hour-value`}>
                       {pad2(hour)}
@@ -310,10 +328,16 @@ export function DateTimePickerModal({
                       onPress={() => changeHour(1)}
                       accessible
                       accessibilityRole="button"
-                      accessibilityLabel="Increase hour"
+                      accessibilityLabel={t('action.increaseHour')}
                       testID={`${testID}-hour-plus`}
                     >
-                      <MaterialIcons name="add" size={iconSize('body-medium')} color={colors['color-on-surface']} />
+                      <MaterialIcons
+                        name="add"
+                        size={iconSize('body-medium')}
+                        color={colors['color-on-surface']}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                      />
                     </Pressable>
                   </View>
                 </View>
@@ -329,10 +353,16 @@ export function DateTimePickerModal({
                       onPress={() => changeMinute(-5)}
                       accessible
                       accessibilityRole="button"
-                      accessibilityLabel="Decrease minute by 5"
+                      accessibilityLabel={t('action.decreaseMinute')}
                       testID={`${testID}-minute-minus`}
                     >
-                      <MaterialIcons name="remove" size={iconSize('body-medium')} color={colors['color-on-surface']} />
+                      <MaterialIcons
+                        name="remove"
+                        size={iconSize('body-medium')}
+                        color={colors['color-on-surface']}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                      />
                     </Pressable>
                     <Text variant="title-large" style={styles.stepperValue} testID={`${testID}-minute-value`}>
                       {pad2(minute)}
@@ -342,10 +372,16 @@ export function DateTimePickerModal({
                       onPress={() => changeMinute(5)}
                       accessible
                       accessibilityRole="button"
-                      accessibilityLabel="Increase minute by 5"
+                      accessibilityLabel={t('action.increaseMinute')}
                       testID={`${testID}-minute-plus`}
                     >
-                      <MaterialIcons name="add" size={iconSize('body-medium')} color={colors['color-on-surface']} />
+                      <MaterialIcons
+                        name="add"
+                        size={iconSize('body-medium')}
+                        color={colors['color-on-surface']}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                      />
                     </Pressable>
                   </View>
                 </View>
@@ -422,11 +458,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors['color-surface'],
     borderRadius: Number(shape.large),
     padding: Number(spacing.base),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
   },
   scrollContent: {
     gap: Number(spacing.base),

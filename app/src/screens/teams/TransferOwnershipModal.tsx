@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,7 +16,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { Text } from '../../components/Text';
 import { t } from '../../i18n/en';
 import { focusOn } from '../../lib/a11y';
-import { colors, shape, spacing } from '../../theme/tokens';
+import { colors, shape, spacing, state } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH, iconSize } from '../../theme/layout';
 
 export type TransferMemberItem = {
@@ -128,6 +127,8 @@ export function TransferOwnershipModal({
                               name="check-circle"
                               size={iconSize('title-medium')}
                               color={colors['color-primary']}
+                              accessibilityElementsHidden
+                              importantForAccessibility="no"
                             />
                           ) : null}
                         </View>
@@ -177,13 +178,14 @@ export function TransferOwnershipModal({
 const styles = StyleSheet.create({
   scrim: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: Number(spacing.base),
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
+    backgroundColor: colors['color-scrim'],
+    opacity: state.disabledContent,
   },
   card: {
     width: '100%',
@@ -192,10 +194,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors['color-surface'],
     borderRadius: Number(shape.extraLarge),
     padding: Number(spacing.large),
-    ...Platform.select({
-      web: { boxShadow: '0 8px 32px rgba(0, 0, 0, 0.24)' },
-      default: { elevation: 8 },
-    }),
   },
   scrollContent: {
     gap: Number(spacing.base),

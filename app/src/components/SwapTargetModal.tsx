@@ -17,7 +17,7 @@ import { Skeleton } from './Skeleton';
 import { Text } from './Text';
 import { t } from '../i18n/en';
 import { focusOn } from '../lib/a11y';
-import { colors, shape, spacing } from '../theme/tokens';
+import { colors, shape, spacing, state } from '../theme/tokens';
 import { CONTENT_MAX_WIDTH, iconSize } from '../theme/layout';
 
 export type SwapTargetMember = {
@@ -77,7 +77,7 @@ export function SwapTargetModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} testID={testID}>
       <View style={styles.backdrop}>
         <Pressable
-          style={StyleSheet.absoluteFill}
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors['color-scrim'], opacity: state.disabledContent }]}
           onPress={onCancel}
           accessible
           accessibilityRole="button"
@@ -166,7 +166,6 @@ export function SwapTargetModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: Number(spacing.base),
@@ -178,11 +177,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors['color-surface'],
     borderRadius: Number(shape.large),
     padding: Number(spacing.base),
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
   },
   title: {
     marginBottom: Number(spacing.extraSmall),

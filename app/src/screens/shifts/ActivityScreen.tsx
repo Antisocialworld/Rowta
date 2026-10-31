@@ -127,8 +127,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 1,
     height: 1,
-    padding: 0,
-    margin: -1,
     overflow: 'hidden',
     opacity: 0,
   },

@@ -84,7 +84,7 @@ sits centred at the top with the visible heading under it, secondary actions are
 
 | Claim | Command | Evidence |
 |---|---|---|
-| One page, ten views, three forms, focus targets, item-7 back rules, message travel | `npx tsx app/scripts/test-auth-machine.ts` (from `app/`) | **20/20 PASS, exit 0** — includes `back() on createAccount returns to signIn`, `back() on forgotPassword returns to signIn`, `back() on signIn at the root refuses (Android exits the app, U1)`, `switch(createAccount -> forgotPassword) is a form-to-form switch` with empty history, `reset completion lands on signIn with auth.reset.done`, `back() from magicSent returns to magicRequest (email-link flow intact, item 4)` |
+| One page, conditional views, three forms, focus targets, item-7 back rules, message travel | `npx tsx app/scripts/test-auth-machine.ts` (from `app/`) | **PASS, exit 0** — includes `back() on createAccount returns to signIn`, `back() on forgotPassword returns to signIn`, `back() on signIn at the root refuses (Android exits the app, U1)`, `switch(createAccount -> forgotPassword) is a form-to-form switch` with empty history, `reset completion lands on signIn with auth.reset.done`, inline confirmation on `magicRequest` (email-link flow intact, item 4) |
 | Deep-link entries open the right state with the right history | `npx tsx app/scripts/test-auth-entry-paths.ts` (from `app/`) | **9/9 PASS, exit 0** — `AUTH_ENTRY.resetLink` → `resetPassword` (history starts at signIn), `AUTH_ENTRY.invite` → `createAccount` then back → signIn, `AUTH_ENTRY.magicToken` → `magicConfirm` one button, root-like history, back refuses |
 | Typecheck still clean after the rework | `npm run typecheck --workspace @rowta/app` | `tsc --noEmit`, 0 errors (includes both test scripts and the new `.png` module declaration in `app/src/types/assets.d.ts`) |
 | Lint chain still green (eslint + tokens + strings + a11y) | `npm run lint --workspace @rowta/app` | exit 0: `UI TOKEN GATE PASSED` (55 files), `STRING GATE PASSED` (41), `A11Y GATE PASSED` (41). `LinkButton` is a kit pressable (sets `accessibilityRole="link"` internally), so it joined `KIT_PRESSABLE_TAGS` in `scripts/check-app-a11y.mjs` exactly like Button/Chip/ShiftCard; screens still may not add raw pressables without a role |
@@ -98,8 +98,8 @@ Phase 2's routes will call — password-reset link → `AUTH_ENTRY.resetLink` (`
 `AUTH_ENTRY.invite` (`rowta://invite`), email-link token → `AUTH_ENTRY.magicToken` (`rowta://magic-link`) — tested
 headlessly through the same `enter` action the app uses. Actual URL opening is **not verified**.
 
-**Email-link feature report (item 4):** built = the app views `magicRequest` / `magicSent` / `magicConfirm`, their
-catalog strings (`Email me a sign-in link`, `Check your email for a sign-in link`, `Sign in to Rowta`, …), the
+**Email-link feature report (item 4):** built = the app views `magicRequest` (with inline confirmation) / `magicConfirm`, their
+catalog strings (`Email me a sign-in link`, `Sign in to Rowta`, …), the
 reachable text link on the sign-in form, the machine transitions and the entry path above; stub = **no server
 call anywhere** — no magic-link request endpoint, no email job (Phase 1 is client-only with the session stub;
 Phase 2 wires the API). The `acceptInvite` view stays implemented but reachable only from its reducer entry, as
