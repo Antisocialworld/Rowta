@@ -1,7 +1,7 @@
 // test-deleted-teams-modal.ts — verifies DeletedTeamsModal layout and TeamListScreen trigger (Task D1; rules U1, U7, X1, X3, X4, X6, X14).
 // Verifies:
 // 1. Pure close decision and trigger visibility helpers (shouldCloseDeletedTeamsModal, shouldShowDeletedTeamsTrigger).
-// 2. DeletedTeamsModal.tsx implementation: ScrollView with flexShrink: 1, maxHeight 85%, Close button pinned outside ScrollView, accessibility pieces.
+// 2. DeletedTeamsModal.tsx implementation: uses SheetModal, wires Close button in footer outside ScrollView, accessibility pieces.
 // 3. TeamListScreen.tsx removes inline deleted section and wires deleted-teams-trigger and DeletedTeamsModal.
 // NOTE: Written per standing rules; do not run unless explicitly authorized by the owner.
 
@@ -38,27 +38,25 @@ check(shouldShowDeletedTeamsTrigger([{ id: 't-1' }]) === true, 'non-empty list s
 // ---------------------------------------------------------------------------------------------
 console.log('\n--- 3. DeletedTeamsModal layout & accessibility scan ---');
 const MODAL_PATH = resolve(__dirname, '../src/screens/teams/DeletedTeamsModal.tsx');
+const SHEET_PATH = resolve(__dirname, '../src/components/SheetModal.tsx');
 check(existsSync(MODAL_PATH), 'DeletedTeamsModal.tsx exists');
+check(existsSync(SHEET_PATH), 'SheetModal.tsx exists');
 
 const modalSrc = existsSync(MODAL_PATH) ? readFileSync(MODAL_PATH, 'utf8') : '';
+const sheetSrc = existsSync(SHEET_PATH) ? readFileSync(SHEET_PATH, 'utf8') : '';
 
-check(modalSrc.includes('accessibilityViewIsModal'), 'modal card sets accessibilityViewIsModal');
-check(modalSrc.includes('onRequestClose'), 'Modal wires onRequestClose (Android hardware back)');
-check(modalSrc.includes("e.key === 'Escape'"), 'Modal handles Escape key for web keyboard accessibility');
-check(modalSrc.includes("maxHeight: '85%'"), 'card is capped at maxHeight: 85%');
-check(modalSrc.includes('padding: Number(spacing.small)'), 'scrim uses centering padding spacing.small');
-check(modalSrc.includes('ScrollView'), 'list uses ScrollView');
-check(modalSrc.includes('flexShrink: 1'), 'list ScrollView sets flexShrink: 1');
+check(modalSrc.includes('<SheetModal'), 'DeletedTeamsModal mounts SheetModal');
+check(modalSrc.includes('headingKey="teams.deleted.heading"'), 'DeletedTeamsModal sets headingKey');
+check(modalSrc.includes('returnFocusRef={returnFocusRef}'), 'DeletedTeamsModal wires returnFocusRef');
+check(modalSrc.includes('testID={`${testID}-close`}'), 'Close button has testID');
+check(modalSrc.includes('footer='), 'Close button is passed via footer prop outside scroll area');
 
-// Close button must be pinned OUTSIDE the ScrollView
-const scrollCloseIndex = modalSrc.indexOf('</ScrollView>');
-const buttonCloseIndex = modalSrc.indexOf('testID={`${testID}-close`}');
-check(scrollCloseIndex !== -1, 'contains </ScrollView>');
-check(buttonCloseIndex !== -1, 'contains close button');
-check(
-  buttonCloseIndex > scrollCloseIndex,
-  'Close button is positioned outside and after the ScrollView',
-);
+check(sheetSrc.includes('accessibilityViewIsModal'), 'SheetModal card sets accessibilityViewIsModal');
+check(sheetSrc.includes('onRequestClose'), 'SheetModal wires onRequestClose');
+check(sheetSrc.includes("e.key === 'Escape'"), 'SheetModal handles Escape key for web keyboard accessibility');
+check(sheetSrc.includes("maxHeight: '85%'"), 'SheetModal card is capped at maxHeight: 85%');
+check(sheetSrc.includes('ScrollView'), 'SheetModal uses ScrollView');
+check(sheetSrc.includes('flexShrink: 1'), 'SheetModal ScrollView sets flexShrink: 1');
 
 // ---------------------------------------------------------------------------------------------
 // 3. Text-scan: TeamListScreen inline section removed & trigger wired
@@ -73,6 +71,7 @@ check(!screenSrc.includes('styles.deletedSection'), 'inline deletedSection style
 check(screenSrc.includes('testID="deleted-teams-trigger"'), 'deleted-teams-trigger button exists');
 check(screenSrc.includes('<DeletedTeamsModal'), 'DeletedTeamsModal is rendered');
 check(screenSrc.includes('testID="deleted-teams-modal"'), 'deleted-teams-modal testID exists');
+check(screenSrc.includes('returnFocusRef={deletedTriggerRef}'), 'TeamListScreen wires returnFocusRef to trigger');
 
 if (failures > 0) {
   console.error(`Deleted teams modal check failed with ${failures} error(s).`);
@@ -81,4 +80,3 @@ if (failures > 0) {
   console.log('All deleted teams modal checks passed.');
   process.exit(0);
 }
-

@@ -207,11 +207,15 @@ export function useTeamMembers(teamId: string | null, options?: TeamQueryOptions
   });
 }
 
-export function useTeamInvites(teamId: string | null) {
+export function useTeamInvites(teamId: string | null, options?: TeamQueryOptions) {
   return useQuery({
     queryKey: ['teams', teamId, 'invites'],
     queryFn: () => teamsApi.listInvites(teamId as string),
     enabled: teamId !== null,
+    ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
+    ...(options?.refetchIntervalInBackground !== undefined
+      ? { refetchIntervalInBackground: options.refetchIntervalInBackground }
+      : { refetchIntervalInBackground: false }),
   });
 }
 

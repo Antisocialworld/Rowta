@@ -9,13 +9,12 @@ import { useEffect } from 'react';
 import { BackHandler, Platform } from 'react-native';
 import { shouldListenForHardwareBack } from '../lib/hardware-back';
 import { TeamListScreen } from './teams/TeamListScreen';
-import { CreateTeamScreen } from './teams/CreateTeamScreen';
 import { MembersScreen } from './teams/MembersScreen';
-import { InviteScreen } from './teams/InviteScreen';
 import { TeamSettingsScreen } from './teams/TeamSettingsScreen';
+import { InviteModal } from './teams/InviteModal';
 import { ActivityScreen } from './shifts/ActivityScreen';
 import { CalendarScreen } from './shifts/CalendarScreen';
-import { SearchScreen } from './shifts/SearchScreen';
+import { SearchModal } from './shifts/SearchModal';
 import { ShiftCreateEditScreen } from './shifts/ShiftCreateEditScreen';
 import { ShiftDetailScreen } from './shifts/ShiftDetailScreen';
 import { SwapsListScreen } from './shifts/SwapsListScreen';
@@ -41,20 +40,25 @@ export function TeamsRouter() {
   }, [teamsBack, shiftBack, shiftRoute]);
 
   // Shift layer renders on top of the teams surface when the machine has a route.
+  let screen = <TeamListScreen />;
   if (shiftRoute !== null) {
-    if (shiftRoute.name === 'calendar') return <CalendarScreen />;
-    if (shiftRoute.name === 'detail') return <ShiftDetailScreen />;
-    if (shiftRoute.name === 'create') return <ShiftCreateEditScreen />;
-    if (shiftRoute.name === 'edit') return <ShiftCreateEditScreen />;
-    if (shiftRoute.name === 'activity') return <ActivityScreen />;
-    if (shiftRoute.name === 'search') return <SearchScreen />;
-    if (shiftRoute.name === 'swaps') return <SwapsListScreen />;
+    if (shiftRoute.name === 'calendar') screen = <CalendarScreen />;
+    else if (shiftRoute.name === 'detail') screen = <ShiftDetailScreen />;
+    else if (shiftRoute.name === 'create') screen = <ShiftCreateEditScreen />;
+    else if (shiftRoute.name === 'edit') screen = <ShiftCreateEditScreen />;
+    else if (shiftRoute.name === 'activity') screen = <ActivityScreen />;
+    else if (shiftRoute.name === 'swaps') screen = <SwapsListScreen />;
+  } else if (view === 'members') {
+    screen = <MembersScreen />;
+  } else if (view === 'teamSettings') {
+    screen = <TeamSettingsScreen />;
   }
 
-  // Teams layer
-  if (view === 'createTeam') return <CreateTeamScreen />;
-  if (view === 'members') return <MembersScreen />;
-  if (view === 'invite') return <InviteScreen />;
-  if (view === 'teamSettings') return <TeamSettingsScreen />;
-  return <TeamListScreen />;
+  return (
+    <>
+      {screen}
+      <InviteModal />
+      <SearchModal />
+    </>
+  );
 }

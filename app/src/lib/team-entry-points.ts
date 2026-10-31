@@ -3,13 +3,13 @@
 // per role.
 //
 // Rules:
-// - Owner, Manager and Staff each get Shifts, Activity, Search and Swaps.
+// - Owner, Manager and Staff each get Shifts, Activity and Swaps (Search is a top modal).
 // - Only Owner and Manager can create shifts (mirrored on server by central policy matrix).
 // - Null, undefined, or unknown roles get no entry points and cannot create shifts.
 import type { MessageKey } from '../i18n/en';
 import type { ShiftRoute } from '../state/shift-nav';
 
-export type TeamEntryPointId = 'shifts' | 'activity' | 'search' | 'swaps';
+export type TeamEntryPointId = 'shifts' | 'activity' | 'swaps';
 
 export interface TeamEntryPoint {
   id: TeamEntryPointId;
@@ -36,13 +36,6 @@ export const ENTRY_POINT_ACTIVITY: TeamEntryPoint = {
   testID: 'team-open-activity',
 };
 
-export const ENTRY_POINT_SEARCH: TeamEntryPoint = {
-  id: 'search',
-  label: 'action.openSearch',
-  route: { name: 'search' },
-  testID: 'team-open-search',
-};
-
 export const ENTRY_POINT_SWAPS: TeamEntryPoint = {
   id: 'swaps',
   label: 'swap.list.title',
@@ -53,7 +46,6 @@ export const ENTRY_POINT_SWAPS: TeamEntryPoint = {
 export const ALL_TEAM_ENTRY_POINTS: readonly TeamEntryPoint[] = [
   ENTRY_POINT_SHIFTS,
   ENTRY_POINT_ACTIVITY,
-  ENTRY_POINT_SEARCH,
   ENTRY_POINT_SWAPS,
 ];
 

@@ -28,13 +28,11 @@ check(wrapperSrc.includes('flexGrow: 1'), 'TeamScreenLayout sets flexGrow: 1 on 
 check(wrapperSrc.includes('spacing.veryLarge'), 'TeamScreenLayout provides generous bottom padding (spacing.veryLarge)');
 check(wrapperSrc.includes('CONTENT_MAX_WIDTH'), 'TeamScreenLayout enforces CONTENT_MAX_WIDTH column cap');
 
-console.log('\n--- 2. Five teams screens scroll wrapper compliance ---');
+console.log('\n--- 2. Three teams screens scroll wrapper compliance ---');
 const screens = [
   { file: 'TeamListScreen.tsx', testID: 'team-list-screen' },
   { file: 'MembersScreen.tsx', testID: 'team-members-screen' },
   { file: 'TeamSettingsScreen.tsx', testID: 'team-settings-screen' },
-  { file: 'InviteScreen.tsx', testID: 'team-invite-screen' },
-  { file: 'CreateTeamScreen.tsx', testID: 'team-create-screen' },
 ];
 
 for (const { file, testID } of screens) {
@@ -59,6 +57,19 @@ for (const { file, testID } of screens) {
     `${file} does not use bare non-scrollable <SafeAreaView>`,
   );
 }
+
+console.log('\n--- 3. Modal SheetModal compliance ---');
+const createModalPath = resolve(TEAMS_DIR, 'CreateTeamModal.tsx');
+check(existsSync(createModalPath), 'CreateTeamModal.tsx exists');
+const createModalSrc = existsSync(createModalPath) ? readFileSync(createModalPath, 'utf8') : '';
+check(createModalSrc.includes('<SheetModal'), 'CreateTeamModal uses SheetModal');
+check(createModalSrc.includes('testID={testID}'), 'CreateTeamModal passes testID to SheetModal');
+
+const inviteModalPath = resolve(TEAMS_DIR, 'InviteModal.tsx');
+check(existsSync(inviteModalPath), 'InviteModal.tsx exists');
+const inviteModalSrc = existsSync(inviteModalPath) ? readFileSync(inviteModalPath, 'utf8') : '';
+check(inviteModalSrc.includes('<SheetModal'), 'InviteModal uses SheetModal');
+check(inviteModalSrc.includes('testID={testID}'), 'InviteModal passes testID to SheetModal');
 
 if (failures > 0) {
   console.error(`\nFailed with ${failures} assertion failures.`);

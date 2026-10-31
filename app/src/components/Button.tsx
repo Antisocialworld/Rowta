@@ -20,7 +20,7 @@
 // Behaviour: pressing while not ready or busy NEVER calls onPress. Not ready calls onNotReady (the screen moves
 //           focus to the first problem and announces the reason, X14c); with no handler this component announces
 //           the reason itself so X14(c) can never be silent. Reasons are format-only words from the catalog (A6).
-import { useEffect, useId, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useId, useRef, useState, type ComponentProps, type Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -44,6 +44,7 @@ const VARIANTS: Record<ButtonVariant, { bg: string; content: string }> = {
 };
 
 export type ButtonProps = {
+  ref?: Ref<unknown>;
   /** Catalog key for the words AND the accessible name. */
   label: MessageKey;
   labelParams?: Record<string, string | number>;
@@ -67,6 +68,7 @@ export type ButtonProps = {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Button({
+  ref,
   label,
   labelParams,
   onPress,
@@ -89,6 +91,15 @@ export function Button({
   const controlRef = useRef<unknown>(null);
   const v = VARIANTS[variant];
   const waiting = ready === false;
+
+  const handleRef = (node: unknown) => {
+    controlRef.current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref && typeof ref === 'object' && 'current' in ref) {
+      (ref as { current: unknown }).current = node;
+    }
+  };
 
   // Web DOM sync (X14a): runs after EVERY commit, so the imperative attribute can never go stale
   // when ready/busy flips (a ref callback alone was not re-invoked reliably under React 19 — probed).
@@ -118,7 +129,7 @@ export function Button({
     <View style={[styles.root, fullWidth ? styles.stretch : styles.inline]}>
       <AnimatedPressable
         testID={testID}
-        ref={controlRef as never}
+        ref={handleRef as never}
         onPress={press}
         onPressIn={() => {
           pressed.value = withTiming(1, { duration: motion.press });

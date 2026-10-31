@@ -24,7 +24,7 @@ const membersSrc = readFileSync(membersPath, 'utf8');
 const settingsPath = resolve(__dirname, '../src/screens/teams/TeamSettingsScreen.tsx');
 const settingsSrc = readFileSync(settingsPath, 'utf8');
 
-const createTeamPath = resolve(__dirname, '../src/screens/teams/CreateTeamScreen.tsx');
+const createTeamPath = resolve(__dirname, '../src/screens/teams/CreateTeamModal.tsx');
 const createTeamSrc = readFileSync(createTeamPath, 'utf8');
 
 check(
@@ -45,11 +45,11 @@ check(
 console.log('\n--- 2. Team creation cache invalidation ---');
 check(
   createTeamSrc.includes("invalidateQueries({ queryKey: ['teams', 'list'] })"),
-  "CreateTeamScreen invalidates ['teams', 'list'] query key",
+  "CreateTeamModal invalidates ['teams', 'list'] query key",
 );
 check(
   createTeamSrc.includes("refetchQueries({ queryKey: ['teams', 'list'] })"),
-  "CreateTeamScreen refetches ['teams', 'list'] query key immediately",
+  "CreateTeamModal refetches ['teams', 'list'] query key immediately",
 );
 
 console.log('\n--- 3. Invite acceptance cache invalidation ---');

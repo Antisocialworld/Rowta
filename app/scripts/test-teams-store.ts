@@ -51,17 +51,11 @@ check(key2 !== key1, 'idempotency: a NEW attempt (after success or an edit) gets
 // Teams view machine (U1, U2): go pushes, back pops, back at the list REFUSES (the OS exits)
 // ---------------------------------------------------------------------------------------------
 check(TEAMS_VIEWS.list.focus === 'heading', 'view: the list focuses its heading (U7)');
-check(TEAMS_VIEWS.createTeam.focus === 'input', 'view: create-team focuses its first input (U7)');
 check(TEAMS_VIEWS.members.focus === 'heading', 'view: members focuses its heading (U7)');
-check(TEAMS_VIEWS.invite.focus === 'input', 'view: invite focuses its first input (U7)');
 check(TEAMS_VIEWS.teamSettings.focus === 'heading', 'view: teamSettings focuses its heading (U7)');
 
 let state = teamsReducer(initialTeamsState, { type: 'go', view: 'members' });
 check(state.view === 'members' && state.stack.length === 1 && state.stack[0] === 'list', 'view: go(members) keeps the list in history');
-state = teamsReducer(state, { type: 'go', view: 'invite' });
-check(state.view === 'invite' && state.stack.length === 2, 'view: go(invite) pushes members onto the stack');
-state = teamsReducer(state, { type: 'back' });
-check(state.view === 'members' && state.stack.length === 1, 'view: back() from invite returns to members');
 state = teamsReducer(state, { type: 'back' });
 check(state.view === 'list' && state.stack.length === 0, 'view: back() from members returns to the list');
 const refused = teamsReducer(state, { type: 'back' });

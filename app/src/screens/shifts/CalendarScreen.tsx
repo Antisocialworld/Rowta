@@ -3,7 +3,7 @@
 // Four states: loading (Skeleton), error (EmptyState + retry), empty (EmptyState), ready (ShiftCard
 // rows). Owner/Manager see New shift; every role sees Activity and Search. Shift details open on tap.
 import { useEffect, useMemo, useRef } from 'react';
-import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
+import { ScrollView, StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import type { ShiftView } from '@rowta/shared';
@@ -15,6 +15,7 @@ import { canManageShifts } from '../../lib/shift-access';
 import { defaultCalendarRange, formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { useShiftNav } from '../../state/shift-nav';
+import { useSearchModal } from '../../state/search-modal';
 import { colors, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 
@@ -29,11 +30,13 @@ export function shiftCardData(shift: ShiftView, memberName: string) {
 
 export function CalendarScreen() {
   const headingRef = useRef<TextInstance>(null);
+  const searchTriggerRef = useRef<ViewInstance>(null);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId);
   const membersQuery = useTeamMembers(selectedTeamId);
   const open = useShiftNav((state) => state.open);
   const back = useShiftNav((state) => state.back);
+  const openSearchModal = useSearchModal((state) => state.open);
   const range = useMemo(() => defaultCalendarRange(), []);
   const calendarQuery = useQuery({
     queryKey: ['shifts', selectedTeamId, range.from, range.to],
@@ -92,7 +95,13 @@ export function CalendarScreen() {
             <Button label="action.newShift" icon="add" onPress={() => open({ name: 'create' })} testID="shift-create-entry" />
           ) : null}
           <Button label="action.openActivity" icon="history" variant="secondary" onPress={() => open({ name: 'activity' })} />
-          <Button label="action.openSearch" icon="search" variant="secondary" onPress={() => open({ name: 'search' })} />
+          <Button
+            ref={searchTriggerRef}
+            label="action.openSearch"
+            icon="search"
+            variant="secondary"
+            onPress={() => openSearchModal(searchTriggerRef)}
+          />
           <Button label="action.back" variant="ghost" onPress={back} />
         </ScrollView>
       </View>

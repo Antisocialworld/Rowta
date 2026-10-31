@@ -10,7 +10,6 @@ import {
   canCreateShift,
   ENTRY_POINT_SHIFTS,
   ENTRY_POINT_ACTIVITY,
-  ENTRY_POINT_SEARCH,
   ENTRY_POINT_SWAPS,
 } from '../src/lib/team-entry-points';
 
@@ -22,30 +21,27 @@ const check = (ok: boolean, label: string): void => {
 
 // 1. Owner role checks
 const ownerPoints = teamEntryPoints('owner');
-check(ownerPoints.length === 4, 'owner has 4 entry points');
+check(ownerPoints.length === 3, 'owner has 3 entry points (shifts, activity, swaps)');
 check(ownerPoints.some((p) => p.id === 'shifts' && p.route.name === 'calendar'), 'owner gets Shifts (calendar)');
 check(ownerPoints.some((p) => p.id === 'activity' && p.route.name === 'activity'), 'owner gets Activity');
-check(ownerPoints.some((p) => p.id === 'search' && p.route.name === 'search'), 'owner gets Search');
 check(ownerPoints.some((p) => p.id === 'swaps' && p.route.name === 'swaps'), 'owner gets Swaps');
 check(ownerPoints.canCreateShift === true, 'owner can create shifts (on list)');
 check(canCreateShift('owner') === true, 'owner can create shifts (helper)');
 
 // 2. Manager role checks
 const managerPoints = teamEntryPoints('manager');
-check(managerPoints.length === 4, 'manager has 4 entry points');
+check(managerPoints.length === 3, 'manager has 3 entry points (shifts, activity, swaps)');
 check(managerPoints.some((p) => p.id === 'shifts' && p.route.name === 'calendar'), 'manager gets Shifts (calendar)');
 check(managerPoints.some((p) => p.id === 'activity' && p.route.name === 'activity'), 'manager gets Activity');
-check(managerPoints.some((p) => p.id === 'search' && p.route.name === 'search'), 'manager gets Search');
 check(managerPoints.some((p) => p.id === 'swaps' && p.route.name === 'swaps'), 'manager gets Swaps');
 check(managerPoints.canCreateShift === true, 'manager can create shifts (on list)');
 check(canCreateShift('manager') === true, 'manager can create shifts (helper)');
 
 // 3. Staff role checks
 const staffPoints = teamEntryPoints('staff');
-check(staffPoints.length === 4, 'staff has 4 entry points');
+check(staffPoints.length === 3, 'staff has 3 entry points (shifts, activity, swaps)');
 check(staffPoints.some((p) => p.id === 'shifts' && p.route.name === 'calendar'), 'staff gets Shifts (calendar)');
 check(staffPoints.some((p) => p.id === 'activity' && p.route.name === 'activity'), 'staff gets Activity');
-check(staffPoints.some((p) => p.id === 'search' && p.route.name === 'search'), 'staff gets Search');
 check(staffPoints.some((p) => p.id === 'swaps' && p.route.name === 'swaps'), 'staff gets Swaps');
 check(staffPoints.canCreateShift === false, 'staff CANNOT create shifts (on list)');
 check(canCreateShift('staff') === false, 'staff CANNOT create shifts (helper)');
@@ -69,7 +65,6 @@ check(canCreateShift('guest') === false, 'canCreateShift("guest") is false');
 // 5. TestIDs and route shapes match shift-nav.ts
 check(ENTRY_POINT_SHIFTS.testID === 'team-open-shifts', 'shifts testID is team-open-shifts');
 check(ENTRY_POINT_ACTIVITY.testID === 'team-open-activity', 'activity testID is team-open-activity');
-check(ENTRY_POINT_SEARCH.testID === 'team-open-search', 'search testID is team-open-search');
 check(ENTRY_POINT_SWAPS.testID === 'team-open-swaps', 'swaps testID is team-open-swaps');
 
 process.exit(failures === 0 ? 0 : 1);

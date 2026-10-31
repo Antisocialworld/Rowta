@@ -19,10 +19,13 @@ import { useAuthSession } from '../../state/auth-session';
 import { resolveSelectedTeamId, useDeletedTeams, useTeams, useTeamsList } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { useShiftNav } from '../../state/shift-nav';
+import { useInviteModal } from '../../state/invite-modal';
+import { useSearchModal } from '../../state/search-modal';
 import { spacing } from '../../theme/tokens';
 import { InviteResultCard } from './InviteResultCard';
 import { TeamScreenLayout } from './TeamScreenLayout';
 import { DeletedTeamsModal } from './DeletedTeamsModal';
+import { CreateTeamModal } from './CreateTeamModal';
 import { shouldCloseDeletedTeamsModal, shouldShowDeletedTeamsTrigger } from '../../lib/deleted-teams-logic';
 
 const ROLE_LABEL: Record<string, MessageKey> = { owner: 'role.owner', manager: 'role.manager', staff: 'role.staff' };
@@ -35,6 +38,8 @@ export function TeamListScreen() {
   const openGallery = useAuthSession((state) => state.openGallery);
   const go = useTeamsView((state) => state.go);
   const openShift = useShiftNav((state) => state.open);
+  const openInviteModal = useInviteModal((state) => state.open);
+  const openSearchModal = useSearchModal((state) => state.open);
   const teamsQuery = useTeamsList({ refetchInterval: 15_000, refetchIntervalInBackground: false });
   const message = useTeamsView((state) => state.message);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
@@ -47,6 +52,10 @@ export function TeamListScreen() {
   const [toastMessage, setToastMessage] = useState<MessageKey | null>(null);
   const [deletedModalOpen, setDeletedModalOpen] = useState(false);
   const deletedTriggerRef = useRef<ViewInstance>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const createTriggerRef = useRef<ViewInstance>(null);
+  const inviteTriggerRef = useRef<ViewInstance>(null);
+  const searchTriggerRef = useRef<ViewInstance>(null);
 
   const deletedTeamsQuery = useDeletedTeams();
   const deletedTeams = deletedTeamsQuery.data?.teams;
@@ -169,7 +178,7 @@ export function TeamListScreen() {
               kind="empty"
               titleKey="teams.empty.title"
               bodyKey="teams.empty.body"
-              action={{ label: 'action.createTeam', onPress: () => go('createTeam') }}
+              action={{ label: 'action.createTeam', onPress: () => setCreateModalOpen(true) }}
             />
           ) : (
             <View style={styles.list}>
@@ -238,11 +247,12 @@ export function TeamListScreen() {
                             testID="team-open-activity"
                           />
                           <Button
+                            ref={searchTriggerRef}
                             label="action.openSearch"
                             variant="secondary"
                             icon="search"
                             fullWidth={false}
-                            onPress={() => openShift({ name: 'search' })}
+                            onPress={() => openSearchModal(searchTriggerRef)}
                             testID="team-open-search"
                           />
                         </View>
@@ -266,10 +276,11 @@ export function TeamListScreen() {
                           ) : null}
                           {canInviteMembers(team.role) ? (
                             <Button
+                              ref={inviteTriggerRef}
                               label="action.invitePeople"
                               variant="secondary"
                               fullWidth={false}
-                              onPress={() => go('invite')}
+                              onPress={() => openInviteModal('teamList', inviteTriggerRef)}
                               testID="team-open-invite"
                             />
                           ) : null}
@@ -281,23 +292,33 @@ export function TeamListScreen() {
               })}
             </View>
           )}
-          <Button label="action.createTeam" icon="group-add" onPress={() => go('createTeam')} testID="team-create-entry" />
+          <Button
+            ref={createTriggerRef}
+            label="action.createTeam"
+            icon="group-add"
+            onPress={() => setCreateModalOpen(true)}
+            testID="team-create-entry"
+          />
           {shouldShowDeletedTeamsTrigger(deletedTeams) ? (
-            <View ref={deletedTriggerRef}>
-              <Button
-                label="teams.deleted.button"
-                labelParams={{ count: deletedTeams?.length ?? 0 }}
-                variant="ghost"
-                onPress={() => setDeletedModalOpen(true)}
-                testID="deleted-teams-trigger"
-              />
-            </View>
+            <Button
+              ref={deletedTriggerRef}
+              label="teams.deleted.button"
+              labelParams={{ count: deletedTeams?.length ?? 0 }}
+              variant="ghost"
+              onPress={() => setDeletedModalOpen(true)}
+              testID="deleted-teams-trigger"
+            />
           ) : null}
           {devToolsVisible(__DEV__) ? (
             <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
           ) : null}
           <Button label="action.signOut" variant="ghost" onPress={() => { void signOut(); }} />
           {toastMessage !== null ? <LiveRegion>{toastMessage}</LiveRegion> : null}
+          <CreateTeamModal
+            visible={createModalOpen}
+            onClose={() => setCreateModalOpen(false)}
+            returnFocusRef={createTriggerRef}
+          />
           <DeletedTeamsModal
             visible={deletedModalOpen}
             teams={deletedTeams ?? []}
@@ -307,6 +328,7 @@ export function TeamListScreen() {
             onRetry={() => void deletedTeamsQuery.refetch()}
             onRestore={handleRestore}
             onClose={handleCloseDeletedModal}
+            returnFocusRef={deletedTriggerRef}
             testID="deleted-teams-modal"
           />
     </TeamScreenLayout>

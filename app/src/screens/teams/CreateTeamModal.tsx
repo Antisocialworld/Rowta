@@ -1,4 +1,5 @@
-// CreateTeamScreen — Phase 3 create-team form (rules V1, V5, U5, U7, U8, X3; PRD 6.1, 8.2).
+// CreateTeamModal — Phase 3 create-team modal (rules V1, V5, U1, U5, U7, U8, X3, X14; PRD 6.1, 8.2; Stage M2).
+// Built on SheetModal: inherits centering padding, maxHeight 85%, ScrollView, and pinned footer.
 // One labelled name input (auto-focused, U7), client validation through the SHARED createTeamSchema
 // (V1), server 422 fields mapped through fieldErrorKey so raw server text never appears (V5).
 //
@@ -7,21 +8,34 @@
 // reuses it; clearCreateKey() runs whenever the name changes (a changed body must never reuse a key
 // — the server would answer 422 fingerprint_mismatch) and after a success. Never logged (S1).
 import { useEffect, useRef, useState } from 'react';
-import { type TextInputInstance } from 'react-native';
+import { StyleSheet, View, type TextInputInstance } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { createTeamSchema } from '@rowta/shared';
-import { Button, Input, LiveRegion, Text } from '../../components';
-import { t, type MessageKey } from '../../i18n/en';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import { LiveRegion } from '../../components/LiveRegion';
+import { SheetModal } from '../../components/SheetModal';
+import { type MessageKey } from '../../i18n/en';
 import { ApiError, errorTextKey, fieldErrorKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { useTeams } from '../../state/teams';
-import { useTeamsView } from '../../state/teams-view';
-import { TeamScreenLayout } from './TeamScreenLayout';
+import { spacing } from '../../theme/tokens';
 
-export function CreateTeamScreen() {
+export type CreateTeamModalProps = {
+  readonly visible: boolean;
+  readonly onClose: () => void;
+  readonly returnFocusRef?: { current: unknown } | null;
+  readonly testID?: string;
+};
+
+export function CreateTeamModal({
+  visible,
+  onClose,
+  returnFocusRef,
+  testID = 'create-team-modal',
+}: CreateTeamModalProps) {
   const nameRef = useRef<TextInputInstance>(null);
   const queryClient = useQueryClient();
-  const back = useTeamsView((state) => state.back);
   const selectTeam = useTeams((state) => state.selectTeam);
   const ensureCreateKey = useTeams((state) => state.ensureCreateKey);
   const clearCreateKey = useTeams((state) => state.clearCreateKey);
@@ -32,8 +46,19 @@ export function CreateTeamScreen() {
   const [announcement, setAnnouncement] = useState<MessageKey | null>(null);
 
   useEffect(() => {
-    focusOn(nameRef.current);
-  }, []);
+    if (visible) {
+      focusOn(nameRef.current);
+    }
+  }, [visible]);
+
+  const handleClose = () => {
+    setName('');
+    setErrorKey(null);
+    setNameFieldError(null);
+    setAnnouncement(null);
+    clearCreateKey();
+    onClose();
+  };
 
   const onSubmit = async (): Promise<void> => {
     const parsed = createTeamSchema.safeParse({ name: name.trim() });
@@ -60,7 +85,7 @@ export function CreateTeamScreen() {
       await queryClient.refetchQueries({ queryKey: ['teams', 'list'] });
       await queryClient.invalidateQueries({ queryKey: ['teams'] });
       setAnnouncement('teams.toast.teamCreated');
-      back();
+      handleClose();
     } catch (error) {
       if (error instanceof ApiError) {
         setNameFieldError(error.fields?.name !== undefined ? fieldErrorKey(error.fields.name) : null);
@@ -77,42 +102,76 @@ export function CreateTeamScreen() {
     }
   };
 
+  const footer = (
+    <View style={styles.footerRow}>
+      <Button
+        label="action.cancel"
+        variant="ghost"
+        fullWidth={false}
+        onPress={handleClose}
+        testID="create-team-cancel"
+      />
+      <Button
+        label="teams.create.submit"
+        variant="primary"
+        fullWidth={false}
+        busy={busy}
+        ready={name.trim().length > 0}
+        reason="team.name.required"
+        onPress={() => void onSubmit()}
+        testID="create-team-submit"
+      />
+    </View>
+  );
+
   return (
-    <TeamScreenLayout testID="team-create-screen">
-      <Text variant="headline-small" accessibilityRole="header">
-        {t('teams.view.create.heading')}
-      </Text>
-          <Input
-            ref={nameRef}
-            label="field.teamName"
-            value={name}
-            onChangeText={(value) => {
-              setName(value);
-              // A changed body must never reuse the previous attempt's idempotency key (ADR 0012).
-              clearCreateKey();
-              setErrorKey(null);
-              setNameFieldError(null);
-            }}
-            variant="name"
-            errorKey={nameFieldError ?? undefined}
-            maxLength={80}
-            testID="create-team-name"
-          />
-          {errorKey !== null ? (
-            <LiveRegion tone="error">{errorKey}</LiveRegion>
-          ) : null}
-          <Button
-            label="teams.create.submit"
-            busy={busy}
-            ready={name.trim().length > 0}
-            reason="team.name.required"
-            onPress={() => void onSubmit()}
-            testID="create-team-submit"
-          />
-          <Button label="action.cancel" variant="ghost" onPress={back} />
-          {announcement !== null && announcement !== errorKey ? (
-            <LiveRegion>{announcement}</LiveRegion>
-          ) : null}
-    </TeamScreenLayout>
+    <SheetModal
+      visible={visible}
+      onClose={handleClose}
+      headingKey="teams.view.create.heading"
+      returnFocusRef={returnFocusRef}
+      testID={testID}
+      cardTestID="create-team-section"
+      headingTestID="create-team-heading"
+      footer={footer}
+    >
+      <View style={styles.body}>
+        <Input
+          ref={nameRef}
+          label="field.teamName"
+          value={name}
+          onChangeText={(value) => {
+            setName(value);
+            // A changed body must never reuse the previous attempt's idempotency key (ADR 0012).
+            clearCreateKey();
+            setErrorKey(null);
+            setNameFieldError(null);
+          }}
+          variant="name"
+          errorKey={nameFieldError ?? undefined}
+          maxLength={80}
+          testID="create-team-name"
+        />
+        {errorKey !== null ? (
+          <LiveRegion tone="error">{errorKey}</LiveRegion>
+        ) : null}
+        {announcement !== null && announcement !== errorKey ? (
+          <LiveRegion>{announcement}</LiveRegion>
+        ) : null}
+      </View>
+    </SheetModal>
   );
 }
+
+const styles = StyleSheet.create({
+  body: {
+    gap: Number(spacing.base),
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: Number(spacing.small),
+  },
+});
+

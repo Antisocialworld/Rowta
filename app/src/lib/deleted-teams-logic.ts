@@ -17,3 +17,24 @@ export function shouldShowDeletedTeamsTrigger(teams: readonly unknown[] | undefi
   return Boolean(teams && teams.length > 0);
 }
 
+/**
+ * Derives the view state for DeletedTeamsModal.
+ * If items are already loaded (count > 0), remains in 'list' state so a background
+ * polling error or refetch does not blow away visible data (poll-error fix).
+ */
+export function deletedTeamsViewState({
+  isLoading,
+  isError,
+  count,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  count: number;
+}): 'loading' | 'error' | 'empty' | 'list' {
+  if (count > 0) return 'list';
+  if (isError) return 'error';
+  if (isLoading) return 'loading';
+  return 'empty';
+}
+
+

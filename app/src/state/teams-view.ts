@@ -3,24 +3,20 @@
 // branch, NO route files, NO navigation library. Root.tsx renders whichever view this store names.
 //
 // Views:  list       the team list + switcher (also the signed-in home, U2)
-//         createTeam the create-team form
 //         members    the selected team's members, role changes, removal, leave, settings
-//         invite     the invite form + the pending-invitations list + revoke
 //
 // Actions (pure — scripts/test-teams-view.ts proves them with no device):
-//   go    list -> createTeam/members/invite: pushes the current view so Back returns exactly there.
+//   go    list -> members/teamSettings: pushes the current view so Back returns exactly there.
 //   back  pops one entry; at an empty stack the machine REFUSES and lets the OS exit (U1).
 import { create } from 'zustand';
 import type { MessageKey } from '../i18n/en';
 
-export type TeamsView = 'list' | 'createTeam' | 'members' | 'invite' | 'teamSettings';
+export type TeamsView = 'list' | 'members' | 'teamSettings';
 
 /** Per-view chrome and focus (PRD 6.1: title, heading, focus target; U7, U8). */
 export const TEAMS_VIEWS = {
   list: { title: 'teams.view.list.title', heading: 'teams.view.list.heading', focus: 'heading' },
-  createTeam: { title: 'teams.view.create.title', heading: 'teams.view.create.heading', focus: 'input' },
   members: { title: 'teams.view.members.title', heading: 'teams.view.members.heading', focus: 'heading' },
-  invite: { title: 'teams.view.invite.title', heading: 'teams.view.invite.heading', focus: 'input' },
   teamSettings: { title: 'teams.view.settings.title', heading: 'teams.view.settings.heading', focus: 'heading' },
 } as const satisfies Record<TeamsView, { title: MessageKey; heading: MessageKey; focus: 'input' | 'heading' }>;
 

@@ -6,21 +6,25 @@
 // goes through the kit's ConfirmDialog (no silent destructive taps); results are announced in a
 // polite live region (X3) and never leak raw server text (V5).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, type TextInstance } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
+import { StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { type TeamRole } from '@rowta/shared';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
-import { ApiError, errorMessageKey, teamsApi } from '../../lib/api';
+import { ApiError, authApi, errorMessageKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { membersNeedingEmail } from '../../lib/member-display';
 import {
   canChangeMemberRole,
   canInviteMembers,
   canRemoveMember,
+  canRevokeInvite,
 } from '../../lib/team-role';
-import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
+import { useTeam, useTeamInvites, useTeamMembers, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { useShiftNav } from '../../state/shift-nav';
+import { useInviteModal } from '../../state/invite-modal';
+import { useSearchModal } from '../../state/search-modal';
 import { spacing } from '../../theme/tokens';
 import { TeamScreenLayout } from './TeamScreenLayout';
 
@@ -30,25 +34,47 @@ const ROLE_TONE: Record<string, 'primary' | 'neutral'> = { owner: 'primary', man
 type PendingAction =
   | { kind: 'remove'; userId: string }
   | { kind: 'role'; userId: string; role: 'manager' | 'staff' }
-  | { kind: 'leave' };
+  | { kind: 'leave' }
+  | { kind: 'revoke'; inviteId: string };
 
 export function MembersScreen() {
   const headingRef = useRef<TextInstance>(null);
+  const inviteTriggerRef = useRef<ViewInstance>(null);
+  const searchTriggerRef = useRef<ViewInstance>(null);
   const queryClient = useQueryClient();
   const back = useTeamsView((state) => state.back);
-  const go = useTeamsView((state) => state.go);
   const openShift = useShiftNav((state) => state.open);
+  const openInviteModal = useInviteModal((state) => state.open);
+  const openSearchModal = useSearchModal((state) => state.open);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
   const membersQuery = useTeamMembers(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
+  const invitesQuery = useTeamInvites(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
+  const meQuery = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => authApi.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const currentUserId = meQuery.data?.userId ?? '';
+
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState<MessageKey | null>(null);
 
   const team = teamQuery.data;
   const members = membersQuery.data?.members;
+  const invites = invitesQuery.data?.invites;
   const isOwner = team?.role === 'owner';
   const isStaff = team?.role === 'staff';
+
+  const canRevokeOne = (invite: { role: TeamRole; invitedBy?: string }): boolean => {
+    return canRevokeInvite(
+      team?.role,
+      currentUserId,
+      invite,
+      team?.managersCanRevokeInvites ?? true,
+    );
+  };
 
   const duplicateNameUserIds = useMemo(
     () => (members ? membersNeedingEmail(members) : new Set<string>()),
@@ -89,6 +115,8 @@ export function MembersScreen() {
       );
     } else if (pending.kind === 'leave') {
       void run(() => teamsApi.leaveTeam(selectedTeamId), 'teams.toast.left', back);
+    } else if (pending.kind === 'revoke') {
+      void run(() => teamsApi.revokeInvite(selectedTeamId, pending.inviteId), 'teams.toast.inviteRevoked');
     }
   };
 
@@ -124,11 +152,12 @@ export function MembersScreen() {
               testID="members-open-activity"
             />
             <Button
+              ref={searchTriggerRef}
               label="action.openSearch"
               variant="secondary"
               icon="search"
               fullWidth={false}
-              onPress={() => openShift({ name: 'search' })}
+              onPress={() => openSearchModal(searchTriggerRef)}
               testID="members-open-search"
             />
           </View>
@@ -188,7 +217,49 @@ export function MembersScreen() {
             </View>
           )}
           {canInviteMembers(team?.role) && selectedTeamId !== null ? (
-            <Button label="action.invitePeople" icon="person-add" onPress={() => go('invite')} testID="members-open-invite" />
+            <Button
+              ref={inviteTriggerRef}
+              label="action.invitePeople"
+              icon="person-add"
+              onPress={() => openInviteModal('members', inviteTriggerRef)}
+              testID="members-open-invite"
+            />
+          ) : null}
+          {canInviteMembers(team?.role) && selectedTeamId !== null ? (
+            <View style={styles.pendingSection}>
+              <Text variant="title-medium" accessibilityRole="header">
+                {t('action.pendingInvites')}
+              </Text>
+              {invitesQuery.isLoading ? (
+                <Skeleton variant="text" />
+              ) : invitesQuery.isError ? (
+                <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void invitesQuery.refetch() }} />
+              ) : invites !== undefined && invites.length === 0 ? (
+                <EmptyState kind="empty" titleKey="teams.invites.empty.title" bodyKey="teams.invites.empty.body" />
+              ) : (
+                <View style={styles.list}>
+                  {invites?.map((invite) => (
+                    <Card key={invite.id} variant="flat" testID={`invite-${invite.id}`}>
+                      <View style={styles.row}>
+                        <View style={styles.rowText}>
+                          <Text variant="title-medium">{invite.email}</Text>
+                          <Badge label={ROLE_LABEL[invite.role] ?? 'role.staff'} tone={ROLE_TONE[invite.role] ?? 'neutral'} />
+                        </View>
+                        {canRevokeOne(invite) ? (
+                          <Button
+                            label="action.revoke"
+                            variant="danger"
+                            fullWidth={false}
+                            onPress={() => setPending({ kind: 'revoke', inviteId: invite.id })}
+                            testID={`invite-revoke-${invite.id}`}
+                          />
+                        ) : null}
+                      </View>
+                    </Card>
+                  ))}
+                </View>
+              )}
+            </View>
           ) : null}
           {team?.role === 'manager' && team !== undefined ? (
             <View style={styles.row} testID="settings-managers-can-revoke-readonly">
@@ -211,16 +282,26 @@ export function MembersScreen() {
             ? 'teams.confirm.remove.title'
             : pending?.kind === 'role'
               ? 'teams.confirm.role.title'
-              : 'teams.confirm.leave.title'
+              : pending?.kind === 'revoke'
+                ? 'teams.confirm.revoke.title'
+                : 'teams.confirm.leave.title'
         }
         messageKey={
           pending?.kind === 'remove'
             ? 'teams.confirm.remove.message'
             : pending?.kind === 'role'
               ? 'teams.confirm.role.message'
-              : 'teams.confirm.leave.message'
+              : pending?.kind === 'revoke'
+                ? 'teams.confirm.revoke.message'
+                : 'teams.confirm.leave.message'
         }
-        confirmLabel={pending?.kind === 'leave' ? 'action.leaveTeam' : 'action.confirm'}
+        confirmLabel={
+          pending?.kind === 'leave'
+            ? 'action.leaveTeam'
+            : pending?.kind === 'revoke'
+              ? 'action.revoke'
+              : 'action.confirm'
+        }
         destructive={pending?.kind !== 'role'}
         busy={busy}
         onConfirm={confirm}
@@ -232,6 +313,7 @@ export function MembersScreen() {
 
 const styles = StyleSheet.create({
   list: { gap: Number(spacing.medium) },
+  pendingSection: { gap: Number(spacing.base) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
   rowText: { flexDirection: 'column', gap: Number(spacing.extraSmall), flexShrink: 1 },
   rowActions: { flexDirection: 'row', gap: Number(spacing.small), flexShrink: 0 },

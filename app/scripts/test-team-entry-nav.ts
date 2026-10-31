@@ -15,7 +15,6 @@ const check = (ok: boolean, label: string): void => {
 const ROUTES: readonly ShiftRoute[] = [
   { name: 'calendar' },
   { name: 'activity' },
-  { name: 'search' },
   { name: 'swaps' },
 ];
 
