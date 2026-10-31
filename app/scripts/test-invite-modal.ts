@@ -97,6 +97,7 @@ check(membersSrc.includes('testID={`invite-${invite.id}`}'), 'renders invite car
 check(membersSrc.includes('testID={`invite-revoke-${invite.id}`}'), 'renders revoke button testID');
 check(membersSrc.includes('testID="members-open-invite"'), 'renders members-open-invite trigger');
 check(membersSrc.includes("openInviteModal('members'"), 'wires openInviteModal from members');
+check(membersSrc.includes('canInviteMembers(teamQuery.data?.role)'), 'gates useTeamInvites query with canInviteMembers so Staff makes NO request');
 
 // ---------------------------------------------------------------------------------------------
 // 7. Text-scan: TeamsRouter.tsx mounts InviteModal

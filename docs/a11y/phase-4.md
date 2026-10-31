@@ -1,7 +1,7 @@
 # Per-screen accessibility checklist — Shifts, Calendar, Activity, Search (Phase 4)
 
 Scope: PRD 6.1, 8.3, 8.4 and 12 (Phase 4 gate): CalendarScreen, ShiftDetailScreen,
-ShiftCreateEditScreen (create/edit shift form), ActivityScreen, ActivityRow, SearchScreen —
+ShiftCreateEditScreen (create/edit shift form), ActivityScreen, ActivityRow, SearchModal (top-anchored search modal sheet, Stage M4a) —
 the shift management and activity UI for Phase 4.
 
 Standing evidence until a device pass exists (no emulator/device on this machine — same honest
@@ -9,8 +9,8 @@ gap as Phase 1, Phase 2, and Phase 3 gates):
 
 | Claim | Standing evidence |
 |---|---|
-| Every control has an accessible name and role | `npm run lint --workspace @rowta/app` — every `Input` carries `label` (catalog key); every `Button` carries `label` (catalog key); every `Card` / `ShiftCard` has accessible attributes; `focusOn()` called on mount in CalendarScreen, ShiftDetailScreen, ShiftCreateEditScreen, ActivityScreen, SearchScreen (U7); `ActivityRow` has an explicit compound `accessibilityLabel` (`actor + kind, label, when`) read as a single swipe (X1, X5); `ShiftCreateEditScreen` member picker uses `accessibilityRole="button"` and `accessibilityLabel={displayName}`; `scripts/check-app-a11y.mjs` (A11Y GATE, wired into `npm run -w @rowta/app lint`) green for all Phase 4 components |
-| Live regions for errors, prompts and results | `LiveRegion` used in ShiftDetailScreen (delete feedback), ShiftCreateEditScreen (error/announcement), ActivityScreen (end-of-list reached announcement), SearchScreen (search result live region); `announce()` from `lib/a11y` used where needed; 429 Retry-After is visual-only next to the announced `auth.rateLimited` (PRD 11) |
+| Every control has an accessible name and role | `npm run lint --workspace @rowta/app` — every `Input` carries `label` (catalog key); every `Button` carries `label` (catalog key); every `Card` / `ShiftCard` has accessible attributes; `focusOn()` called on mount in CalendarScreen, ShiftDetailScreen, ShiftCreateEditScreen, ActivityScreen, SearchModal (U7); `ActivityRow` has an explicit compound `accessibilityLabel` (`actor + kind, label, when`) read as a single swipe (X1, X5); `ShiftCreateEditScreen` member picker uses `accessibilityRole="button"` and `accessibilityLabel={displayName}`; `scripts/check-app-a11y.mjs` (A11Y GATE, wired into `npm run -w @rowta/app lint`) green for all Phase 4 components |
+| Live regions for errors, prompts and results | `LiveRegion` used in ShiftDetailScreen (delete feedback), ShiftCreateEditScreen (error/announcement), ActivityScreen (end-of-list reached announcement), SearchModal (search result live region); `announce()` from `lib/a11y` used where needed; 429 Retry-After is visual-only next to the announced `auth.rateLimited` (PRD 11) |
 | X14 ready/not-ready semantics | Shift create/edit submit button carries `ready` + `reason` props (`auth.field.required` / format reasons); onNotReady moves focus to the first invalid field (startsAt/endsAt/label/assignee); native `disabled` attribute is NEVER used (X14a); button stays focusable in TalkBack |
 | Field errors attached to fields | `Input` renders errors under the field with `errorKey` (server field codes → catalog keys via `fieldErrorKey`); `ShiftCreateEditScreen` attaches errors to `shiftLabel`, `shiftAssignee`, `shiftStartsAt`, `shiftEndsAt` |
 | Contrast | `docs/a11y/contrast.md` (token colours from `tokens.ts`; all Phase 4 screens use the token palette, no hard-coded colours); shift cards clear 4.5:1 text and 3:1 control boundary |
@@ -37,7 +37,7 @@ gap as Phase 1, Phase 2, and Phase 3 gates):
    - ShiftDetailScreen: verify shift details, verify Edit / Delete buttons (Manager/Owner only), trigger Delete to verify ConfirmDialog.
    - ShiftCreateEditScreen: verify form inputs (label, member selection, starts-at, ends-at, notes); test not-ready submit button announcement.
    - ActivityScreen: swipe through ActivityRows (single accessible node per event); test "Load more" button and "end of list" announcement.
-   - SearchScreen: type query, verify section headers ("People", "Shifts", "Activity") and card results.
+   - SearchModal: open from Calendar, Members or team card; type query, verify section headers ("People", "Shifts", "Activity") and card results; close returns focus to opening trigger.
 3. Record name, role, state for each control, and replace "[ ]" with "[x]" once verified on physical device.
 
 ---

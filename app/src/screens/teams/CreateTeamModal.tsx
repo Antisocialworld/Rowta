@@ -18,6 +18,10 @@ import { SheetModal } from '../../components/SheetModal';
 import { type MessageKey } from '../../i18n/en';
 import { ApiError, errorTextKey, fieldErrorKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
+import {
+  shouldClearOnModalClose,
+  shouldClearOnNameChange,
+} from '../../lib/create-team-idempotency';
 import { useTeams } from '../../state/teams';
 import { spacing } from '../../theme/tokens';
 
@@ -39,6 +43,9 @@ export function CreateTeamModal({
   const selectTeam = useTeams((state) => state.selectTeam);
   const ensureCreateKey = useTeams((state) => state.ensureCreateKey);
   const clearCreateKey = useTeams((state) => state.clearCreateKey);
+  const createKeyName = useTeams((state) => state.createKeyName);
+  const createKeyLastOutcome = useTeams((state) => state.createKeyLastOutcome);
+  const recordCreateOutcome = useTeams((state) => state.recordCreateOutcome);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
@@ -47,16 +54,21 @@ export function CreateTeamModal({
 
   useEffect(() => {
     if (visible) {
+      if (createKeyName && !shouldClearOnModalClose(createKeyLastOutcome)) {
+        setName(createKeyName);
+      }
       focusOn(nameRef.current);
     }
-  }, [visible]);
+  }, [visible, createKeyName, createKeyLastOutcome]);
 
   const handleClose = () => {
-    setName('');
+    if (shouldClearOnModalClose(createKeyLastOutcome)) {
+      clearCreateKey();
+      setName('');
+    }
     setErrorKey(null);
     setNameFieldError(null);
     setAnnouncement(null);
-    clearCreateKey();
     onClose();
   };
 
@@ -77,16 +89,18 @@ export function CreateTeamModal({
     setBusy(true);
     setAnnouncement(null);
     try {
-      const idempotencyKey = ensureCreateKey();
+      const idempotencyKey = ensureCreateKey(name);
       const team = await teamsApi.createTeam(parsed.data, idempotencyKey);
-      clearCreateKey();
+      recordCreateOutcome('success');
       selectTeam(team.id);
       await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
       await queryClient.refetchQueries({ queryKey: ['teams', 'list'] });
       await queryClient.invalidateQueries({ queryKey: ['teams'] });
       setAnnouncement('teams.toast.teamCreated');
+      setName('');
       handleClose();
     } catch (error) {
+      recordCreateOutcome(error);
       if (error instanceof ApiError) {
         setNameFieldError(error.fields?.name !== undefined ? fieldErrorKey(error.fields.name) : null);
         const key = errorTextKey(error);
@@ -143,7 +157,9 @@ export function CreateTeamModal({
           onChangeText={(value) => {
             setName(value);
             // A changed body must never reuse the previous attempt's idempotency key (ADR 0012).
-            clearCreateKey();
+            if (shouldClearOnNameChange(createKeyName, value)) {
+              clearCreateKey();
+            }
             setErrorKey(null);
             setNameFieldError(null);
           }}

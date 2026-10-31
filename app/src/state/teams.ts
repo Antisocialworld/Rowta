@@ -19,6 +19,12 @@ import { useQuery } from '@tanstack/react-query';
 import { create } from 'zustand';
 import type { TeamRole } from '@rowta/shared';
 import { ApiError, teamsApi } from '../lib/api';
+import {
+  canReuseCreateKey,
+  classifyCreateTeamOutcome,
+  shouldClearOnOutcome,
+  type CreateTeamOutcome,
+} from '../lib/create-team-idempotency';
 import { useAuthFlow } from './auth-context';
 
 export type InviteResult =
@@ -33,12 +39,18 @@ export type TeamsState = {
   inviteResult: InviteResult | null;
   /** Idempotency-Key for the in-flight create-team attempt: reused on retry, new per new attempt. */
   createIdempotencyKey: string | null;
+  /** Name the current idempotency key was issued for. */
+  createKeyName: string | null;
+  /** Last outcome of create-team submit attempt (indeterminate keeps key; 4xx/success clears). */
+  createKeyLastOutcome: CreateTeamOutcome | null;
   selectTeam: (id: string | null) => void;
   setInviteResult: (result: InviteResult | null) => void;
   /** Called whenever the team-name field changes: a changed body must never reuse a key (422). */
   clearCreateKey: () => void;
-  /** Returns the current attempt's key, generating one only when there is none yet. */
-  ensureCreateKey: () => string;
+  /** Returns the current attempt's key, generating one only when there is none yet (or name differs). */
+  ensureCreateKey: (name?: string) => string;
+  /** Records submission outcome and clears key if success or 4xx, retains if indeterminate. */
+  recordCreateOutcome: (outcomeOrError: 'success' | unknown) => CreateTeamOutcome;
   /** The single invite-accept path (see the header). */
   consumeInviteToken: (token: string) => Promise<void>;
 };
@@ -60,15 +72,46 @@ export const useTeams = create<TeamsState>((set, get) => ({
   selectedTeamId: null,
   inviteResult: null,
   createIdempotencyKey: null,
+  createKeyName: null,
+  createKeyLastOutcome: null,
   selectTeam: (id) => set({ selectedTeamId: id }),
   setInviteResult: (result) => set({ inviteResult: result }),
-  clearCreateKey: () => set({ createIdempotencyKey: null }),
-  ensureCreateKey: () => {
+  clearCreateKey: () =>
+    set({
+      createIdempotencyKey: null,
+      createKeyName: null,
+      createKeyLastOutcome: null,
+    }),
+  ensureCreateKey: (name?: string) => {
     const existing = get().createIdempotencyKey;
-    if (existing !== null) return existing;
+    const existingName = get().createKeyName;
+    const trimmed = name?.trim();
+    if (existing !== null) {
+      if (trimmed === undefined) return existing;
+      if (canReuseCreateKey(existing, existingName, trimmed)) {
+        return existing;
+      }
+    }
     const key = newIdempotencyKey();
-    set({ createIdempotencyKey: key });
+    set({
+      createIdempotencyKey: key,
+      createKeyName: trimmed ?? null,
+      createKeyLastOutcome: null,
+    });
     return key;
+  },
+  recordCreateOutcome: (outcomeOrError: 'success' | unknown) => {
+    const outcome = classifyCreateTeamOutcome(outcomeOrError);
+    if (shouldClearOnOutcome(outcome)) {
+      set({
+        createIdempotencyKey: null,
+        createKeyName: null,
+        createKeyLastOutcome: outcome,
+      });
+    } else {
+      set({ createKeyLastOutcome: outcome });
+    }
+    return outcome;
   },
   consumeInviteToken: async (token: string) => {
     // Fire-and-forget from a deep link (App.tsx), so this promise MUST settle and never reject
@@ -169,6 +212,7 @@ export function inviteRoleOptions(viewerRole: TeamRole): readonly TeamRole[] {
 export type TeamQueryOptions = {
   refetchInterval?: number;
   refetchIntervalInBackground?: boolean;
+  enabled?: boolean;
 };
 
 export function useTeamsList(options?: TeamQueryOptions) {
@@ -187,7 +231,7 @@ export function useTeam(teamId: string | null, options?: TeamQueryOptions) {
   return useQuery({
     queryKey: ['teams', 'detail', teamId],
     queryFn: () => teamsApi.getTeam(teamId as string),
-    enabled: teamId !== null,
+    enabled: teamId !== null && (options?.enabled ?? true),
     ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
     ...(options?.refetchIntervalInBackground !== undefined
       ? { refetchIntervalInBackground: options.refetchIntervalInBackground }
@@ -199,7 +243,7 @@ export function useTeamMembers(teamId: string | null, options?: TeamQueryOptions
   return useQuery({
     queryKey: ['teams', teamId, 'members'],
     queryFn: () => teamsApi.listMembers(teamId as string),
-    enabled: teamId !== null,
+    enabled: teamId !== null && (options?.enabled ?? true),
     ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
     ...(options?.refetchIntervalInBackground !== undefined
       ? { refetchIntervalInBackground: options.refetchIntervalInBackground }
@@ -211,7 +255,7 @@ export function useTeamInvites(teamId: string | null, options?: TeamQueryOptions
   return useQuery({
     queryKey: ['teams', teamId, 'invites'],
     queryFn: () => teamsApi.listInvites(teamId as string),
-    enabled: teamId !== null,
+    enabled: teamId !== null && (options?.enabled ?? true),
     ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
     ...(options?.refetchIntervalInBackground !== undefined
       ? { refetchIntervalInBackground: options.refetchIntervalInBackground }

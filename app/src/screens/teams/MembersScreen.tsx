@@ -49,7 +49,11 @@ export function MembersScreen() {
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
   const membersQuery = useTeamMembers(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
-  const invitesQuery = useTeamInvites(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
+  const invitesQuery = useTeamInvites(selectedTeamId, {
+    enabled: canInviteMembers(teamQuery.data?.role) && selectedTeamId !== null,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+  });
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: () => authApi.me(),
