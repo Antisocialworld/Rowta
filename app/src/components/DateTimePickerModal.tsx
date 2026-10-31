@@ -33,6 +33,16 @@ import {
   parseLocalInput,
   type MonthGridCell,
 } from '../lib/date-picker';
+import {
+  PICKER_CELL_MAX_WIDTH,
+  PICKER_CENTERING_PADDING,
+  PICKER_DIALOG_PADDING,
+  PICKER_STEPPER_GAP,
+  STEPPER_BUTTON_SIZE,
+  STEPPER_CONTROLS_PADDING,
+  STEPPER_INTERNAL_GAP,
+  STEPPER_VALUE_MIN_WIDTH,
+} from '../lib/picker-layout';
 import { colors, shape, spacing, state } from '../theme/tokens';
 import { CONTENT_MAX_WIDTH, iconSize } from '../theme/layout';
 
@@ -192,7 +202,11 @@ export function DateTimePickerModal({
       />
       <View style={styles.centering} pointerEvents="box-none">
         <View style={styles.dialog} testID={testID}>
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={styles.dialogScroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Header */}
             <View style={styles.header}>
               <Text ref={headingRef} variant="title-medium" accessibilityRole="header">
@@ -430,13 +444,13 @@ export function DateTimePickerModal({
             {isTimeOrderInvalid ? (
               <LiveRegion tone="error">{TIME_ORDER_ERROR}</LiveRegion>
             ) : null}
-
-            {/* Actions */}
-            <View style={styles.actions}>
-              <Button label="action.cancel" variant="ghost" fullWidth={false} onPress={onCancel} testID={`${testID}-cancel`} />
-              <Button label="action.confirm" variant="primary" fullWidth={false} onPress={handleConfirm} testID={`${testID}-confirm`} />
-            </View>
           </ScrollView>
+
+          {/* Actions */}
+          <View style={styles.actions}>
+            <Button label="action.cancel" variant="ghost" fullWidth={false} onPress={onCancel} testID={`${testID}-cancel`} />
+            <Button label="action.confirm" variant="primary" fullWidth={false} onPress={handleConfirm} testID={`${testID}-confirm`} />
+          </View>
         </View>
       </View>
     </Modal>
@@ -449,7 +463,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Number(spacing.base),
+    padding: PICKER_CENTERING_PADDING,
   },
   dialog: {
     width: '100%',
@@ -457,7 +471,10 @@ const styles = StyleSheet.create({
     maxHeight: '90%',
     backgroundColor: colors['color-surface'],
     borderRadius: Number(shape.large),
-    padding: Number(spacing.base),
+    padding: PICKER_DIALOG_PADDING,
+  },
+  dialogScroll: {
+    flexShrink: 1,
   },
   scrollContent: {
     gap: Number(spacing.base),
@@ -484,24 +501,29 @@ const styles = StyleSheet.create({
   },
   weekdayRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: colors['color-outline-variant'],
     paddingBottom: Number(spacing.extraSmall),
   },
   weekdayCell: {
-    width: 44,
+    flex: 1,
+    maxWidth: PICKER_CELL_MAX_WIDTH,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   grid: {
     gap: Number(spacing.extraSmall),
   },
   weekRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dayCell: {
-    width: 44,
+    flex: 1,
+    maxWidth: PICKER_CELL_MAX_WIDTH,
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
@@ -527,8 +549,10 @@ const styles = StyleSheet.create({
   },
   timeSteppers: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: Number(spacing.base),
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: PICKER_STEPPER_GAP,
   },
   stepperGroup: {
     alignItems: 'center',
@@ -537,19 +561,19 @@ const styles = StyleSheet.create({
   stepperControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Number(spacing.small),
+    gap: STEPPER_INTERNAL_GAP,
     backgroundColor: colors['color-surface-container-high'],
     borderRadius: Number(shape.medium),
-    padding: Number(spacing.extraSmall),
+    padding: STEPPER_CONTROLS_PADDING,
   },
   stepperButton: {
-    width: 44,
-    height: 44,
+    width: STEPPER_BUTTON_SIZE,
+    height: STEPPER_BUTTON_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepperValue: {
-    minWidth: 40,
+    minWidth: STEPPER_VALUE_MIN_WIDTH,
     textAlign: 'center',
     fontWeight: '700',
   },
@@ -581,6 +605,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: Number(spacing.small),
-    marginTop: Number(spacing.small),
+    marginTop: Number(spacing.base),
   },
 });

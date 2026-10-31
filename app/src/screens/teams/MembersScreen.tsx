@@ -5,13 +5,14 @@
 // EXCEPT the owner, whose catalog line explains why (teams.leave.blocked). Every destructive action
 // goes through the kit's ConfirmDialog (no silent destructive taps); results are announced in a
 // polite live region (X3) and never leak raw server text (V5).
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, errorMessageKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
+import { membersNeedingEmail } from '../../lib/member-display';
 import {
   canChangeMemberRole,
   canInviteMembers,
@@ -48,6 +49,11 @@ export function MembersScreen() {
   const members = membersQuery.data?.members;
   const isOwner = team?.role === 'owner';
   const isStaff = team?.role === 'staff';
+
+  const duplicateNameUserIds = useMemo(
+    () => (members ? membersNeedingEmail(members) : new Set<string>()),
+    [members],
+  );
 
   useEffect(() => {
     focusOn(headingRef.current);
@@ -138,12 +144,13 @@ export function MembersScreen() {
                 const showRoleButton = canChangeMemberRole(team?.role, member.role);
                 const showRemoveButton = canRemoveMember(team?.role, member.role);
                 const hasActions = showRoleButton || showRemoveButton;
+                const showEmail = !isStaff && Boolean(member.email) && duplicateNameUserIds.has(member.userId);
                 return (
                   <Card key={member.userId} variant="flat" testID={`member-${member.userId}`}>
                     <View style={styles.row}>
                       <View style={styles.rowText}>
                         <Text variant="title-medium">{member.displayName}</Text>
-                        {!isStaff && member.email ? (
+                        {showEmail ? (
                           <Text variant="body-medium" tone="secondary">
                             {member.email}
                           </Text>

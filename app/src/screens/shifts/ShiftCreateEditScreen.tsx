@@ -328,21 +328,19 @@ export function ShiftCreateEditScreen() {
                   </Text>
                 ) : null}
               </View>
-              <View style={styles.timeInputRow}>
-                <View style={styles.timeInputFlex}>
-                  <Input
-                    ref={startsInputRef}
-                    label="field.shiftStartsAt"
-                    value={startsAt}
-                    onChangeText={(v) => {
-                      setStartsAt(v);
-                      setStartsAtError(undefined);
-                    }}
-                    errorKey={startsAtError}
-                    hintKey="shift.form.timeHint"
-                    testID="shift-starts-input"
-                  />
-                </View>
+              <View style={styles.dateFieldGroup}>
+                <Input
+                  ref={startsInputRef}
+                  label="field.shiftStartsAt"
+                  value={startsAt}
+                  onChangeText={(v) => {
+                    setStartsAt(v);
+                    setStartsAtError(undefined);
+                  }}
+                  errorKey={startsAtError}
+                  hintKey="shift.form.timeHint"
+                  testID="shift-starts-input"
+                />
                 <Button
                   label="action.pickDateTime"
                   icon="calendar-today"
@@ -353,21 +351,19 @@ export function ShiftCreateEditScreen() {
                 />
               </View>
 
-              <View style={styles.timeInputRow}>
-                <View style={styles.timeInputFlex}>
-                  <Input
-                    ref={endsInputRef}
-                    label="field.shiftEndsAt"
-                    value={endsAt}
-                    onChangeText={(v) => {
-                      setEndsAt(v);
-                      setEndsAtError(undefined);
-                    }}
-                    errorKey={endsAtError}
-                    hintKey="shift.form.timeHint"
-                    testID="shift-ends-input"
-                  />
-                </View>
+              <View style={styles.dateFieldGroup}>
+                <Input
+                  ref={endsInputRef}
+                  label="field.shiftEndsAt"
+                  value={endsAt}
+                  onChangeText={(v) => {
+                    setEndsAt(v);
+                    setEndsAtError(undefined);
+                  }}
+                  errorKey={endsAtError}
+                  hintKey="shift.form.timeHint"
+                  testID="shift-ends-input"
+                />
                 <Button
                   label="action.pickDateTime"
                   icon="calendar-today"
@@ -424,13 +420,9 @@ const styles = StyleSheet.create({
     paddingBottom: Number(spacing.base),
   },
   stack: { gap: Number(spacing.base) },
-  timeInputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  dateFieldGroup: {
     gap: Number(spacing.small),
-  },
-  timeInputFlex: {
-    flex: 1,
+    alignItems: 'flex-start',
   },
   memberRow: {
     flexDirection: 'row',

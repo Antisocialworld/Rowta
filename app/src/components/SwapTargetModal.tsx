@@ -119,15 +119,17 @@ export function SwapTargetModal({
                     onPress={() => setSelectedUserId(member.userId)}
                     testID={`${testID}-member-${member.userId}`}
                   >
-                    <Text variant="body-medium">{member.displayName}</Text>
+                    <Text variant="body-medium" style={styles.memberName}>{member.displayName}</Text>
                     {isSelected ? (
-                      <MaterialIcons
-                        name="check"
-                        size={iconSize('body-medium')}
-                        color={colors['color-on-surface']}
-                        accessibilityElementsHidden
-                        importantForAccessibility="no"
-                      />
+                      <View style={styles.checkIcon}>
+                        <MaterialIcons
+                          name="check"
+                          size={iconSize('body-medium')}
+                          color={colors['color-on-surface']}
+                          accessibilityElementsHidden
+                          importantForAccessibility="no"
+                        />
+                      </View>
                     ) : null}
                   </Pressable>
                 );
@@ -168,7 +170,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Number(spacing.base),
+    padding: Number(spacing.small),
   },
   card: {
     width: '100%',
@@ -179,9 +181,11 @@ const styles = StyleSheet.create({
     padding: Number(spacing.base),
   },
   title: {
+    alignSelf: 'stretch',
     marginBottom: Number(spacing.extraSmall),
   },
   hint: {
+    alignSelf: 'stretch',
     marginBottom: Number(spacing.base),
   },
   loadingContainer: {
@@ -192,6 +196,7 @@ const styles = StyleSheet.create({
     paddingVertical: Number(spacing.base),
   },
   list: {
+    flexShrink: 1,
     maxHeight: 280,
   },
   listContent: {
@@ -202,17 +207,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: Number(spacing.small),
     padding: Number(spacing.base),
     borderRadius: Number(shape.small),
     backgroundColor: colors['color-surface-container-high'],
     minHeight: 44, // X6 accessible touch target
+  },
+  memberName: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  checkIcon: {
+    flexShrink: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   memberRowSelected: {
     backgroundColor: colors['color-primary-container'],
   },
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: Number(spacing.small),
     marginTop: Number(spacing.base),
   },
