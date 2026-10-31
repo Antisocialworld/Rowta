@@ -2,6 +2,7 @@
 // Optimistic update + rollback reducer, swap filter helpers, and permission helpers.
 // Pure functions with zero side-effects and zero React/DOM dependencies for straightforward testability.
 import type { SwapRequestView, SwapStatus } from '@rowta/shared';
+import type { MessageKey } from '../i18n/en';
 
 export interface ShiftSwapState {
   readonly hasPendingSwap: boolean;
@@ -118,6 +119,46 @@ export function canRequestSwap(
   const endsAtMs = new Date(shift.endsAt).getTime();
   if (endsAtMs <= nowMs) return false;
   return true;
+}
+
+export type SwapIneligibleReason =
+  | 'not_assignee'
+  | 'shift_ended'
+  | 'pending_swap';
+
+/**
+ * Diagnoses why a user cannot request a swap on a shift (Owner UX pass, Task 4).
+ * Returns null if the user can request a swap.
+ */
+export function getSwapIneligibleReason(
+  shift: { readonly assignedUserId: string; readonly endsAt: string } | null | undefined,
+  currentUserId: string,
+  hasPendingSwap: boolean,
+  nowMs = Date.now(),
+): SwapIneligibleReason | null {
+  if (!shift) return null;
+  if (shift.assignedUserId !== currentUserId) {
+    return 'not_assignee';
+  }
+  const endsAtMs = new Date(shift.endsAt).getTime();
+  if (endsAtMs <= nowMs) {
+    return 'shift_ended';
+  }
+  if (hasPendingSwap) {
+    return 'pending_swap';
+  }
+  return null;
+}
+
+export function swapIneligibleMessageKey(reason: SwapIneligibleReason): MessageKey {
+  switch (reason) {
+    case 'not_assignee':
+      return 'swap.reason.notAssignee';
+    case 'shift_ended':
+      return 'swap.reason.shiftEnded';
+    case 'pending_swap':
+      return 'swap.reason.pendingSwap';
+  }
 }
 
 /**

@@ -4,6 +4,8 @@ Rowta is a shift-scheduling app for small teams, Android first. Owners and manag
 them, ask for swaps and get notified; the business pays per seat. The app never decides anything that matters:
 the server enforces roles, team isolation, seats and money.
 
+Roles: the brief's Owner is shown in the app as Admin (stored as `owner`, one per team); Manager and Staff are unchanged. See docs/decisions/0019-role-label-admin.md.
+
 This page is the map. It says what exists, how to run it, how to test it, and — just as important — what is
 proven and what is not. Every phase claim below comes from the gate file named beside it, not from a plan.
 

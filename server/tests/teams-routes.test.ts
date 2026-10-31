@@ -462,14 +462,48 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
   });
 
   describe('4. Roles and Member Management (Rule S8)', () => {
-    it('lists members for team', async () => {
-      const res = await get(app, `/teams/${teamId}/members`, ownerAuth);
-      expect(res.status).toBe(200);
-      const data = await dataOf(res);
-      const members = data.members as { userId: string; role: string; email: string }[];
-      expect(members.some((m) => m.userId === ownerId && m.role === 'owner')).toBe(true);
-      expect(members.some((m) => m.userId === managerId && m.role === 'manager')).toBe(true);
-      expect(members.some((m) => m.userId === staffId && m.role === 'staff')).toBe(true);
+    it('lists members for team (privacy: Owner and Manager see emails, Staff sees own email only)', async () => {
+      // Owner sees full emails
+      const ownerRes = await get(app, `/teams/${teamId}/members`, ownerAuth);
+      expect(ownerRes.status).toBe(200);
+      const ownerData = await dataOf(ownerRes);
+      const ownerMembers = ownerData.members as { userId: string; role: string; email: string }[];
+      expect(ownerMembers.some((m) => m.userId === ownerId && m.role === 'owner')).toBe(true);
+      expect(ownerMembers.some((m) => m.userId === managerId && m.role === 'manager')).toBe(true);
+      expect(ownerMembers.some((m) => m.userId === staffId && m.role === 'staff')).toBe(true);
+      expect(ownerMembers.every((m) => m.email.length > 0)).toBe(true);
+
+      // Manager also sees full emails
+      const mgrRes = await get(app, `/teams/${teamId}/members`, managerAuth);
+      expect(mgrRes.status).toBe(200);
+      const mgrMembers = (await dataOf(mgrRes)).members as { userId: string; email: string }[];
+      expect(mgrMembers.every((m) => m.email.length > 0)).toBe(true);
+
+      // Staff sees own email, but empty string for other members
+      const staffRes = await get(app, `/teams/${teamId}/members`, staffAuth);
+      expect(staffRes.status).toBe(200);
+      const staffMembers = (await dataOf(staffRes)).members as { userId: string; email: string }[];
+      const selfMember = staffMembers.find((m) => m.userId === staffId);
+      expect(selfMember?.email.length).toBeGreaterThan(0);
+      const otherMembers = staffMembers.filter((m) => m.userId !== staffId);
+      expect(otherMembers.length).toBeGreaterThan(0);
+      expect(otherMembers.every((m) => m.email === '')).toBe(true);
+    });
+
+    it('Staff cannot see invites list (403), while Owner and Manager can (200)', async () => {
+      // Staff gets 403 forbidden
+      const staffInvRes = await get(app, `/teams/${teamId}/invites`, staffAuth);
+      expect(staffInvRes.status).toBe(403);
+      const staffInvErr = await errorOf(staffInvRes);
+      expect(staffInvErr.code).toBe('team.forbidden');
+
+      // Owner gets 200
+      const ownerInvRes = await get(app, `/teams/${teamId}/invites`, ownerAuth);
+      expect(ownerInvRes.status).toBe(200);
+
+      // Manager gets 200
+      const mgrInvRes = await get(app, `/teams/${teamId}/invites`, managerAuth);
+      expect(mgrInvRes.status).toBe(200);
     });
 
     it('Owner can change staff role to manager', async () => {
@@ -546,6 +580,48 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       const err = await errorOf(res);
       expect(err.code).toBe('auth.deleteOwner.blocked');
       expect(err.message).toBe('Transfer or delete your team first.');
+    });
+
+    it('Staff cannot change any member role (403 team.forbidden; change_role is owner-only)', async () => {
+      const res = await post(app, `/teams/${teamId}/members/${managerId}/role`, { role: 'staff' }, staffAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
+    });
+
+    it('Staff cannot remove any member (403 team.forbidden; remove_member is owner/manager only)', async () => {
+      const res = await post(app, `/teams/${teamId}/members/${managerId}/remove`, {}, staffAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
+    });
+
+    it('Staff cannot transfer team ownership (403 team.forbidden; transfer_ownership is owner-only)', async () => {
+      const res = await post(app, `/teams/${teamId}/transfer`, { targetUserId: managerId }, staffAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
+    });
+
+    it('Staff cannot create invitations (403 team.forbidden; invite_member is owner/manager only)', async () => {
+      const res = await post(app, `/teams/${teamId}/invites`, { email: uniqueEmail('staff-invite-attempt'), role: 'staff' }, staffAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
+    });
+
+    it('Staff cannot revoke invitations (403 team.forbidden; revoke_invite is owner/manager only)', async () => {
+      const openInvEmail = uniqueEmail('staff-revoke-target');
+      await post(app, `/teams/${teamId}/invites`, { email: openInvEmail, role: 'staff' }, ownerAuth);
+      const inv = await forTeam(teamId).invites.findFirst({
+        where: { team_id: teamId, email: openInvEmail, revoked_at: null },
+      });
+      expect(inv).not.toBeNull();
+
+      const res = await post(app, `/teams/${teamId}/invites/${inv!.id}/revoke`, {}, staffAuth);
+      expect(res.status).toBe(403);
+      const err = await errorOf(res);
+      expect(err.code).toBe('team.forbidden');
     });
 
     it('Staff cannot toggle team settings (403 team.forbidden; manage_settings is owner-only)', async () => {
@@ -641,6 +717,156 @@ describe('Phase 3 Teams, roles, invites, seat skeleton routes', () => {
       // Only Owner can revoke manager invites
       const ownerRevokeRes = await post(app, `/teams/${teamId}/invites/${inv!.id}/revoke`, {}, ownerAuth);
       expect(ownerRevokeRes.status).toBe(200);
+    });
+  });
+
+  describe('Phase C: Team soft deletion and ownership transfer (ADR 0018)', () => {
+    it('enforces owner-only permission and confirmation name on team deletion', async () => {
+      const oEmail = uniqueEmail('del-owner');
+      const oId = await createVerifiedUser(oEmail, 'OwnerPass123#');
+      const oAuth = { authorization: `Bearer ${await signAccessToken(oId)}` };
+
+      const mEmail = uniqueEmail('del-manager');
+      const mId = await createVerifiedUser(mEmail, 'ManagerPass123#');
+      const mAuth = { authorization: `Bearer ${await signAccessToken(mId)}` };
+
+      // Create a team
+      const createRes = await post(
+        app,
+        '/teams',
+        { name: 'Delete Test Team' },
+        { ...oAuth, 'idempotency-key': randomUUID() },
+      );
+      expect(createRes.status).toBe(201);
+      const delTeamId = (await dataOf(createRes)).id as string;
+
+      // Add manager
+      const inviteRes = await post(app, `/teams/${delTeamId}/invites`, { email: mEmail, role: 'manager' }, oAuth);
+      expect(inviteRes.status).toBe(200);
+      const mail = await waitForMail(mEmail);
+      const match = /\/invite\/([A-Za-z0-9_.~-]+)/.exec(mail.text);
+      expect(match).not.toBeNull();
+      const token = match![1]!;
+      const acceptRes = await post(app, '/invites/accept', { token }, mAuth);
+      expect(acceptRes.status).toBe(200);
+      const acceptData = await dataOf(acceptRes);
+      expect(acceptData.role).toBe('manager');
+
+      // 1. Manager tries to delete -> 403
+      const mgrDelRes = await post(app, `/teams/${delTeamId}/delete`, { confirmName: 'Delete Test Team' }, mAuth);
+      expect(mgrDelRes.status).toBe(403);
+      const mgrDelErr = await errorOf(mgrDelRes);
+      expect(mgrDelErr.code).toBe('team.forbidden');
+
+      // 2. Owner with mismatched name -> 422 team.nameMismatch
+      const wrongNameRes = await post(app, `/teams/${delTeamId}/delete`, { confirmName: 'Wrong Name' }, oAuth);
+      expect(wrongNameRes.status).toBe(422);
+      const wrongNameErr = await errorOf(wrongNameRes);
+      expect(wrongNameErr.code).toBe('team.nameMismatch');
+
+      // 3. Owner with correct name -> 200 soft delete
+      const delRes = await post(app, `/teams/${delTeamId}/delete`, { confirmName: ' Delete Test Team ' }, oAuth);
+      expect(delRes.status).toBe(200);
+      const delData = await dataOf(delRes);
+      expect(delData.success).toBe(true);
+      expect(delData.teamId).toBe(delTeamId);
+
+      // 4. Subsequent queries for deleted team return 404 team.notFound
+      const getRes = await get(app, `/teams/${delTeamId}`, oAuth);
+      expect(getRes.status).toBe(404);
+      const getErr = await errorOf(getRes);
+      expect(getErr.code).toBe('team.notFound');
+
+      const membersRes = await get(app, `/teams/${delTeamId}/members`, oAuth);
+      expect(membersRes.status).toBe(404);
+    });
+
+    it('transfers ownership, swaps roles, and preserves created_by', async () => {
+      const oEmail = uniqueEmail('tf-owner');
+      const oId = await createVerifiedUser(oEmail, 'OwnerPass123#');
+      const oAuth = { authorization: `Bearer ${await signAccessToken(oId)}` };
+
+      const cEmail = uniqueEmail('tf-colleague');
+      const cId = await createVerifiedUser(cEmail, 'ColleaguePass123#');
+      const cAuth = { authorization: `Bearer ${await signAccessToken(cId)}` };
+
+      const outEmail = uniqueEmail('tf-outsider');
+      const outId = await createVerifiedUser(outEmail, 'OutsiderPass123#');
+
+      // Create team
+      const createRes = await post(
+        app,
+        '/teams',
+        { name: 'Transfer Test Team' },
+        { ...oAuth, 'idempotency-key': randomUUID() },
+      );
+      expect(createRes.status).toBe(201);
+      const tfTeamId = (await dataOf(createRes)).id as string;
+
+      // Add colleague as staff
+      const inviteRes = await post(app, `/teams/${tfTeamId}/invites`, { email: cEmail, role: 'staff' }, oAuth);
+      expect(inviteRes.status).toBe(200);
+      const mail = await waitForMail(cEmail);
+      const match = /\/invite\/([A-Za-z0-9_.~-]+)/.exec(mail.text);
+      expect(match).not.toBeNull();
+      const token = match![1]!;
+      const acceptRes = await post(app, '/invites/accept', { token }, cAuth);
+      expect(acceptRes.status).toBe(200);
+      const acceptData = await dataOf(acceptRes);
+      expect(acceptData.role).toBe('staff');
+
+      // 1. Staff tries to transfer -> 403
+      const staffTransferRes = await post(app, `/teams/${tfTeamId}/transfer`, { targetUserId: oId }, cAuth);
+      expect(staffTransferRes.status).toBe(403);
+
+      // 2. Self-transfer -> 422
+      const selfTransferRes = await post(app, `/teams/${tfTeamId}/transfer`, { targetUserId: oId }, oAuth);
+      expect(selfTransferRes.status).toBe(422);
+      const selfErr = await errorOf(selfTransferRes);
+      expect(selfErr.code).toBe('team.transferTargetInvalid');
+
+      // 3. Transfer to non-member outsider -> 422
+      const outsiderTransferRes = await post(app, `/teams/${tfTeamId}/transfer`, { targetUserId: outId }, oAuth);
+      expect(outsiderTransferRes.status).toBe(422);
+      const outsiderErr = await errorOf(outsiderTransferRes);
+      expect(outsiderErr.code).toBe('team.transferTargetInvalid');
+
+      // 4. Successful transfer to colleague
+      const transferRes = await post(app, `/teams/${tfTeamId}/transfer`, { targetUserId: cId }, oAuth);
+      expect(transferRes.status).toBe(200);
+      const transferData = await dataOf(transferRes);
+      expect(transferData.success).toBe(true);
+      expect(transferData.teamId).toBe(tfTeamId);
+      expect(transferData.newOwnerId).toBe(cId);
+
+      // 5. Verify roles swapped: colleague is owner, original owner is manager
+      const membersRes = await get(app, `/teams/${tfTeamId}/members`, cAuth);
+      expect(membersRes.status).toBe(200);
+      const membersData = await dataOf(membersRes);
+      const members = membersData.members as { userId: string; role: string }[];
+      const formerOwnerMem = members.find((m) => m.userId === oId);
+      const newOwnerMem = members.find((m) => m.userId === cId);
+      expect(formerOwnerMem?.role).toBe('manager');
+      expect(newOwnerMem?.role).toBe('owner');
+
+      // 6. Verify createdBy still points to original founder (owner)
+      const teamRes = await get(app, `/teams/${tfTeamId}`, cAuth);
+      expect(teamRes.status).toBe(200);
+      const teamData = await dataOf(teamRes);
+      const createdBy = teamData.createdBy as { userId: string; displayName: string } | null;
+      expect(createdBy?.userId).toBe(oId);
+
+      // 7. Verify directly in the DB: old Admin is manager, colleague is owner, exactly one active owner exists
+      const shard = forTeam(tfTeamId);
+      const dbMembers = await shard.memberships.findMany({
+        where: { team_id: tfTeamId, removed_at: null },
+      });
+      const dbOldAdmin = dbMembers.find((m) => m.user_id === oId);
+      const dbNewOwner = dbMembers.find((m) => m.user_id === cId);
+      expect(dbOldAdmin?.role).toBe('manager');
+      expect(dbNewOwner?.role).toBe('owner');
+      const activeOwners = dbMembers.filter((m) => m.role === 'owner');
+      expect(activeOwners.length).toBe(1);
     });
   });
 });

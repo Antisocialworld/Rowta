@@ -11,6 +11,7 @@ export type PolicyAction =
   | 'manage_shifts'
   | 'request_swap'
   | 'manage_swaps'
+  | 'view_invites'
   | 'invite_member'
   | 'revoke_invite'
   | 'change_role'
@@ -19,6 +20,8 @@ export type PolicyAction =
   | 'view_billing'
   | 'manage_billing'
   | 'delete_team'
+  | 'restore_team'
+  | 'transfer_ownership'
   | 'manage_settings'
   | 'change_own_settings';
 
@@ -42,6 +45,8 @@ export interface PolicyResource {
   readonly targetMemberRole?: Role;
   readonly managersCanRevokeInvites?: boolean;
   readonly shiftAssigneeId?: string;
+  readonly invitedBy?: string;
+  readonly deletedBy?: string;
 }
 
 export interface PolicyContext {
@@ -91,6 +96,11 @@ export const PERMISSION_MATRIX: Readonly<Record<PolicyAction, ActionRule>> = {
     allowedRoles: ['owner', 'manager'],
   },
 
+  // 5a. View open pending invites: Owner=yes, Manager=yes, Staff=NO (403)
+  view_invites: {
+    allowedRoles: ['owner', 'manager'],
+  },
+
   // 5. Invite members: Owner=yes, Manager=yes (staff only) [DECISION], Staff=NO (403)
   invite_member: {
     allowedRoles: ['owner', 'manager'],
@@ -105,11 +115,18 @@ export const PERMISSION_MATRIX: Readonly<Record<PolicyAction, ActionRule>> = {
     },
   },
 
-  // 5b. Revoke open invite: Owner=yes, Manager=staff only AND managers_can_revoke_invites=true, Staff=NO
+  // 5b. Revoke open invite:
+  // Owner=yes (any invite)
+  // Manager=yes ALWAYS if they invited the person (invites.invited_by === caller);
+  //         otherwise staff only AND managers_can_revoke_invites=true
+  // Staff=NO
   revoke_invite: {
     allowedRoles: ['owner', 'manager'],
     checkResource: (ctx) => {
       if (ctx.membership.role === 'manager') {
+        if (ctx.resource?.invitedBy && ctx.resource.invitedBy === ctx.user.id) {
+          return true;
+        }
         return (
           ctx.resource?.managersCanRevokeInvites === true &&
           ctx.resource?.targetRole === 'staff'
@@ -162,6 +179,22 @@ export const PERMISSION_MATRIX: Readonly<Record<PolicyAction, ActionRule>> = {
 
   // 9. Delete or restore the team: Owner=yes, Manager=NO, Staff=NO
   delete_team: {
+    allowedRoles: ['owner'],
+  },
+
+  // 9a. Restore soft-deleted team: only the Admin who deleted it
+  restore_team: {
+    allowedRoles: ['owner'],
+    checkResource: (ctx) => {
+      if (ctx.resource?.deletedBy !== undefined) {
+        return ctx.user.id === ctx.resource.deletedBy;
+      }
+      return true;
+    },
+  },
+
+  // 9b. Transfer team ownership: Owner=yes, Manager=NO, Staff=NO
+  transfer_ownership: {
     allowedRoles: ['owner'],
   },
 

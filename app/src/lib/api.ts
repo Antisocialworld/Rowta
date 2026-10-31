@@ -47,6 +47,18 @@ import {
   createShiftSchema,
   createTeamSchema,
   inviteListResponseSchema,
+  inviteItemSchema,
+  type InviteItem,
+  deleteTeamSchema,
+  deleteTeamResponseSchema,
+  type DeleteTeamInput,
+  type DeleteTeamResponse,
+  deletedTeamItemSchema,
+  deletedTeamsResponseSchema,
+  restoreTeamResponseSchema,
+  type DeletedTeamItem,
+  type DeletedTeamsResponse,
+  type RestoreTeamResponse,
   inviteMemberSchema,
   memberListResponseSchema,
   memberRoleResponseSchema,
@@ -55,7 +67,13 @@ import {
   shiftViewSchema,
   teamListResponseSchema,
   teamResponseSchema,
+  teamCreatorSchema,
+  type TeamCreator,
   teamSettingsResponseSchema,
+  transferTeamSchema,
+  transferTeamResponseSchema,
+  type TransferTeamInput,
+  type TransferTeamResponse,
   updateShiftSchema,
   updateTeamSettingsSchema,
   decideSwapSchema,
@@ -184,17 +202,41 @@ export function errorTextKey(error: ApiError): MessageKey {
 // Runtime (wired by the session layer; kept here so this module stays pure and testable)
 // ---------------------------------------------------------------------------------------------
 
+export const FORBIDDEN_REFETCH_COOLDOWN_MS = 5_000;
+
+/** Pure helper deciding whether enough time has passed since the last refetch to permit another. */
+export function shouldTriggerRoleRefetch(
+  lastRefetchAtMs: number,
+  nowMs: number,
+  cooldownMs: number = FORBIDDEN_REFETCH_COOLDOWN_MS,
+): boolean {
+  if (lastRefetchAtMs <= 0) return true;
+  return nowMs - lastRefetchAtMs >= cooldownMs;
+}
+
 export type ApiRuntime = {
   /** Current access token, or null when signed out. May run the single-flight refresh (A11). */
   getAccessToken(): Promise<string | null>;
   /** A 401 on an authenticated call: refresh single-flight, true = retried with a fresh token. */
   onUnauthorized?(): Promise<boolean>;
+  /** A 404 team.notFound on any team-scoped request. */
+  onTeamNotFound?(teamId: string | null): void;
+  /** A 403 team.forbidden on any team-scoped request. */
+  onTeamForbidden?(teamId: string | null): void;
 };
 
 let runtime: ApiRuntime = { getAccessToken: async () => null };
 
 export function setApiRuntime(next: ApiRuntime): void {
-  runtime = next;
+  runtime = { ...runtime, ...next };
+}
+
+export function setOnTeamNotFound(fn: (teamId: string | null) => void): void {
+  runtime.onTeamNotFound = fn;
+}
+
+export function setOnTeamForbidden(fn: (teamId: string | null) => void): void {
+  runtime.onTeamForbidden = fn;
 }
 
 /** Test seam: swap the fetch implementation (scripts/test-api-client.ts); pass null to restore. */
@@ -298,6 +340,24 @@ async function send(input: RequestInput): Promise<RequestOutput> {
     const retryAfterSeconds =
       response.status === 429 && Number.isInteger(headerRetry) && headerRetry >= 0 ? headerRetry : undefined;
     const { code, requestId, fields } = parsed.data.error;
+    if (response.status === 404 && code === 'team.notFound') {
+      const match = /\/teams\/([0-9a-fA-F-]+)/.exec(path);
+      try {
+        const teamId = match && match[1] ? match[1] : null;
+        runtime.onTeamNotFound?.(teamId);
+      } catch {
+        // Lifecycle hook failure must not suppress throwing the ApiError
+      }
+    }
+    if (response.status === 403 && code === 'team.forbidden') {
+      const match = /\/teams\/([0-9a-fA-F-]+)/.exec(path);
+      try {
+        const teamId = match && match[1] ? match[1] : null;
+        runtime.onTeamForbidden?.(teamId);
+      } catch {
+        // Lifecycle hook failure must not suppress throwing the ApiError
+      }
+    }
     throw new ApiError(response.status, code, requestId, fields, retryAfterSeconds);
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -613,6 +673,54 @@ export const teamsApi = {
     });
     return out.data as TeamSettingsResponse;
   },
+
+  async deleteTeam(teamId: string, input: z.input<typeof deleteTeamSchema>): Promise<DeleteTeamResponse> {
+    deleteTeamSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/delete`,
+      body: input,
+      auth: true,
+      dataSchema: deleteTeamResponseSchema,
+    });
+    return out.data as DeleteTeamResponse;
+  },
+
+  async transferTeam(
+    teamId: string,
+    input: z.input<typeof transferTeamSchema>,
+  ): Promise<TransferTeamResponse> {
+    transferTeamSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/transfer`,
+      body: input,
+      auth: true,
+      dataSchema: transferTeamResponseSchema,
+    });
+    return out.data as TransferTeamResponse;
+  },
+
+  async listDeletedTeams(): Promise<DeletedTeamsResponse> {
+    const out = await send({
+      method: 'GET',
+      path: '/teams/deleted',
+      auth: true,
+      dataSchema: deletedTeamsResponseSchema,
+    });
+    return out.data as DeletedTeamsResponse;
+  },
+
+  async restoreTeam(teamId: string): Promise<RestoreTeamResponse> {
+    const out = await send({
+      method: 'POST',
+      path: `/teams/${encodeURIComponent(teamId)}/restore`,
+      body: {},
+      auth: true,
+      dataSchema: restoreTeamResponseSchema,
+    });
+    return out.data as RestoreTeamResponse;
+  },
 };
 
 /** Phase 4: shifts, calendar, activity feed and search (PRD 6.1, 8.3, 8.4). Every call is team
@@ -811,4 +919,26 @@ export const swapsApi = {
     });
     return out.data as SwapRequestView;
   },
+};
+
+export {
+  teamCreatorSchema,
+  type TeamCreator,
+  teamResponseSchema,
+  deleteTeamSchema,
+  deleteTeamResponseSchema,
+  type DeleteTeamInput,
+  type DeleteTeamResponse,
+  deletedTeamItemSchema,
+  deletedTeamsResponseSchema,
+  restoreTeamResponseSchema,
+  type DeletedTeamItem,
+  type DeletedTeamsResponse,
+  type RestoreTeamResponse,
+  transferTeamSchema,
+  transferTeamResponseSchema,
+  type TransferTeamInput,
+  type TransferTeamResponse,
+  inviteItemSchema,
+  type InviteItem,
 };

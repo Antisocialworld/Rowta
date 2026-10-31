@@ -14,8 +14,10 @@ import { evictDeletedShiftFromQueryClient } from '../../lib/shift-cache';
 import { formatShiftCreator } from '../../lib/shift-creator';
 import {
   canRequestSwap,
+  getSwapIneligibleReason,
   INITIAL_SHIFT_SWAP_STATE,
   shiftSwapReducer,
+  swapIneligibleMessageKey,
 } from '../../lib/swap-logic';
 import { formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
 import { useShiftNav } from '../../state/shift-nav';
@@ -102,6 +104,13 @@ export function ShiftDetailScreen() {
       currentUserId,
       swapState.hasPendingSwap,
     );
+  const ineligibleReason = shift
+    ? getSwapIneligibleReason(
+        { assignedUserId: shift.assignee.userId, endsAt: shift.endsAt },
+        currentUserId,
+        swapState.hasPendingSwap,
+      )
+    : null;
 
   const remove = async (): Promise<void> => {
     if (selectedTeamId === null || shiftId === null) return;
@@ -206,60 +215,67 @@ export function ShiftDetailScreen() {
                 </View>
               ) : null}
 
-              {/* Phase 5: Swap Actions for Assignee */}
-              {isAssignee ? (
-                <View style={styles.swapSection}>
-                  {swapState.hasPendingSwap ? (
-                    <Button
-                      label="swap.requested"
-                      variant="secondary"
-                      ready={false}
-                      busy={swapState.isRequesting}
-                      onPress={() => undefined}
-                      testID="shift-swap-requested-btn"
-                    />
-                  ) : eligibleForSwap ? (
-                    <>
-                      {showColleaguePicker ? (
-                        <View style={styles.pickerBox}>
-                          <Text variant="label-medium">{t('swap.colleague.label')}</Text>
-                          <Button
-                            label={selectedColleagueId ? 'swap.colleague.open' : 'action.select'}
-                            variant="ghost"
-                            onPress={() => setSelectedColleagueId(null)}
-                          />
-                          {colleagues.map((c) => (
-                            <Button
-                              key={c.userId}
-                              label={selectedColleagueId === c.userId ? 'action.done' : 'action.select'}
-                              variant={selectedColleagueId === c.userId ? 'primary' : 'ghost'}
-                              onPress={() => setSelectedColleagueId(c.userId)}
-                            />
-                          ))}
-                          <Button
-                            label="swap.request"
-                            variant="primary"
-                            busy={swapState.isRequesting}
-                            ready={!swapState.isRequesting}
-                            onPress={() => void requestSwapAction()}
-                            testID="shift-request-swap-submit-btn"
-                          />
-                        </View>
-                      ) : (
+              {/* Phase 5: Swap Actions for Assignee or Explanation Line (Task 4) */}
+              <View style={styles.swapSection}>
+                {eligibleForSwap ? (
+                  <>
+                    {showColleaguePicker ? (
+                      <View style={styles.pickerBox}>
+                        <Text variant="label-medium">{t('swap.colleague.label')}</Text>
                         <Button
-                          label={swapState.isRequesting ? 'swap.requesting' : 'swap.request'}
-                          icon="sync"
+                          label={selectedColleagueId ? 'swap.colleague.open' : 'action.select'}
+                          variant="ghost"
+                          onPress={() => setSelectedColleagueId(null)}
+                        />
+                        {colleagues.map((c) => (
+                          <Button
+                            key={c.userId}
+                            label={selectedColleagueId === c.userId ? 'action.done' : 'action.select'}
+                            variant={selectedColleagueId === c.userId ? 'primary' : 'ghost'}
+                            onPress={() => setSelectedColleagueId(c.userId)}
+                          />
+                        ))}
+                        <Button
+                          label="swap.request"
                           variant="primary"
                           busy={swapState.isRequesting}
                           ready={!swapState.isRequesting}
                           onPress={() => void requestSwapAction()}
-                          testID="shift-request-swap-btn"
+                          testID="shift-request-swap-submit-btn"
                         />
-                      )}
-                    </>
-                  ) : null}
-                </View>
-              ) : null}
+                      </View>
+                    ) : (
+                      <Button
+                        label={swapState.isRequesting ? 'swap.requesting' : 'swap.request'}
+                        icon="sync"
+                        variant="primary"
+                        busy={swapState.isRequesting}
+                        ready={!swapState.isRequesting}
+                        onPress={() => void requestSwapAction()}
+                        testID="shift-request-swap-btn"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {swapState.hasPendingSwap ? (
+                      <Button
+                        label="swap.requested"
+                        variant="secondary"
+                        ready={false}
+                        busy={swapState.isRequesting}
+                        onPress={() => undefined}
+                        testID="shift-swap-requested-btn"
+                      />
+                    ) : null}
+                    {ineligibleReason ? (
+                      <Text variant="body-medium" tone="secondary" testID="shift-swap-reason-line">
+                        {t(swapIneligibleMessageKey(ineligibleReason))}
+                      </Text>
+                    ) : null}
+                  </>
+                )}
+              </View>
 
               {/* View team swaps button */}
               <Button

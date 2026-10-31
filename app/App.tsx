@@ -20,6 +20,7 @@ import { useAuthFlow } from './src/state/auth-context';
 import { useAuthSession } from './src/state/auth-session';
 import { AUTH_ENTRY, useAuthViewStore } from './src/state/auth-view';
 import { useTeams } from './src/state/teams';
+import { setTeamNotFoundHandler } from './src/lib/team-lifecycle';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 // Web only (X1, item D): hide Edge/Chromium's native password-reveal button so the kit's labelled toggle
@@ -60,6 +61,8 @@ const queryClient = new QueryClient({
     mutations: { retry: false },
   },
 });
+
+setTeamNotFoundHandler(queryClient);
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({

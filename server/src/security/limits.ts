@@ -75,6 +75,10 @@ export const LIMITS: readonly LimitDef[] = [
   { id: 'invite.revoke', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'revoke invite write' },
   { id: 'invite.accept', key: 'ip', max: 30, windowSec: 900, failMode: 'C', reason: 'stop brute force on invite tokens' },
   { id: 'team.settings', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'team settings update write' },
+  { id: 'team.delete', key: 'user', max: 10, windowSec: 3_600, failMode: 'C', reason: 'team soft delete write' },
+  { id: 'team.restore', key: 'user', max: 10, windowSec: 3_600, failMode: 'C', reason: 'team restore write' },
+  { id: 'teams.deleted', key: 'user', max: 60, windowSec: 60, failMode: 'O', reason: 'deleted teams list read' },
+  { id: 'team.transfer', key: 'user', max: 10, windowSec: 3_600, failMode: 'C', reason: 'team ownership transfer write' },
 
   // Phase 4 — Shifts, calendar, activity feed, search.
   { id: 'shift.read', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap calendar and detail reads' },

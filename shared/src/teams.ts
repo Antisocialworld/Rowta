@@ -52,12 +52,33 @@ export const updateTeamSettingsSchema = z
   .strict();
 export type UpdateTeamSettingsInput = z.infer<typeof updateTeamSettingsSchema>;
 
+export const deleteTeamSchema = z
+  .object({
+    confirmName: z.string().trim().min(1, 'team.nameMismatch'),
+  })
+  .strict();
+export type DeleteTeamInput = z.infer<typeof deleteTeamSchema>;
+
+export const transferTeamSchema = z
+  .object({
+    targetUserId: z.string().uuid('team.transferTargetInvalid'),
+  })
+  .strict();
+export type TransferTeamInput = z.infer<typeof transferTeamSchema>;
+
+export const teamCreatorSchema = z.object({
+  userId: z.string().uuid(),
+  displayName: z.string(),
+});
+export type TeamCreator = z.infer<typeof teamCreatorSchema>;
+
 // Response schemas
 export const teamResponseSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   role: teamRoleSchema,
   managersCanRevokeInvites: z.boolean(),
+  createdBy: teamCreatorSchema.nullable().optional(),
 });
 export type TeamResponse = z.infer<typeof teamResponseSchema>;
 
@@ -92,6 +113,7 @@ export const inviteItemSchema = z.object({
   role: teamRoleSchema,
   createdAt: z.coerce.date(),
   expiresAt: z.coerce.date(),
+  invitedBy: z.string().uuid().optional(),
 });
 export type InviteItem = z.infer<typeof inviteItemSchema>;
 
@@ -110,4 +132,38 @@ export const teamSettingsResponseSchema = z.object({
   managersCanRevokeInvites: z.boolean(),
 });
 export type TeamSettingsResponse = z.infer<typeof teamSettingsResponseSchema>;
+
+export const deleteTeamResponseSchema = z.object({
+  success: z.literal(true),
+  teamId: z.string().uuid(),
+});
+export type DeleteTeamResponse = z.infer<typeof deleteTeamResponseSchema>;
+
+export const transferTeamResponseSchema = z.object({
+  success: z.literal(true),
+  teamId: z.string().uuid(),
+  newOwnerId: z.string().uuid(),
+});
+export type TransferTeamResponse = z.infer<typeof transferTeamResponseSchema>;
+
+export const deletedTeamItemSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  deletedAt: z.string(),
+  restoreUntil: z.string(),
+});
+export type DeletedTeamItem = z.infer<typeof deletedTeamItemSchema>;
+
+export const deletedTeamsResponseSchema = z.object({
+  teams: z.array(deletedTeamItemSchema),
+});
+export type DeletedTeamsResponse = z.infer<typeof deletedTeamsResponseSchema>;
+
+export const restoreTeamResponseSchema = z.object({
+  success: z.literal(true),
+  teamId: z.string().uuid(),
+});
+export type RestoreTeamResponse = z.infer<typeof restoreTeamResponseSchema>;
+
+
 

@@ -5,7 +5,9 @@ import {
   acceptInviteSchema,
   changeMemberRoleSchema,
   createTeamSchema,
+  deleteTeamSchema,
   inviteMemberSchema,
+  transferTeamSchema,
   updateTeamSettingsSchema,
 } from '@rowta/shared';
 import { globalDb } from '../db/clients.ts';
@@ -29,6 +31,10 @@ function fieldCode(issue: ZodIssue, field: string | undefined): string {
       return 'auth.field.required';
     case 'managers_can_revoke_invites':
       return 'validation.invalid';
+    case 'confirmName':
+      return 'team.nameMismatch';
+    case 'targetUserId':
+      return 'team.transferTargetInvalid';
     default:
       return 'validation.invalid';
   }
@@ -89,6 +95,13 @@ export function createTeamsRouter(): Hono {
     const userId = getUserId(c);
     const teams = await service.listTeams(userId);
     return c.json(ok({ teams }));
+  });
+
+  // 2b. List deleted teams (registered before /teams/:teamId to prevent param clash)
+  registerGet(router, '/teams/deleted', { limits: ['teams.deleted'], auth: true }, async (c) => {
+    const userId = getUserId(c);
+    const result = await service.listDeletedTeams(userId);
+    return c.json(ok(result));
   });
 
   // 3. Get team
@@ -178,6 +191,32 @@ export function createTeamsRouter(): Hono {
     const teamId = param(c, 'teamId');
     const body = parseWith(updateTeamSettingsSchema, c.get('parsedBody'));
     const result = await service.updateTeamSettings(userId, teamId, body);
+    return c.json(ok(result));
+  });
+
+  // 13. Delete team (soft delete, Owner only)
+  registerPost(router, '/teams/:teamId/delete', { limits: ['team.delete'], auth: true }, async (c) => {
+    const userId = getUserId(c);
+    const teamId = param(c, 'teamId');
+    const body = parseWith(deleteTeamSchema, c.get('parsedBody'));
+    const result = await service.deleteTeam(userId, teamId, body);
+    return c.json(ok(result));
+  });
+
+  // 14. Transfer team ownership (Owner only)
+  registerPost(router, '/teams/:teamId/transfer', { limits: ['team.transfer'], auth: true }, async (c) => {
+    const callerId = getUserId(c);
+    const teamId = param(c, 'teamId');
+    const body = parseWith(transferTeamSchema, c.get('parsedBody'));
+    const result = await service.transferTeam(callerId, teamId, body);
+    return c.json(ok(result));
+  });
+
+  // 15. Restore team (Deleter Admin only)
+  registerPost(router, '/teams/:teamId/restore', { limits: ['team.restore'], auth: true }, async (c) => {
+    const userId = getUserId(c);
+    const teamId = param(c, 'teamId');
+    const result = await service.restoreTeam(userId, teamId);
     return c.json(ok(result));
   });
 

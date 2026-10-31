@@ -26,12 +26,13 @@ export type BadgeProps = {
   label: MessageKey;
   tone?: BadgeTone;
   style?: StyleProp<ViewStyle>;
+  testID?: string;
 };
 
-export function Badge({ label, tone = 'neutral', style }: BadgeProps) {
+export function Badge({ label, tone = 'neutral', style, testID }: BadgeProps) {
   const pair = TONE[tone];
   return (
-    <View style={[styles.badge, { backgroundColor: pair.bg }, style]}>
+    <View style={[styles.badge, { backgroundColor: pair.bg }, style]} testID={testID}>
       <Text variant="label-small" style={{ color: pair.content }}>
         {t(label)}
       </Text>

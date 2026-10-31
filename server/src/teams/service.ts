@@ -4,10 +4,17 @@ import {
   INVITE_TTL_SECONDS,
   STARTER_SEAT_CAP,
   normaliseEmail,
+  authMessage,
   type CreateTeamInput,
   type InviteMemberInput,
   type ChangeMemberRoleInput,
   type UpdateTeamSettingsInput,
+  type DeleteTeamInput,
+  type TransferTeamInput,
+  type DeleteTeamResponse,
+  type TransferTeamResponse,
+  type DeletedTeamsResponse,
+  type RestoreTeamResponse,
 } from '@rowta/shared';
 import {
   forTeam,
@@ -31,6 +38,22 @@ function assertTeamId(teamId: string): void {
   if (typeof teamId !== 'string' || teamId.trim().length === 0) {
     throw new Error('teamId is required for team-scoped data access (rule S7)');
   }
+}
+
+/** Require caller's active membership and non-deleted team row (rules S7, Phase C). */
+async function requireActiveMemberAndTeam(client: AnyPrismaClient, teamId: string, userId: string) {
+  assertTeamId(teamId);
+  const membership = await client.memberships.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
+  });
+  if (!membership || membership.removed_at !== null) {
+    throw new HttpError(404, 'team.notFound', 'Team not found.');
+  }
+  const team = await client.teams.findUnique({ where: { id: teamId } });
+  if (!team || team.deleted_at !== null) {
+    throw new HttpError(404, 'team.notFound', 'Team not found.');
+  }
+  return { membership, team };
 }
 
 /** Timing decoy against dummy hash (Rule A7: equal cost when selector is not found). */
@@ -116,6 +139,7 @@ export async function createTeam(
           id: teamId,
           name: input.name,
           managers_can_revoke_invites: true,
+          created_by: userId,
         },
       });
       await tx.memberships.create({
@@ -174,13 +198,13 @@ export async function createTeam(
 /** List teams for the authenticated user (S8: role read from memberships on each request). */
 export async function listTeams(
   userId: string,
-): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean }[]> {
+): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean; createdBy?: { userId: string; displayName: string } | null }[]> {
   const db0 = globalDb();
   const indexRows = await db0.user_team_index.findMany({
     where: { user_id: userId },
   });
 
-  const teams: { id: string; name: string; role: Role; managersCanRevokeInvites: boolean }[] = [];
+  const teams: { id: string; name: string; role: Role; managersCanRevokeInvites: boolean; createdBy?: { userId: string; displayName: string } | null }[] = [];
 
   for (const row of indexRows) {
     const shardClient = forTeam(row.team_id);
@@ -194,11 +218,23 @@ export async function listTeams(
     });
     if (!team || team.deleted_at !== null) continue;
 
+    let createdBy: { userId: string; displayName: string } | null = null;
+    if (team.created_by) {
+      const creatorUser = await db0.users.findUnique({
+        where: { id: team.created_by },
+        select: { id: true, display_name: true },
+      });
+      if (creatorUser) {
+        createdBy = { userId: creatorUser.id, displayName: creatorUser.display_name };
+      }
+    }
+
     teams.push({
       id: team.id,
       name: team.name,
       role: membership.role as Role,
       managersCanRevokeInvites: team.managers_can_revoke_invites,
+      createdBy,
     });
   }
 
@@ -209,7 +245,7 @@ export async function listTeams(
 export async function getTeam(
   userId: string,
   teamId: string,
-): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean }> {
+): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean; createdBy?: { userId: string; displayName: string } | null }> {
   assertTeamId(teamId);
   const shardClient = forTeam(teamId);
 
@@ -227,11 +263,23 @@ export async function getTeam(
     throw new HttpError(404, 'team.notFound', 'Team not found.');
   }
 
+  let createdBy: { userId: string; displayName: string } | null = null;
+  if (team.created_by) {
+    const creatorUser = await globalDb().users.findUnique({
+      where: { id: team.created_by },
+      select: { id: true, display_name: true },
+    });
+    if (creatorUser) {
+      createdBy = { userId: creatorUser.id, displayName: creatorUser.display_name };
+    }
+  }
+
   return {
     id: team.id,
     name: team.name,
     role: membership.role as Role,
     managersCanRevokeInvites: team.managers_can_revoke_invites,
+    createdBy,
   };
 }
 
@@ -240,15 +288,8 @@ export async function listMembers(
   userId: string,
   teamId: string,
 ): Promise<{ userId: string; role: Role; displayName: string; email: string; createdAt: Date }[]> {
-  assertTeamId(teamId);
   const shardClient = forTeam(teamId);
-
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
   if (!can({ id: userId }, { ...callerMembership, role: callerMembership.role as Role }, 'view_team')) {
     throw new HttpError(403, 'team.forbidden', 'You do not have permission to perform this action.');
@@ -265,13 +306,18 @@ export async function listMembers(
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
 
+  const isStaff = callerMembership.role === 'staff';
+
   return members.map((m) => {
     const u = userMap.get(m.user_id);
+    const rawEmail = u?.email ?? '';
+    // Staff members cannot see other members' email addresses (rules S9, PRD Section 4)
+    const email = isStaff && m.user_id !== userId ? '' : rawEmail;
     return {
       userId: m.user_id,
       role: m.role as Role,
       displayName: u?.display_name ?? '',
-      email: u?.email ?? '',
+      email,
       createdAt: m.created_at,
     };
   });
@@ -284,15 +330,8 @@ export async function changeMemberRole(
   targetUserId: string,
   input: ChangeMemberRoleInput,
 ): Promise<{ userId: string; role: Role }> {
-  assertTeamId(teamId);
   const shardClient = forTeam(teamId);
-
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
   const targetMembership = await shardClient.memberships.findUnique({
     where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
@@ -329,15 +368,8 @@ export async function removeMember(
   teamId: string,
   targetUserId: string,
 ): Promise<{ removed: boolean }> {
-  assertTeamId(teamId);
   const shardClient = forTeam(teamId);
-
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
   const targetMembership = await shardClient.memberships.findUnique({
     where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
@@ -378,15 +410,8 @@ export async function removeMember(
 
 /** Leave a team (Managers and Staff only; Owner cannot leave). */
 export async function leaveTeam(userId: string, teamId: string): Promise<{ left: boolean }> {
-  assertTeamId(teamId);
   const shardClient = forTeam(teamId);
-
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
   if (callerMembership.role === 'owner') {
     throw new HttpError(400, 'auth.deleteOwner.blocked', 'Transfer or delete your team first.');
@@ -416,15 +441,8 @@ export async function createInvite(
   teamId: string,
   input: InviteMemberInput,
 ): Promise<{ message: string }> {
-  assertTeamId(teamId);
   const shardClient = forTeam(teamId);
-
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
   const allowed = can(
     { id: userId },
@@ -522,18 +540,11 @@ export async function createInvite(
 export async function listInvites(
   userId: string,
   teamId: string,
-): Promise<{ id: string; email: string; role: Role; createdAt: Date; expiresAt: Date }[]> {
-  assertTeamId(teamId);
+): Promise<{ id: string; email: string; role: Role; createdAt: Date; expiresAt: Date; invitedBy?: string }[]> {
   const shardClient = forTeam(teamId);
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
-
-  if (!can({ id: userId }, { ...callerMembership, role: callerMembership.role as Role }, 'view_team')) {
+  if (!can({ id: userId }, { ...callerMembership, role: callerMembership.role as Role }, 'view_invites')) {
     throw new HttpError(403, 'team.forbidden', 'You do not have permission to perform this action.');
   }
 
@@ -553,27 +564,14 @@ export async function listInvites(
     role: inv.role as Role,
     createdAt: inv.created_at,
     expiresAt: inv.expires_at,
+    invitedBy: inv.invited_by,
   }));
 }
 
 /** Revoke an open invite (Owner, or Manager for staff invites if managers_can_revoke_invites is true). */
 export async function revokeInvite(userId: string, teamId: string, inviteId: string): Promise<{ revoked: boolean }> {
-  assertTeamId(teamId);
   const shardClient = forTeam(teamId);
-
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
-
-  const team = await shardClient.teams.findUnique({
-    where: { id: teamId },
-  });
-  if (!team || team.deleted_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
+  const { membership: callerMembership, team } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
   const invite = await shardClient.invites.findUnique({
     where: { id: inviteId },
@@ -589,6 +587,7 @@ export async function revokeInvite(userId: string, teamId: string, inviteId: str
     {
       targetRole: invite.role as Role,
       managersCanRevokeInvites: team.managers_can_revoke_invites,
+      invitedBy: invite.invited_by,
     },
   );
   if (!allowed) {
@@ -686,9 +685,12 @@ export async function acceptInvite(
       throw new HttpError(400, 'auth.link.invalid', 'This link is invalid or has expired. Request a new one.');
     }
 
-    await tx.$queryRaw`
-      SELECT id::text FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
+    const lockedTeams = await tx.$queryRaw<{ id: string; deleted_at: Date | null }[]>`
+      SELECT id::text, deleted_at FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
     `;
+    if (!lockedTeams || lockedTeams.length === 0 || lockedTeams[0]?.deleted_at !== null) {
+      throw new HttpError(400, 'auth.link.invalid', 'This link is invalid or has expired. Request a new one.');
+    }
 
     // 2. Count active non-owner members against cap
     const activeMembersRes = await tx.$queryRaw<{ count: number }[]>`
@@ -754,15 +756,8 @@ export async function updateTeamSettings(
   teamId: string,
   input: UpdateTeamSettingsInput,
 ): Promise<{ managersCanRevokeInvites: boolean }> {
-  assertTeamId(teamId);
   const shardClient = forTeam(teamId);
-
-  const callerMembership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!callerMembership || callerMembership.removed_at !== null) {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
 
   const allowed = can({ id: userId }, { ...callerMembership, role: callerMembership.role as Role }, 'manage_settings');
   if (!allowed) {
@@ -776,3 +771,295 @@ export async function updateTeamSettings(
 
   return { managersCanRevokeInvites: updated.managers_can_revoke_invites };
 }
+
+/**
+ * Delete a team (Owner only; soft delete, sets deleted_at and deleted_by).
+ * Verified team name match on server (Phase C).
+ * Order of checks: team exists / active member, permission (403 team.forbidden for non-Owner),
+ * then name match (422 team.nameMismatch).
+ */
+export async function deleteTeam(
+  userId: string,
+  teamId: string,
+  input: DeleteTeamInput,
+): Promise<DeleteTeamResponse> {
+  assertTeamId(teamId);
+  const shardClient = forTeam(teamId);
+  const { membership: callerMembership, team } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
+
+  const allowed = can({ id: userId }, { ...callerMembership, role: callerMembership.role as Role }, 'delete_team');
+  if (!allowed) {
+    throw new HttpError(403, 'team.forbidden', 'You do not have permission to perform this action.');
+  }
+
+  if (input.confirmName !== team.name) {
+    throw new HttpError(422, 'team.nameMismatch', 'The team name does not match.');
+  }
+
+  await shardTransaction(shardFor(teamId), async (tx) => {
+    await tx.teams.update({
+      where: { id: teamId },
+      data: {
+        deleted_at: new Date(),
+        deleted_by: userId,
+      },
+    });
+    await tx.activity_events.create({
+      data: {
+        team_id: teamId,
+        actor_user_id: userId,
+        kind: 'team.deleted',
+        subject_id: teamId,
+        data: { name: team.name },
+      },
+    });
+  });
+
+  const db0 = globalDb();
+  await db0.user_team_index.deleteMany({
+    where: { team_id: teamId },
+  });
+
+  return { success: true, teamId };
+}
+
+/**
+ * Transfer team ownership to an active colleague (Owner only).
+ * Target becomes Owner, former Owner becomes Manager, in one transaction.
+ * created_by is NOT altered.
+ * Order of checks: team exists / active member, permission (403 team.forbidden for non-Owner),
+ * target validation (422 team.transferTargetInvalid for self or non-member).
+ */
+export async function transferTeam(
+  userId: string,
+  teamId: string,
+  input: TransferTeamInput,
+): Promise<TransferTeamResponse> {
+  assertTeamId(teamId);
+  const shardClient = forTeam(teamId);
+  const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
+
+  const allowed = can({ id: userId }, { ...callerMembership, role: callerMembership.role as Role }, 'transfer_ownership');
+  if (!allowed) {
+    throw new HttpError(403, 'team.forbidden', 'You do not have permission to perform this action.');
+  }
+
+  if (input.targetUserId === userId) {
+    throw new HttpError(422, 'team.transferTargetInvalid', 'Cannot transfer ownership to yourself.');
+  }
+
+  const targetMembership = await shardClient.memberships.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: input.targetUserId } },
+  });
+  if (!targetMembership || targetMembership.removed_at !== null) {
+    throw new HttpError(422, 'team.transferTargetInvalid', 'Target user is not an active member of this team.');
+  }
+
+  await teamTransaction(teamId, async (tx) => {
+    // 1. Lock team row and both membership rows (FOR UPDATE) in consistent user_id order
+    await tx.$queryRaw`
+      SELECT id::text FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
+    `;
+
+    const lockedMemberships = await tx.$queryRaw<{ id: string; user_id: string; role: string; removed_at: Date | null }[]>`
+      SELECT id::text, user_id::text, role, removed_at
+      FROM memberships
+      WHERE team_id = ${teamId}::uuid AND user_id IN (${userId}::uuid, ${input.targetUserId}::uuid)
+      ORDER BY user_id ASC
+      FOR UPDATE
+    `;
+
+    const lockedCaller = lockedMemberships.find((m) => m.user_id === userId);
+    const lockedTarget = lockedMemberships.find((m) => m.user_id === input.targetUserId);
+
+    if (!lockedCaller || lockedCaller.removed_at !== null || lockedCaller.role !== 'owner') {
+      throw new HttpError(403, 'team.forbidden', 'Caller is no longer the active owner of this team.');
+    }
+
+    if (!lockedTarget || lockedTarget.removed_at !== null) {
+      throw new HttpError(422, 'team.transferTargetInvalid', 'Target user is not an active member of this team.');
+    }
+
+    // 2. Former owner becomes manager FIRST (freeing the single-owner slot for memberships_one_owner_idx)
+    await tx.memberships.update({
+      where: { id: lockedCaller.id },
+      data: { role: 'manager' },
+    });
+
+    // 3. Target becomes owner SECOND
+    await tx.memberships.update({
+      where: { id: lockedTarget.id },
+      data: { role: 'owner' },
+    });
+
+    // 4. Activity audit row
+    await tx.activity_events.create({
+      data: {
+        team_id: teamId,
+        actor_user_id: userId,
+        kind: 'team.transferred',
+        subject_id: input.targetUserId,
+        data: {
+          previousOwnerId: userId,
+          newOwnerId: input.targetUserId,
+        },
+      },
+    });
+  });
+
+  return { success: true, teamId, newOwnerId: input.targetUserId };
+}
+
+export const TEAM_RESTORE_WINDOW_DAYS = 30;
+export const TEAM_RESTORE_WINDOW_MS = TEAM_RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1_000;
+
+/**
+ * List the caller's own soft-deleted teams within the 30-day retention window.
+ * Queries both shard databases without exposing user emails or display names.
+ */
+export async function listDeletedTeams(
+  userId: string,
+): Promise<DeletedTeamsResponse> {
+  const windowStart = new Date(Date.now() - TEAM_RESTORE_WINDOW_MS);
+  const client0 = writeDb(0) as AnyPrismaClient;
+  const client1 = writeDb(1) as AnyPrismaClient;
+
+  const [db0Teams, db1Teams] = await Promise.all([
+    client0.teams.findMany({
+      where: {
+        deleted_by: userId,
+        deleted_at: { gte: windowStart },
+      },
+      select: {
+        id: true,
+        name: true,
+        deleted_at: true,
+      },
+    }),
+    client1.teams.findMany({
+      where: {
+        deleted_by: userId,
+        deleted_at: { gte: windowStart },
+      },
+      select: {
+        id: true,
+        name: true,
+        deleted_at: true,
+      },
+    }),
+  ]);
+
+  const allDeleted = [...db0Teams, ...db1Teams]
+    .filter((t): t is typeof t & { deleted_at: Date } => t.deleted_at !== null)
+    .sort((a, b) => b.deleted_at.getTime() - a.deleted_at.getTime());
+
+  return {
+    teams: allDeleted.map((t) => ({
+      id: t.id,
+      name: t.name,
+      deletedAt: t.deleted_at.toISOString(),
+      restoreUntil: new Date(t.deleted_at.getTime() + TEAM_RESTORE_WINDOW_MS).toISOString(),
+    })),
+  };
+}
+
+/**
+ * Restore a soft-deleted team (Admin who deleted it only).
+ * In one locked transaction on the team's shard:
+ * 1. Locks the team row (SELECT ... FOR UPDATE).
+ * 2. If not deleted or not the deleter: throws 404 (existence not leaked).
+ * 3. If deleted_at is older than 30 days: throws 410 team.restoreExpired.
+ * 4. Clears deleted_at and deleted_by.
+ * 5. Rebuilds user_team_index in globalDb for every active member at delete time.
+ * 6. Records team.restored activity row with audience 'managers', IDs only (no names or emails).
+ */
+export async function restoreTeam(
+  userId: string,
+  teamId: string,
+): Promise<RestoreTeamResponse> {
+  assertTeamId(teamId);
+  const shard = shardFor(teamId);
+  const shardClient = forTeam(teamId);
+
+  // 1. Unlocked pre-check on shard: team must be soft-deleted by this Admin within the window
+  const preTeam = await shardClient.teams.findUnique({
+    where: { id: teamId },
+    select: { id: true, deleted_at: true, deleted_by: true },
+  });
+  if (!preTeam || preTeam.deleted_at === null || preTeam.deleted_by !== userId) {
+    throw new HttpError(404, 'team.notFound', authMessage('team.notFound'));
+  }
+
+  const windowStart = new Date(Date.now() - TEAM_RESTORE_WINDOW_MS);
+  if (preTeam.deleted_at.getTime() < windowStart.getTime()) {
+    throw new HttpError(410, 'team.restoreExpired', authMessage('team.restoreExpired'));
+  }
+
+  const activeMembers = await shardClient.memberships.findMany({
+    where: { team_id: teamId, removed_at: null },
+    select: { user_id: true },
+  });
+  const restoredMemberIds = activeMembers.map((m) => m.user_id);
+
+  // 2. Idempotent index rebuild in db0 BEFORE clearing deleted_at on the shard.
+  // If db0 fails, shard transaction never runs, deleted_at remains set, and retry works.
+  // If shard fails, stray index rows are harmless because listTeams ignores teams with deleted_at != null.
+  const db0 = globalDb();
+  if (restoredMemberIds.length > 0) {
+    await db0.user_team_index.createMany({
+      data: restoredMemberIds.map((memberId) => ({
+        user_id: memberId,
+        team_id: teamId,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  // 3. Locked shard transaction: re-validates under FOR UPDATE lock and clears deleted_at
+  await shardTransaction(shard, async (tx) => {
+    const lockedTeams = await tx.$queryRaw<{
+      id: string;
+      deleted_at: Date | null;
+      deleted_by: string | null;
+    }[]>`
+      SELECT id::text, deleted_at, deleted_by::text
+      FROM teams
+      WHERE id = ${teamId}::uuid
+      FOR UPDATE
+    `;
+
+    const team = lockedTeams[0];
+    if (!team || team.deleted_at === null || team.deleted_by !== userId) {
+      throw new HttpError(404, 'team.notFound', authMessage('team.notFound'));
+    }
+
+    if (team.deleted_at.getTime() < windowStart.getTime()) {
+      throw new HttpError(410, 'team.restoreExpired', authMessage('team.restoreExpired'));
+    }
+
+    await tx.teams.update({
+      where: { id: teamId },
+      data: {
+        deleted_at: null,
+        deleted_by: null,
+      },
+    });
+
+    await tx.activity_events.create({
+      data: {
+        team_id: teamId,
+        actor_user_id: userId,
+        kind: 'team.restored',
+        subject_id: teamId,
+        audience: 'managers',
+        data: {
+          restoredBy: userId,
+          restoredMemberCount: restoredMemberIds.length,
+        },
+      },
+    });
+  });
+
+  return { success: true, teamId };
+}
+

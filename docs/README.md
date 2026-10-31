@@ -23,7 +23,7 @@
 | OWNER-CHECKLIST.md | what only the owner can do | end of build | not written |
 | AUDIT-NOTES.md | [VERIFY] items, deviations, unverified items | end of build | not written |
 | `legal/` | public page sources read by `web/build.mjs` (privacy, terms, billing, deletion, retention, subprocessors, accessibility, contact, landing, audit, incident response) + owner inputs and open decisions | Phase 11 (owner copy lock 20 Oct 2026) | written; open items in [legal/OWNER-INPUTS.md](legal/OWNER-INPUTS.md) |
-| `decisions/` | one short ADR per important choice | every phase | 16 ADRs (0001–0016); ADR 0016 for Phase 5 |
+| [decisions/](decisions/) | one short ADR per important choice | every phase | 20 ADRs (0001–0020); ADR 0018 team delete/transfer, ADR 0019 role label Admin, ADR 0020 data model register |
 | `gates/` | saved gate evidence per phase + raw evidence files (e2e, address strip, web-app button, dev tools, test isolation, db cleanup, phase-4 server/explain/app) | every phase | written for Phases 0, 0-b, 1, 2, 3, 4, 5, 11 and the 28 Oct overnight run |
 | `a11y/` | TalkBack and NVDA checklist per screen, contrast report | every phase | auth-page, teams, phase-4, phase-5, web-invite, web-magic, contrast written (device/NVDA passes still pending) |
 | `ui-matrix/` | screenshots across the size matrix + the capture procedure | Phase 1 onward | 40 files — web renders and gallery captures; the Android PRD 6.3 size matrix is NOT captured (no device/emulator) |

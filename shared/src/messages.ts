@@ -23,6 +23,7 @@ export const AUTH_MESSAGES = {
   'team.name.tooLong': 'Use 80 characters or fewer.',
   'team.notFound': 'Team not found.',
   'team.forbidden': 'You do not have permission to perform this action.',
+  'team.restoreExpired': 'The 30-day restore window for this team has expired.',
   // Phase 4 — shifts, calendar, activity feed, search.
   'shift.notFound': 'Shift not found.',
   'shift.timeOrder': 'The end time must be after the start time.',

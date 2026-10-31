@@ -8,11 +8,13 @@ import {
   canRequestSwap,
   filterSwapsByTab,
   getEligibleSwapTargets,
+  getSwapIneligibleReason,
   INITIAL_SHIFT_SWAP_STATE,
   hasPendingSwapRequest,
   mergeSwapPages,
   needsTargetPicker,
   shiftSwapReducer,
+  swapIneligibleMessageKey,
 } from '../src/lib/swap-logic';
 import { formatSignedInUserName } from '../src/lib/user-name';
 
@@ -279,6 +281,30 @@ function testSwapButtonConditions() {
   assert.equal(canRequestSwap(futureShift, 'u1', hasPendingSwapRequest([]), now), true);
 }
 
+function testGetSwapIneligibleReason() {
+  const now = 1_000_000;
+  const futureShift = { assignedUserId: 'user-1', endsAt: new Date(now + 10_000).toISOString() };
+  const pastShift = { assignedUserId: 'user-1', endsAt: new Date(now - 10_000).toISOString() };
+
+  // Eligible -> null
+  assert.equal(getSwapIneligibleReason(futureShift, 'user-1', false, now), null);
+
+  // Non-assignee -> not_assignee
+  assert.equal(getSwapIneligibleReason(futureShift, 'user-2', false, now), 'not_assignee');
+  assert.equal(swapIneligibleMessageKey('not_assignee'), 'swap.reason.notAssignee');
+
+  // Past shift -> shift_ended
+  assert.equal(getSwapIneligibleReason(pastShift, 'user-1', false, now), 'shift_ended');
+  assert.equal(swapIneligibleMessageKey('shift_ended'), 'swap.reason.shiftEnded');
+
+  // Pending swap -> pending_swap
+  assert.equal(getSwapIneligibleReason(futureShift, 'user-1', true, now), 'pending_swap');
+  assert.equal(swapIneligibleMessageKey('pending_swap'), 'swap.reason.pendingSwap');
+
+  // Null shift -> null
+  assert.equal(getSwapIneligibleReason(null, 'user-1', false, now), null);
+}
+
 function runAll() {
   testOptimisticUpdateAndRollback();
   testCanRequestSwap();
@@ -291,7 +317,8 @@ function runAll() {
   testGetEligibleSwapTargets();
   testFormatSignedInUserName();
   testSwapButtonConditions();
-  console.log('test-swap-logic: 11 assertion suites passed');
+  testGetSwapIneligibleReason();
+  console.log('test-swap-logic: 12 assertion suites passed');
 }
 
 runAll();

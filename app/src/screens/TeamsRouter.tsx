@@ -12,6 +12,7 @@ import { TeamListScreen } from './teams/TeamListScreen';
 import { CreateTeamScreen } from './teams/CreateTeamScreen';
 import { MembersScreen } from './teams/MembersScreen';
 import { InviteScreen } from './teams/InviteScreen';
+import { TeamSettingsScreen } from './teams/TeamSettingsScreen';
 import { ActivityScreen } from './shifts/ActivityScreen';
 import { CalendarScreen } from './shifts/CalendarScreen';
 import { SearchScreen } from './shifts/SearchScreen';
@@ -54,5 +55,6 @@ export function TeamsRouter() {
   if (view === 'createTeam') return <CreateTeamScreen />;
   if (view === 'members') return <MembersScreen />;
   if (view === 'invite') return <InviteScreen />;
+  if (view === 'teamSettings') return <TeamSettingsScreen />;
   return <TeamListScreen />;
 }

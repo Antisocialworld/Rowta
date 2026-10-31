@@ -9,12 +9,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { inviteMemberSchema, type TeamRole } from '@rowta/shared';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, Input, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
-import { ApiError, errorTextKey, fieldErrorKey, teamsApi } from '../../lib/api';
+import { ApiError, authApi, errorTextKey, fieldErrorKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
+import { canRevokeInvite } from '../../lib/team-role';
 import { inviteRoleOptions, useTeam, useTeamInvites, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { colors, spacing } from '../../theme/tokens';
@@ -31,6 +32,13 @@ export function InviteScreen() {
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId);
   const invitesQuery = useTeamInvites(selectedTeamId);
+  const meQuery = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => authApi.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const currentUserId = meQuery.data?.userId ?? '';
+
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<TeamRole>('staff');
   const [busy, setBusy] = useState(false);
@@ -42,10 +50,13 @@ export function InviteScreen() {
   const team = teamQuery.data;
   const invites = invitesQuery.data?.invites;
   const options = inviteRoleOptions(team?.role ?? 'staff');
-  const canRevokeOne = (inviteRole: TeamRole): boolean => {
-    if (team?.role === 'owner') return true;
-    if (team?.role === 'manager') return team.managersCanRevokeInvites && inviteRole !== 'owner';
-    return false;
+  const canRevokeOne = (invite: { role: TeamRole; invitedBy?: string }): boolean => {
+    return canRevokeInvite(
+      team?.role,
+      currentUserId,
+      invite,
+      team?.managersCanRevokeInvites ?? true,
+    );
   };
 
   useEffect(() => {
@@ -173,7 +184,7 @@ export function InviteScreen() {
                       <Text variant="title-medium">{invite.email}</Text>
                       <Badge label={ROLE_LABEL[invite.role] ?? 'role.staff'} tone={ROLE_TONE[invite.role] ?? 'neutral'} />
                     </View>
-                    {canRevokeOne(invite.role) ? (
+                    {canRevokeOne(invite) ? (
                       <Button
                         label="action.revoke"
                         variant="danger"

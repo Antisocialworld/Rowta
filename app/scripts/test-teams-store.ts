@@ -54,6 +54,7 @@ check(TEAMS_VIEWS.list.focus === 'heading', 'view: the list focuses its heading 
 check(TEAMS_VIEWS.createTeam.focus === 'input', 'view: create-team focuses its first input (U7)');
 check(TEAMS_VIEWS.members.focus === 'heading', 'view: members focuses its heading (U7)');
 check(TEAMS_VIEWS.invite.focus === 'input', 'view: invite focuses its first input (U7)');
+check(TEAMS_VIEWS.teamSettings.focus === 'heading', 'view: teamSettings focuses its heading (U7)');
 
 let state = teamsReducer(initialTeamsState, { type: 'go', view: 'members' });
 check(state.view === 'members' && state.stack.length === 1 && state.stack[0] === 'list', 'view: go(members) keeps the list in history');
@@ -65,6 +66,12 @@ state = teamsReducer(state, { type: 'back' });
 check(state.view === 'list' && state.stack.length === 0, 'view: back() from members returns to the list');
 const refused = teamsReducer(state, { type: 'back' });
 check(refused === state, 'view: back() at the list REFUSES (Android exits the app, U1)');
+
+// Team settings roundtrip: list -> teamSettings -> list
+let settingsNav = teamsReducer(initialTeamsState, { type: 'go', view: 'teamSettings' });
+check(settingsNav.view === 'teamSettings' && settingsNav.stack.length === 1 && settingsNav.stack[0] === 'list', 'view: go(teamSettings) keeps list in history');
+settingsNav = teamsReducer(settingsNav, { type: 'back' });
+check(settingsNav.view === 'list' && settingsNav.stack.length === 0, 'view: back() from teamSettings returns to list');
 
 console.log(failures === 0 ? '\nALL PASSED' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

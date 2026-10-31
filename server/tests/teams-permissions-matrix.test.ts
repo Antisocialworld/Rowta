@@ -39,9 +39,11 @@ describe('central permission policy engine (can / PERMISSION_MATRIX)', () => {
       { action: 'view_shifts', owner: true, manager: true, staff: true },
       { action: 'manage_shifts', owner: true, manager: true, staff: false },
       { action: 'manage_swaps', owner: true, manager: true, staff: false },
+      { action: 'view_invites', owner: true, manager: true, staff: false },
       { action: 'view_billing', owner: true, manager: false, staff: false },
       { action: 'manage_billing', owner: true, manager: false, staff: false },
       { action: 'delete_team', owner: true, manager: false, staff: false },
+      { action: 'transfer_ownership', owner: true, manager: false, staff: false },
       { action: 'manage_settings', owner: true, manager: false, staff: false },
       { action: 'change_own_settings', owner: true, manager: true, staff: true },
     ];

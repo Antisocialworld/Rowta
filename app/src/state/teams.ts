@@ -166,8 +166,13 @@ export function inviteRoleOptions(viewerRole: TeamRole): readonly TeamRole[] {
 // Server-data hooks (TanStack Query; the server decides — S5)
 // ---------------------------------------------------------------------------------------------
 
-export function useTeamsList() {
-  return useQuery({ queryKey: ['teams', 'list'], queryFn: () => teamsApi.listTeams() });
+export function useTeamsList(options?: { refetchInterval?: number }) {
+  return useQuery({
+    queryKey: ['teams', 'list'],
+    queryFn: () => teamsApi.listTeams(),
+    refetchOnWindowFocus: true,
+    ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
+  });
 }
 
 export function useTeam(teamId: string | null) {
@@ -193,3 +198,20 @@ export function useTeamInvites(teamId: string | null) {
     enabled: teamId !== null,
   });
 }
+
+/** Calculate remaining whole days before restore window expires (minimum 0). */
+export function calculateDaysLeftToRestore(restoreUntil: string | Date, now: Date = new Date()): number {
+  const until = typeof restoreUntil === 'string' ? new Date(restoreUntil).getTime() : restoreUntil.getTime();
+  const diffMs = until - now.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.ceil(diffMs / (24 * 60 * 60 * 1_000));
+}
+
+export function useDeletedTeams() {
+  return useQuery({
+    queryKey: ['teams', 'deleted'],
+    queryFn: () => teamsApi.listDeletedTeams(),
+    refetchOnWindowFocus: true,
+  });
+}
+

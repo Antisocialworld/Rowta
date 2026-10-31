@@ -6,13 +6,18 @@
 // goes through the kit's ConfirmDialog (no silent destructive taps); results are announced in a
 // polite live region (X3) and never leak raw server text (V5).
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Switch, View, type TextInstance } from 'react-native';
+import { StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, errorMessageKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
+import {
+  canChangeMemberRole,
+  canInviteMembers,
+  canRemoveMember,
+} from '../../lib/team-role';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { useShiftNav } from '../../state/shift-nav';
@@ -21,7 +26,6 @@ import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 
 const ROLE_LABEL: Record<string, MessageKey> = { owner: 'role.owner', manager: 'role.manager', staff: 'role.staff' };
 const ROLE_TONE: Record<string, 'primary' | 'neutral'> = { owner: 'primary', manager: 'neutral', staff: 'neutral' };
-const OWNER_LEAVE_BLOCKED: MessageKey = 'teams.leave.blocked';
 
 type PendingAction =
   | { kind: 'remove'; userId: string }
@@ -44,6 +48,7 @@ export function MembersScreen() {
   const team = teamQuery.data;
   const members = membersQuery.data?.members;
   const isOwner = team?.role === 'owner';
+  const isStaff = team?.role === 'staff';
 
   useEffect(() => {
     focusOn(headingRef.current);
@@ -133,35 +138,43 @@ export function MembersScreen() {
           ) : (
             <View style={styles.list}>
               {members?.map((member) => {
-                const canManage = isOwner && member.role !== 'owner';
+                const showRoleButton = canChangeMemberRole(team?.role, member.role);
+                const showRemoveButton = canRemoveMember(team?.role, member.role);
+                const hasActions = showRoleButton || showRemoveButton;
                 return (
                   <Card key={member.userId} variant="flat" testID={`member-${member.userId}`}>
                     <View style={styles.row}>
                       <View style={styles.rowText}>
                         <Text variant="title-medium">{member.displayName}</Text>
-                        <Text variant="body-medium" tone="secondary">
-                          {member.email}
-                        </Text>
+                        {!isStaff && member.email ? (
+                          <Text variant="body-medium" tone="secondary">
+                            {member.email}
+                          </Text>
+                        ) : null}
                         <Badge label={ROLE_LABEL[member.role] ?? 'role.staff'} tone={ROLE_TONE[member.role] ?? 'neutral'} />
                       </View>
-                      {canManage ? (
+                      {hasActions ? (
                         <View style={styles.rowActions}>
-                          <Button
-                            label={member.role === 'manager' ? 'teams.confirm.role.staff' : 'teams.confirm.role.manager'}
-                            variant="ghost"
-                            fullWidth={false}
-                            onPress={() =>
-                              setPending({ kind: 'role', userId: member.userId, role: member.role === 'manager' ? 'staff' : 'manager' })
-                            }
-                            testID={`member-role-${member.userId}`}
-                          />
-                          <Button
-                            label="action.removeMember"
-                            variant="danger"
-                            fullWidth={false}
-                            onPress={() => setPending({ kind: 'remove', userId: member.userId })}
-                            testID={`member-remove-${member.userId}`}
-                          />
+                          {showRoleButton ? (
+                            <Button
+                              label={member.role === 'manager' ? 'teams.confirm.role.staff' : 'teams.confirm.role.manager'}
+                              variant="ghost"
+                              fullWidth={false}
+                              onPress={() =>
+                                setPending({ kind: 'role', userId: member.userId, role: member.role === 'manager' ? 'staff' : 'manager' })
+                              }
+                              testID={`member-role-${member.userId}`}
+                            />
+                          ) : null}
+                          {showRemoveButton ? (
+                            <Button
+                              label="action.removeMember"
+                              variant="danger"
+                              fullWidth={false}
+                              onPress={() => setPending({ kind: 'remove', userId: member.userId })}
+                              testID={`member-remove-${member.userId}`}
+                            />
+                          ) : null}
                         </View>
                       ) : null}
                     </View>
@@ -170,35 +183,18 @@ export function MembersScreen() {
               })}
             </View>
           )}
-          {selectedTeamId !== null ? (
+          {canInviteMembers(team?.role) && selectedTeamId !== null ? (
             <Button label="action.invitePeople" icon="person-add" onPress={() => go('invite')} testID="members-open-invite" />
           ) : null}
-          {isOwner && team !== undefined ? (
-            <Card variant="flat">
-              <View style={styles.row}>
-                <Text variant="body-medium" style={styles.settingsLabel}>
-                  {t('teams.settings.managersCanRevoke')}
-                </Text>
-                <Switch
-                  value={team.managersCanRevokeInvites}
-                  onValueChange={(value) => {
-                    if (selectedTeamId === null) return;
-                    void run(
-                      () => teamsApi.updateTeamSettings(selectedTeamId, { managers_can_revoke_invites: value }),
-                      'teams.toast.settingsSaved',
-                    );
-                  }}
-                  accessibilityLabel={t('teams.settings.managersCanRevoke')}
-                  testID="settings-managers-can-revoke"
-                />
-              </View>
-            </Card>
+          {team?.role === 'manager' && team !== undefined ? (
+            <View style={styles.row} testID="settings-managers-can-revoke-readonly">
+              <Text variant="body-medium" tone="secondary">
+                {t(team.managersCanRevokeInvites ? 'teams.settings.managersCanRevokeEnabled' : 'teams.settings.managersCanRevokeDisabled')}
+              </Text>
+            </View>
           ) : null}
           {!isOwner && selectedTeamId !== null ? (
             <Button label="action.leaveTeam" variant="danger" onPress={() => setPending({ kind: 'leave' })} testID="members-leave" />
-          ) : null}
-          {isOwner ? (
-            <LiveRegion tone="secondary">{OWNER_LEAVE_BLOCKED}</LiveRegion>
           ) : null}
           <Button label="action.back" variant="ghost" onPress={back} />
           {announcement !== null ? (

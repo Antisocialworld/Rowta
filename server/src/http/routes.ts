@@ -17,7 +17,7 @@ import { limitDef } from '../security/limits.ts';
 import { requireAuth } from '../auth/middleware.ts';
 
 export interface RouteRegistration {
-  readonly method: 'POST' | 'GET';
+  readonly method: 'POST' | 'GET' | 'DELETE';
   readonly path: string;
   readonly limitIds: readonly string[];
   readonly auth: boolean;
@@ -122,3 +122,5 @@ export function registerGet(
     auth: wantsAuth,
   });
 }
+
+

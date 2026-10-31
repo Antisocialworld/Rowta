@@ -4,7 +4,7 @@ import { formatShiftCreator } from '../src/lib/shift-creator';
 
 function testFormatShiftCreatorWithRole(): void {
   const owner = formatShiftCreator({ displayName: 'Alex Owner', role: 'owner' });
-  assert.equal(owner, 'Created by Alex Owner (Owner)', 'owner role must be appended in parentheses');
+  assert.equal(owner, 'Created by Alex Owner (Admin)', 'owner role must be appended in parentheses as Admin');
 
   const manager = formatShiftCreator({ displayName: 'Bola Manager', role: 'manager' });
   assert.equal(manager, 'Created by Bola Manager (Manager)', 'manager role must be appended in parentheses');
