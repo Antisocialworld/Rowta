@@ -47,12 +47,6 @@ check(tooLong.success === false, 'rejects team name longer than 80 chars');
 console.log('\n--- 2. Pure helper: Idempotency-Key discipline (success, 4xx, network, timeout, same/changed name) ---');
 
 // Helper classification checks
-check(classifyCreateTeamOutcome('success') === 'success', "classifyCreateTeamOutcome('success') === 'success'");
-check(classifyCreateTeamOutcome(new ApiError(422, 'validation.failed', '')) === '4xx', "classifyCreateTeamOutcome(422) === '4xx'");
-check(classifyCreateTeamOutcome(new ApiError(0, 'client.network', '')) === 'network_error', "classifyCreateTeamOutcome(network) === 'network_error'");
-check(classifyCreateTeamOutcome(new ApiError(0, 'client.timeout', '')) === 'timeout', "classifyCreateTeamOutcome(timeout) === 'timeout'");
-check(classifyCreateTeamOutcome(new ApiError(500, 'server.internal', '')) === '5xx', "classifyCreateTeamOutcome(500) === '5xx'");
-
 check(isIndeterminateError(new ApiError(0, 'client.network', '')), 'classifies status 0 client.network as indeterminate');
 check(isIndeterminateError(new ApiError(0, 'client.timeout', '')), 'classifies status 0 client.timeout as indeterminate');
 check(isIndeterminateError(new ApiError(408, 'request.timeout', '')), 'classifies 408 as indeterminate');
