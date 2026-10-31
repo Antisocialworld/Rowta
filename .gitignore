@@ -89,3 +89,6 @@ docs/TAX-NOTES.md
 # Deliberately kept tracked (owner decision, 21 Oct 2026): docs/gates/*, docs/decisions/*,
 # docs/a11y/*, docs/stores/*, docs/BRANDING.md, docs/DATABASE.md, docs/DEPLOY.md, docs/SETUP.md,
 # README.md, LICENSE, docs/SECURITY.md, docs/legal/*.
+
+backup-*.sql
+*-out.txt
