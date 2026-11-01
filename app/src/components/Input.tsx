@@ -42,11 +42,24 @@ type Setup = {
   autoCapitalize?: TextInputProps['autoCapitalize'];
 };
 
+/**
+ * Maps React Native convenience autocomplete values to standard HTML tokens for web compatibility.
+ * Specifically, 'password' is mapped to 'current-password' (HTML standard).
+ */
+export function mapAutoComplete(
+  autoComplete?: TextInputProps['autoComplete'],
+): TextInputProps['autoComplete'] {
+  if (autoComplete === 'password') {
+    return 'current-password';
+  }
+  return autoComplete;
+}
+
 const SETUP: Record<InputVariant, Setup> = {
   text: { secure: false },
   name: { secure: false, autoComplete: 'name', autoCapitalize: 'words' },
   email: { secure: false, autoComplete: 'email', keyboardType: 'email-address', autoCapitalize: 'none' },
-  password: { secure: true, autoComplete: 'password', autoCapitalize: 'none' },
+  password: { secure: true, autoComplete: 'current-password', autoCapitalize: 'none' },
   newPassword: { secure: true, autoComplete: 'new-password', autoCapitalize: 'none' },
   code: { secure: false, autoComplete: 'one-time-code', keyboardType: 'number-pad' },
 };
@@ -68,6 +81,9 @@ export type InputProps = {
   onSubmitEditing?: TextInputProps['onSubmitEditing'];
   secureTextEntry?: boolean;
   testID?: string;
+  id?: string;
+  name?: string;
+  autoComplete?: TextInputProps['autoComplete'];
 };
 
 export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
@@ -85,6 +101,9 @@ export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
     onSubmitEditing,
     secureTextEntry,
     testID,
+    id,
+    name,
+    autoComplete,
   },
   ref,
 ) {
@@ -93,6 +112,11 @@ export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
   const [hidden, setHidden] = useState(true);
   const secure = setup.secure === true && secureTextEntry !== false;
   const borderColor = errorKey !== undefined ? colors['color-error'] : focused ? colors['color-primary'] : undefined;
+
+  // Stable id and name derived from explicit prop, testID, or catalog label key
+  const inputName = name ?? testID ?? label;
+  const inputId = id ?? testID ?? name ?? label;
+  const effectiveAutoComplete = mapAutoComplete(autoComplete ?? setup.autoComplete);
 
   return (
     <View style={styles.root}>
@@ -112,7 +136,7 @@ export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
           onChangeText={onChangeText}
           editable={editable}
           maxLength={maxLength}
-          autoComplete={setup.autoComplete}
+          autoComplete={effectiveAutoComplete}
           keyboardType={setup.keyboardType}
           autoCapitalize={autoCapitalize ?? setup.autoCapitalize}
           autoCorrect={false}
@@ -120,6 +144,9 @@ export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
           testID={testID}
+          id={inputId}
+          name={inputName}
+          nativeID={inputId}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           accessibilityLabel={t(label)}
