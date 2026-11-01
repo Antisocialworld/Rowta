@@ -9,18 +9,21 @@ export type CreateTeamOutcome =
   | '4xx'
   | 'network_error'
   | 'timeout'
-  | '5xx';
+  | '5xx'
+  | 'in_flight';
 
 /**
  * Returns true if an error represents an indeterminate result:
  * - Network error (ApiError status 0 or code 'client.network', TypeError fetch failure)
  * - Timeout (ApiError code 'client.timeout' or status 408)
+ * - In-flight collision (ApiError status 409 and code 'idempotency.in_flight')
  * - 5xx server error (ApiError status 500-599)
  */
 export function isIndeterminateError(error: unknown): boolean {
   if (error instanceof ApiError) {
     if (error.code === 'client.network' || error.status === 0) return true;
     if (error.code === 'client.timeout' || error.status === 408) return true;
+    if (error.status === 409 && error.code === 'idempotency.in_flight') return true;
     if (error.status >= 500 && error.status <= 599) return true;
     return false;
   }
@@ -36,11 +39,14 @@ export function isIndeterminateError(error: unknown): boolean {
 
 /**
  * Returns true if an error is a definitive 4xx validation or client error
- * (e.g. 422 name taken, 400 bad request, 403 forbidden).
- * 408 (timeout) and 429 (rate limit) are excluded from definitive rejection.
+ * (e.g. 422 name taken, 400 bad request, 403 forbidden, 409 non-in_flight).
+ * 408 (timeout), 429 (rate limit), and 409 'idempotency.in_flight' are excluded from definitive rejection.
  */
 export function isDefinitive4xxError(error: unknown): boolean {
   if (error instanceof ApiError) {
+    if (error.status === 409 && error.code === 'idempotency.in_flight') {
+      return false;
+    }
     if (error.status >= 400 && error.status <= 499 && error.status !== 408 && error.status !== 429) {
       return true;
     }
@@ -54,6 +60,7 @@ export function isDefinitive4xxError(error: unknown): boolean {
 export function classifyCreateTeamOutcome(result: 'success' | unknown): CreateTeamOutcome {
   if (result === 'success') return 'success';
   if (result instanceof ApiError) {
+    if (result.status === 409 && result.code === 'idempotency.in_flight') return 'in_flight';
     if (result.code === 'client.timeout' || result.status === 408) return 'timeout';
     if (result.code === 'client.network' || result.status === 0) return 'network_error';
     if (result.status >= 500 && result.status <= 599) return '5xx';
@@ -77,6 +84,7 @@ export function classifyCreateTeamOutcome(result: 'success' | unknown): CreateTe
  * - 'network_error'
  * - 'timeout'
  * - '5xx'
+ * - 'in_flight'
  */
 export function shouldClearOnOutcome(outcome: CreateTeamOutcome): boolean {
   return outcome === 'success' || outcome === '4xx';
@@ -84,12 +92,17 @@ export function shouldClearOnOutcome(outcome: CreateTeamOutcome): boolean {
 
 /**
  * Returns true if closing the modal should clear the stored key and name.
- * If the last attempt ended in an indeterminate result ('network_error', 'timeout', '5xx'),
+ * If the last attempt ended in an indeterminate result ('network_error', 'timeout', '5xx', 'in_flight'),
  * closing the modal retains the key and name so reopening with the same name reuses it.
  * Otherwise (success, 4xx, or no attempt made), closing clears the key.
  */
 export function shouldClearOnModalClose(lastOutcome: CreateTeamOutcome | null): boolean {
-  if (lastOutcome === 'network_error' || lastOutcome === 'timeout' || lastOutcome === '5xx') {
+  if (
+    lastOutcome === 'network_error' ||
+    lastOutcome === 'timeout' ||
+    lastOutcome === '5xx' ||
+    lastOutcome === 'in_flight'
+  ) {
     return false;
   }
   return true;

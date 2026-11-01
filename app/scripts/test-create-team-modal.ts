@@ -52,17 +52,26 @@ check(classifyCreateTeamOutcome(new ApiError(422, 'validation.failed', '')) === 
 check(classifyCreateTeamOutcome(new ApiError(0, 'client.network', '')) === 'network_error', "classifyCreateTeamOutcome(network) === 'network_error'");
 check(classifyCreateTeamOutcome(new ApiError(0, 'client.timeout', '')) === 'timeout', "classifyCreateTeamOutcome(timeout) === 'timeout'");
 check(classifyCreateTeamOutcome(new ApiError(500, 'server.internal', '')) === '5xx', "classifyCreateTeamOutcome(500) === '5xx'");
+check(classifyCreateTeamOutcome(new ApiError(409, 'idempotency.in_flight', '')) === 'in_flight', "classifyCreateTeamOutcome(409 in_flight) === 'in_flight'");
+check(classifyCreateTeamOutcome(new ApiError(409, 'conflict.other', '')) === '4xx', "classifyCreateTeamOutcome(409 other) === '4xx'");
+check(classifyCreateTeamOutcome(new ApiError(422, 'idempotency.fingerprint_mismatch', '')) === '4xx', "classifyCreateTeamOutcome(422 fingerprint_mismatch) === '4xx'");
 
 check(isIndeterminateError(new ApiError(0, 'client.network', '')), 'classifies status 0 client.network as indeterminate');
 check(isIndeterminateError(new ApiError(0, 'client.timeout', '')), 'classifies status 0 client.timeout as indeterminate');
 check(isIndeterminateError(new ApiError(408, 'request.timeout', '')), 'classifies 408 as indeterminate');
+check(isIndeterminateError(new ApiError(409, 'idempotency.in_flight', '')), 'classifies 409 idempotency.in_flight as indeterminate');
 check(isIndeterminateError(new ApiError(500, 'server.internal', '')), 'classifies 500 as indeterminate');
 check(isIndeterminateError(new ApiError(503, 'service.unavailable', '')), 'classifies 503 as indeterminate');
+check(!isIndeterminateError(new ApiError(409, 'conflict.other', '')), '409 with other code is not indeterminate');
+check(!isIndeterminateError(new ApiError(422, 'idempotency.fingerprint_mismatch', '')), '422 fingerprint_mismatch is not indeterminate');
 check(!isIndeterminateError(new ApiError(422, 'validation.failed', '')), '422 is not indeterminate');
 check(!isIndeterminateError(new ApiError(400, 'request.bad', '')), '400 is not indeterminate');
 
 check(isDefinitive4xxError(new ApiError(422, 'validation.failed', '')), 'classifies 422 as definitive 4xx');
 check(isDefinitive4xxError(new ApiError(400, 'request.bad', '')), 'classifies 400 as definitive 4xx');
+check(isDefinitive4xxError(new ApiError(409, 'conflict.other', '')), '409 with other code is definitive 4xx');
+check(isDefinitive4xxError(new ApiError(422, 'idempotency.fingerprint_mismatch', '')), '422 fingerprint_mismatch is definitive 4xx');
+check(!isDefinitive4xxError(new ApiError(409, 'idempotency.in_flight', '')), '409 idempotency.in_flight is excluded from definitive 4xx');
 check(!isDefinitive4xxError(new ApiError(408, 'request.timeout', '')), '408 timeout is excluded from definitive 4xx');
 check(!isDefinitive4xxError(new ApiError(500, 'server.internal', '')), '500 is not 4xx');
 
@@ -71,10 +80,12 @@ check(shouldClearOnOutcome('4xx') === true, 'shouldClearOnOutcome: true on 4xx')
 check(shouldClearOnOutcome('network_error') === false, 'shouldClearOnOutcome: false on network_error (retains key)');
 check(shouldClearOnOutcome('timeout') === false, 'shouldClearOnOutcome: false on timeout (retains key)');
 check(shouldClearOnOutcome('5xx') === false, 'shouldClearOnOutcome: false on 5xx (retains key)');
+check(shouldClearOnOutcome('in_flight') === false, 'shouldClearOnOutcome: false on in_flight (retains key)');
 
 check(shouldClearOnModalClose('network_error') === false, 'shouldClearOnModalClose: keeps key on close after network error');
 check(shouldClearOnModalClose('timeout') === false, 'shouldClearOnModalClose: keeps key on close after timeout');
 check(shouldClearOnModalClose('5xx') === false, 'shouldClearOnModalClose: keeps key on close after 5xx');
+check(shouldClearOnModalClose('in_flight') === false, 'shouldClearOnModalClose: keeps key on close after in_flight');
 check(shouldClearOnModalClose('4xx') === true, 'shouldClearOnModalClose: clears key on close after 4xx');
 check(shouldClearOnModalClose('success') === true, 'shouldClearOnModalClose: clears key on close after success');
 check(shouldClearOnModalClose(null) === true, 'shouldClearOnModalClose: clears key on close if no attempt made');
@@ -146,6 +157,48 @@ const k5 = session.ensureKey('Team Epsilon', genKey);
 check(k5 === 'key-5', 'session: generated fresh key-5 for new name Team Epsilon');
 check(k5 !== k4, 'session: fresh key is distinct from previous key-4');
 
+// E1. Scenario: 409 in_flight KEEPS key and name, survives modal close, and reuses on reopen
+session.clear();
+const kInFlight = session.ensureKey('Team InFlight', genKey);
+check(kInFlight.length > 0, 'session: generated key for Team InFlight');
+const outInFlight = session.recordOutcome(new ApiError(409, 'idempotency.in_flight', ''));
+check(outInFlight === 'in_flight', 'session: records in_flight outcome');
+check(session.getKey() === kInFlight, 'session: 409 in_flight KEEPS key');
+check(session.getName() === 'Team InFlight', 'session: 409 in_flight KEEPS recorded name');
+check(session.onModalClose() === false, 'session: modal close returns false on in_flight');
+check(session.getKey() === kInFlight, 'session: key survives modal close after in_flight');
+const kInFlightReopened = session.ensureKey('Team InFlight', genKey);
+check(kInFlightReopened === kInFlight, 'session: reopening modal with same name after in_flight REUSES key');
+
+// E2. Scenario: 409 with other code is definitive and clears key
+session.clear();
+session.ensureKey('Team Other409', genKey);
+const outOther409 = session.recordOutcome(new ApiError(409, 'conflict.other', ''));
+check(outOther409 === '4xx', 'session: records 4xx for non-in_flight 409');
+check(session.getKey() === null, 'session: non-in_flight 409 clears key');
+check(session.getName() === null, 'session: non-in_flight 409 clears name');
+
+// E3. Scenario: 422 fingerprint_mismatch is definitive and clears key
+session.clear();
+session.ensureKey('Team Mismatch', genKey);
+const outMismatch = session.recordOutcome(new ApiError(422, 'idempotency.fingerprint_mismatch', ''));
+check(outMismatch === '4xx', 'session: records 4xx for 422 fingerprint_mismatch');
+check(session.getKey() === null, 'session: 422 fingerprint_mismatch clears key');
+check(session.getName() === null, 'session: 422 fingerprint_mismatch clears name');
+
+// E4. Scenario: Timeout followed by 409 in_flight retains the SAME key for the same name
+session.clear();
+const kSeq = session.ensureKey('Team Sequential', genKey);
+const outSeqTimeout = session.recordOutcome(new ApiError(0, 'client.timeout', ''));
+check(outSeqTimeout === 'timeout', 'session: timeout recorded');
+check(session.getKey() === kSeq, 'session: key retained after timeout');
+const kSeqRetry = session.ensureKey('Team Sequential', genKey);
+check(kSeqRetry === kSeq, 'session: retry reuses same key');
+const outSeqInFlight = session.recordOutcome(new ApiError(409, 'idempotency.in_flight', ''));
+check(outSeqInFlight === 'in_flight', 'session: 409 in_flight recorded');
+check(session.getKey() === kSeq, 'session: after timeout then 409 in_flight session still holds the SAME key');
+check(session.getName() === 'Team Sequential', 'session: holds same name Team Sequential');
+
 // F. Store verification in useTeams
 useTeams.getState().clearCreateKey();
 const storeKey1 = useTeams.getState().ensureCreateKey('Team Store');
@@ -159,6 +212,16 @@ check(useTeams.getState().createKeyName === 'Team Store', 'useTeams: 5xx keeps n
 // Ensure key with same name again returns the stored key
 const storeKeyAfter5xx = useTeams.getState().ensureCreateKey('Team Store');
 check(storeKeyAfter5xx === storeKey1, 'useTeams: reopening/retrying same name reuses key after 5xx');
+
+// F2. Store verification for 409 in_flight
+useTeams.getState().clearCreateKey();
+const storeKeyInFlight = useTeams.getState().ensureCreateKey('Team InFlight Store');
+useTeams.getState().recordCreateOutcome(new ApiError(409, 'idempotency.in_flight', ''));
+check(useTeams.getState().createIdempotencyKey === storeKeyInFlight, 'useTeams: 409 in_flight keeps key in store');
+check(useTeams.getState().createKeyName === 'Team InFlight Store', 'useTeams: 409 in_flight keeps name in store');
+const storeKeyInFlightReused = useTeams.getState().ensureCreateKey('Team InFlight Store');
+check(storeKeyInFlightReused === storeKeyInFlight, 'useTeams: 409 in_flight reuses key on retry');
+
 // Name change in store
 useTeams.getState().clearCreateKey();
 const storeKeyFresh = useTeams.getState().ensureCreateKey('Team Store New');
