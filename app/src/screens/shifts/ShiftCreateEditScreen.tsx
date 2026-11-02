@@ -6,7 +6,16 @@
 // is generated once when the form mounts and reused on retry. Four states: loading (Skeleton),
 // error (EmptyState + retry), ready (form), busy (spinner on button).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type TextInputInstance, type TextInstance } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type TextInputInstance,
+  type TextInstance,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -68,6 +77,40 @@ export function ShiftCreateEditScreen() {
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState<MessageKey | null>(null);
   const [fieldsFilled, setFieldsFilled] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+  // Web Safari visual viewport listener: adjusts bottom inset when on-screen keyboard appears
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.visualViewport) {
+      return;
+    }
+    const vv = window.visualViewport;
+    const handleViewportChange = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height);
+      setKeyboardOffset(offset);
+    };
+    vv.addEventListener('resize', handleViewportChange);
+    vv.addEventListener('scroll', handleViewportChange);
+    return () => {
+      vv.removeEventListener('resize', handleViewportChange);
+      vv.removeEventListener('scroll', handleViewportChange);
+    };
+  }, []);
+
+  // Web input focus listener: ensures focused input is scrolled into view above keyboard
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && typeof target.scrollIntoView === 'function') {
+        setTimeout(() => {
+          target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 150);
+      }
+    };
+    window.addEventListener('focusin', handleFocusIn);
+    return () => window.removeEventListener('focusin', handleFocusIn);
+  }, []);
 
   // Populate form from existing shift when editing
   useEffect(() => {
@@ -253,11 +296,19 @@ export function ShiftCreateEditScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-            {t(headingKey)}
-          </Text>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Number(spacing.veryLarge) + keyboardOffset },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.content}>
+            <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
+              {t(headingKey)}
+            </Text>
           {isLoading ? (
             <View style={styles.stack}>
               <Skeleton variant="text" />
@@ -395,8 +446,9 @@ export function ShiftCreateEditScreen() {
             />
           ) : null}
           <Button label="action.back" variant="ghost" onPress={back} />
+          </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
       <DateTimePickerModal
         visible={activePickerField !== null}
         value={activePickerField === 'starts' ? startsAt : endsAt}
@@ -412,12 +464,16 @@ export function ShiftCreateEditScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
+  flex: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    padding: Number(spacing.base),
+  },
   content: {
     width: '100%',
     maxWidth: CONTENT_MAX_WIDTH,
     gap: Number(spacing.base),
-    paddingBottom: Number(spacing.base),
   },
   stack: { gap: Number(spacing.base) },
   dateFieldGroup: {

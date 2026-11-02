@@ -564,6 +564,7 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Number(spacing.small),
     marginTop: Number(spacing.small),
   },

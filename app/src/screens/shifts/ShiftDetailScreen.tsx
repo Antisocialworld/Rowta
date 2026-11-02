@@ -162,8 +162,12 @@ export function ShiftDetailScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.content}>
           <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
             {t('teams.view.shift.heading')}
           </Text>
@@ -308,8 +312,8 @@ export function ShiftDetailScreen() {
 
           {announcement !== null ? <LiveRegion>{announcement}</LiveRegion> : null}
           <Button label="action.back" variant="ghost" onPress={back} />
-        </ScrollView>
-      </View>
+        </View>
+      </ScrollView>
 
       <ConfirmDialog
         visible={confirming}
@@ -328,8 +332,18 @@ export function ShiftDetailScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
-  content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base), paddingBottom: Number(spacing.base) },
+  flex: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    padding: Number(spacing.base),
+    paddingBottom: Number(spacing.veryLarge),
+  },
+  content: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    gap: Number(spacing.base),
+  },
   stack: { gap: Number(spacing.base) },
   field: { gap: Number(spacing.extraSmall) },
   swapSection: { gap: Number(spacing.small), marginVertical: Number(spacing.small) },
