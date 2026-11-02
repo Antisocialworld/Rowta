@@ -88,6 +88,7 @@ async function writeActivity(
     data: {
       team_id: teamId,
       kind,
+      audience: 'team',
       actor_user_id: actorUserId,
       subject_id: subjectId,
       data: data as JsonInput,

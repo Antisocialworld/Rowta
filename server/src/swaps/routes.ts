@@ -25,6 +25,10 @@ function fieldCode(issue: ZodIssue, field: string | undefined): string {
       return 'swap.target_invalid';
     case 'status':
       return 'swap.not_pending';
+    case 'declineReason':
+      return 'swap.decline_reason_required';
+    case 'note':
+      return 'swap.note_invalid';
     case 'cursor':
       return 'activity.cursor.invalid';
     default:

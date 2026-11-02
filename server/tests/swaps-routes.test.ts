@@ -196,7 +196,7 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     const shiftId = await createShift(f, f.staff1Id);
     const key = randomUUID();
     const scope = `request_swap:${f.teamId}:${f.staff1Id}`;
-    const fp = fingerprint(JSON.stringify({ shiftId, targetUserId: null }));
+    const fp = fingerprint(JSON.stringify({ shiftId, targetUserId: null, note: null }));
 
     await forTeam(f.teamId).idempotency_keys.create({
       data: {
@@ -455,7 +455,7 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     const rejectRes = await post(
       app,
       `/teams/${f.teamId}/swaps/${swap.id}/decide`,
-      { status: 'rejected' },
+      { status: 'rejected', declineReason: 'Coverage conflict' },
       f.managerAuth,
     );
     expect(rejectRes.status).toBe(200);
@@ -772,7 +772,7 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     const rejectRes = await post(
       app,
       `/teams/${f.teamId}/swaps/${swap.id}/decide`,
-      { status: 'rejected' },
+      { status: 'rejected', declineReason: 'Coverage conflict' },
       f.managerAuth,
     );
     expect(rejectRes.status).toBe(409);
@@ -847,5 +847,317 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     const listData = (await dataOf(listRes)) as { swaps: Array<{ id: string; shiftDeleted?: boolean }> };
     const found = listData.swaps.find((s) => s.id === swap.id);
     expect(found?.shiftDeleted).toBe(true);
+  });
+
+  describe('Swap v2: notes, decline reasons, cancellation audit, activity audience', () => {
+    it('enforces declineReason rules on decideSwap (reject requires 1-140 chars; approve forbids it)', async () => {
+      const shiftId = await createShift(f, f.staff1Id);
+      const createRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id },
+        { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+      );
+      expect(createRes.status).toBe(201);
+      const swap = await dataOf(createRes);
+
+      // 1. Reject without declineReason -> 422
+      const resNoReason = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+        { status: 'rejected' },
+        f.managerAuth,
+      );
+      expect(resNoReason.status).toBe(422);
+      const errNoReason = await errorOf(resNoReason);
+      expect(errNoReason.code).toBe('validation.invalid');
+
+      // 2. Reject with whitespace-only declineReason -> 422
+      const resWhitespace = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+        { status: 'rejected', declineReason: '    ' },
+        f.managerAuth,
+      );
+      expect(resWhitespace.status).toBe(422);
+
+      // 3. Reject with 141 chars -> 422
+      const res141 = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+        { status: 'rejected', declineReason: 'x'.repeat(141) },
+        f.managerAuth,
+      );
+      expect(res141.status).toBe(422);
+
+      // 4. Approve with declineReason -> 422
+      const resApproveWithReason = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+        { status: 'approved', declineReason: 'Valid text but not allowed on approve' },
+        f.managerAuth,
+      );
+      expect(resApproveWithReason.status).toBe(422);
+
+      // 5. Exactly 140 chars -> ok and stored
+      const valid140Reason = 'x'.repeat(140);
+      const res140 = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+        { status: 'rejected', declineReason: valid140Reason },
+        f.managerAuth,
+      );
+      expect(res140.status).toBe(200);
+      const decided = await dataOf(res140);
+      expect(decided.status).toBe('rejected');
+      expect(decided.declineReason).toBe(valid140Reason);
+
+      // Verify stored in DB
+      const row = await forTeam(f.teamId).swap_requests.findUnique({
+        where: { id: swap.id as string },
+      });
+      expect(row?.decline_reason).toBe(valid140Reason);
+    });
+
+    it('stores request note and exposes it to requester, target and Manager, but NOT to an unrelated Staff member', async () => {
+      // Add third staff member to the team
+      const staff3Email = uniqueEmail('swap-staff3');
+      const staff3Id = await createVerifiedUser(staff3Email, 'Staff3Pass123#');
+      const staff3Token = await signAccessToken(staff3Id);
+      const staff3Auth = { authorization: `Bearer ${staff3Token}` };
+      await addMember(f.teamId, staff3Id, 'staff');
+
+      const shiftId = await createShift(f, f.staff1Id);
+      const noteText = 'Doctor appointment in the afternoon';
+      const createRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id, note: `  ${noteText}  ` },
+        { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+      );
+      expect(createRes.status).toBe(201);
+      const swap = await dataOf(createRes);
+      expect(swap.note).toBe(noteText);
+
+      // Stored in database trimmed
+      const dbSwap = await forTeam(f.teamId).swap_requests.findUnique({
+        where: { id: swap.id as string },
+      });
+      expect(dbSwap?.note).toBe(noteText);
+
+      // 1. Requester sees note
+      const reqRes = await get(`/teams/${f.teamId}/swaps/${swap.id}`, f.staff1Auth);
+      expect(reqRes.status).toBe(200);
+      const reqData = await dataOf(reqRes);
+      expect(reqData.note).toBe(noteText);
+
+      // 2. Target colleague sees note
+      const targetRes = await get(`/teams/${f.teamId}/swaps/${swap.id}`, f.staff2Auth);
+      expect(targetRes.status).toBe(200);
+      const targetData = await dataOf(targetRes);
+      expect(targetData.note).toBe(noteText);
+
+      // 3. Manager sees note
+      const mgrRes = await get(`/teams/${f.teamId}/swaps/${swap.id}`, f.managerAuth);
+      expect(mgrRes.status).toBe(200);
+      const mgrData = await dataOf(mgrRes);
+      expect(mgrData.note).toBe(noteText);
+
+      // 4. Unrelated Staff (Staff 3) does NOT see note
+      const staff3Res = await get(`/teams/${f.teamId}/swaps/${swap.id}`, staff3Auth);
+      expect(staff3Res.status).toBe(200);
+      const staff3Data = await dataOf(staff3Res);
+      expect(staff3Data.note).toBeUndefined();
+
+      // 5. List swaps: requester sees note, unrelated staff does not
+      const listReqRes = await get(`/teams/${f.teamId}/swaps`, f.staff1Auth);
+      const listReqData = (await dataOf(listReqRes)) as { swaps: Array<{ id: string; note?: string }> };
+      const foundReq = listReqData.swaps.find((s) => s.id === swap.id);
+      expect(foundReq?.note).toBe(noteText);
+
+      const listStaff3Res = await get(`/teams/${f.teamId}/swaps`, staff3Auth);
+      const listStaff3Data = (await dataOf(listStaff3Res)) as { swaps: Array<{ id: string; note?: string }> };
+      const foundStaff3 = listStaff3Data.swaps.find((s) => s.id === swap.id);
+      expect(foundStaff3?.note).toBeUndefined();
+    });
+
+    it('handles idempotency fingerprint with note: different note gives 422, identical retry replays 201', async () => {
+      const shiftId = await createShift(f, f.staff1Id);
+      const key = randomUUID();
+
+      // 1. Initial request with note
+      const res1 = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id, note: 'Need shift covered' },
+        { ...f.staff1Auth, 'idempotency-key': key },
+      );
+      expect(res1.status).toBe(201);
+      const swap1 = await dataOf(res1);
+      expect(swap1.note).toBe('Need shift covered');
+
+      // 2. Same idempotency key with different note -> 422 fingerprint_mismatch
+      const resDiffNote = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id, note: 'Changed mind about reason' },
+        { ...f.staff1Auth, 'idempotency-key': key },
+      );
+      expect(resDiffNote.status).toBe(422);
+      const diffErr = await errorOf(resDiffNote);
+      expect(diffErr.code).toBe('idempotency.fingerprint_mismatch');
+
+      // 3. Identical retry with same key and same note -> 201 replay with same body
+      const resRetry = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id, note: 'Need shift covered' },
+        { ...f.staff1Auth, 'idempotency-key': key },
+      );
+      expect(resRetry.status).toBe(201);
+      const swapRetry = await dataOf(resRetry);
+      expect(swapRetry.id).toBe(swap1.id);
+      expect(swapRetry.note).toBe(swap1.note);
+    });
+
+    it('rejects request note of 141 characters with 422', async () => {
+      const shiftId = await createShift(f, f.staff1Id);
+      const res = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, note: 'n'.repeat(141) },
+        { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+      );
+      expect(res.status).toBe(422);
+      const err = await errorOf(res);
+      expect(err.code).toBe('validation.invalid');
+    });
+
+    it('sets cancelled_by and cancelled_at on cancel, and a second cancel returns 409', async () => {
+      const shiftId = await createShift(f, f.staff1Id);
+      const createRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id },
+        { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+      );
+      expect(createRes.status).toBe(201);
+      const swap = await dataOf(createRes);
+
+      // Cancel by requester
+      const cancelRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/cancel`,
+        {},
+        f.staff1Auth,
+      );
+      expect(cancelRes.status).toBe(200);
+      const cancelledView = await dataOf(cancelRes);
+      expect(cancelledView.status).toBe('cancelled');
+      expect(cancelledView.cancelledBy).toBe(f.staff1Id);
+      expect(cancelledView.cancelledAt).toBeDefined();
+
+      // Stored in database
+      const dbSwap = await forTeam(f.teamId).swap_requests.findUnique({
+        where: { id: swap.id as string },
+      });
+      expect(dbSwap?.cancelled_by).toBe(f.staff1Id);
+      expect(dbSwap?.cancelled_at).toBeDefined();
+
+      // Second cancel attempt -> 409 swap.cannot_cancel
+      const secondCancelRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/cancel`,
+        {},
+        f.staff1Auth,
+      );
+      expect(secondCancelRes.status).toBe(409);
+      const secondErr = await errorOf(secondCancelRes);
+      expect(secondErr.code).toBe('swap.cannot_cancel');
+    });
+
+    it('writes activity rows for shift.* (team), swap.* (involved), and team.* (managers)', async () => {
+      // 1. Shift activity -> audience: 'team'
+      const shiftId = await createShift(f, f.staff1Id);
+      const shiftEvents = await forTeam(f.teamId).activity_events.findMany({
+        where: { kind: 'shift.created', subject_id: shiftId },
+      });
+      expect(shiftEvents.length).toBeGreaterThan(0);
+      expect(shiftEvents[0]?.audience).toBe('team');
+
+      // 2. Swap activity -> audience: 'involved'
+      const createRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id },
+        { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+      );
+      const swap = await dataOf(createRes);
+      const swapEvents = await forTeam(f.teamId).activity_events.findMany({
+        where: { kind: 'swap.requested', subject_id: swap.id as string },
+      });
+      expect(swapEvents.length).toBeGreaterThan(0);
+      expect(swapEvents[0]?.audience).toBe('involved');
+
+      // 3. Team activity -> audience: 'managers'
+      // Transfer ownership to test team.transferred event
+      const transferRes = await post(
+        app,
+        `/teams/${f.teamId}/transfer`,
+        { targetUserId: f.managerId },
+        f.ownerAuth,
+      );
+      expect(transferRes.status).toBe(200);
+      const teamEvents = await forTeam(f.teamId).activity_events.findMany({
+        where: { kind: 'team.transferred', team_id: f.teamId },
+      });
+      expect(teamEvents.length).toBeGreaterThan(0);
+      expect(teamEvents[0]?.audience).toBe('managers');
+
+      // Transfer back so fixture remains intact
+      await post(
+        app,
+        `/teams/${f.teamId}/transfer`,
+        { targetUserId: f.ownerId },
+        f.managerAuth,
+      );
+    });
+
+    it('reject path still refunds nothing and changes no shift assignment', async () => {
+      const shiftId = await createShift(f, f.staff1Id);
+      const createRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps`,
+        { shiftId, targetUserId: f.staff2Id },
+        { ...f.staff1Auth, 'idempotency-key': randomUUID() },
+      );
+      expect(createRes.status).toBe(201);
+      const swap = await dataOf(createRes);
+
+      // Ledger before
+      const ledgerBefore = await forTeam(f.teamId).ledger_entries.findMany({
+        where: { team_id: f.teamId },
+      });
+
+      const rejectRes = await post(
+        app,
+        `/teams/${f.teamId}/swaps/${swap.id}/decide`,
+        { status: 'rejected', declineReason: 'Schedule conflict' },
+        f.managerAuth,
+      );
+      expect(rejectRes.status).toBe(200);
+
+      // Shift stays assigned to requester
+      const shiftAfter = await forTeam(f.teamId).shifts.findUnique({
+        where: { id: shiftId },
+      });
+      expect(shiftAfter?.assigned_user_id).toBe(f.staff1Id);
+
+      // Ledger untouched (refunds nothing)
+      const ledgerAfter = await forTeam(f.teamId).ledger_entries.findMany({
+        where: { team_id: f.teamId },
+      });
+      expect(ledgerAfter.length).toBe(ledgerBefore.length);
+    });
   });
 });

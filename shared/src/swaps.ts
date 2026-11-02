@@ -8,22 +8,73 @@ export type SwapStatus = (typeof SWAP_STATUSES)[number];
 export const SWAP_PAGE_DEFAULT = 20;
 export const SWAP_PAGE_MAX = 50;
 
-/** Request a swap on an assigned shift. Colleague is optional (open swap). */
+/** Request a swap on an assigned shift. Colleague is optional (open swap). Optional note up to 140 chars. */
 export const requestSwapSchema = z
   .object({
     shiftId: z.string().uuid('swap.shift.notFound'),
     targetUserId: z.string().uuid('swap.target_invalid').nullable().optional(),
+    note: z
+      .string()
+      .nullish()
+      .transform((val) => {
+        if (val === null || val === undefined) return undefined;
+        const trimmed = val.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+      })
+      .refine((val) => val === undefined || val.length <= 140, {
+        message: 'swap.note_invalid',
+      }),
   })
   .strict();
 export type RequestSwapInput = z.infer<typeof requestSwapSchema>;
 
-/** Owner or Manager decides (approve or reject). On approval, target colleague can be supplied if open. */
+/** Owner or Manager decides (approve or reject). On approval, target colleague can be supplied if open. On reject, declineReason is required (1-140 chars). */
 export const decideSwapSchema = z
   .object({
     status: z.enum(['approved', 'rejected']),
     targetUserId: z.string().uuid('swap.target_invalid').nullable().optional(),
+    declineReason: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.status === 'approved') {
+      if (data.declineReason !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['declineReason'],
+          message: 'swap.decline_reason_invalid',
+        });
+      }
+    } else if (data.status === 'rejected') {
+      if (data.declineReason === undefined || data.declineReason === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['declineReason'],
+          message: 'swap.decline_reason_required',
+        });
+        return;
+      }
+      const trimmed = data.declineReason.trim();
+      if (trimmed.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['declineReason'],
+          message: 'swap.decline_reason_required',
+        });
+      } else if (trimmed.length > 140) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['declineReason'],
+          message: 'swap.decline_reason_invalid',
+        });
+      }
+    }
+  })
+  .transform((data) => ({
+    ...data,
+    declineReason:
+      data.status === 'rejected' && data.declineReason ? data.declineReason.trim() : undefined,
+  }));
 export type DecideSwapInput = z.infer<typeof decideSwapSchema>;
 
 /** Cancel a pending swap. */
@@ -60,6 +111,11 @@ export interface SwapRequestView {
   readonly shiftDeleted?: boolean;
   readonly requesterName?: string;
   readonly targetName?: string | null;
+  // Swap v2 fields (rule A/B/C; PRD 8.5; restricted visibility: requester, target, owner/manager only)
+  readonly note?: string;
+  readonly declineReason?: string;
+  readonly cancelledBy?: string | null;
+  readonly cancelledAt?: string | null;
 }
 
 export interface SwapListResponse {

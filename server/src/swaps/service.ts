@@ -123,7 +123,13 @@ export async function requestSwap(
   await requireMember(client, teamId, userId);
 
   // Idempotency replay check
-  const fp = fingerprint(JSON.stringify({ shiftId: input.shiftId, targetUserId: input.targetUserId ?? null }));
+  const fp = fingerprint(
+    JSON.stringify({
+      shiftId: input.shiftId,
+      targetUserId: input.targetUserId ?? null,
+      note: input.note ?? null,
+    }),
+  );
   const scope = `request_swap:${teamId}:${userId}`;
 
   const existingKey = await client.idempotency_keys.findUnique({
@@ -282,6 +288,7 @@ export async function requestSwap(
           requested_by: userId,
           target_user_id: input.targetUserId ?? null,
           status: 'pending',
+          note: input.note ?? null,
         },
       });
 
@@ -289,6 +296,7 @@ export async function requestSwap(
         data: {
           team_id: teamId,
           kind: 'swap.requested',
+          audience: 'involved',
           actor_user_id: userId,
           subject_id: swap.id,
           data: {
@@ -314,6 +322,9 @@ export async function requestSwap(
         shiftLabel: currentShift.label,
         shiftStartsAt: iso(currentShift.starts_at),
         shiftEndsAt: iso(currentShift.ends_at),
+        note: swap.note ?? undefined,
+        cancelledBy: null,
+        cancelledAt: null,
       };
 
       return view;
@@ -422,24 +433,36 @@ export async function listSwaps(
     }
   }
 
-  const swaps: SwapRequestView[] = slice.map((s) => ({
-    id: s.id,
-    teamId: s.team_id,
-    shiftId: s.shift_id,
-    requestedBy: s.requested_by,
-    targetUserId: s.target_user_id,
-    status: s.status as SwapStatus,
-    decidedBy: s.decided_by,
-    decidedAt: s.decided_at ? iso(s.decided_at) : null,
-    createdAt: iso(s.created_at),
-    updatedAt: iso(s.updated_at),
-    shiftLabel: s.shifts?.label,
-    shiftStartsAt: s.shifts?.starts_at ? iso(s.shifts.starts_at) : undefined,
-    shiftEndsAt: s.shifts?.ends_at ? iso(s.shifts.ends_at) : undefined,
-    shiftDeleted: s.shifts ? s.shifts.deleted_at !== null : undefined,
-    requesterName: namesMap.get(s.requested_by),
-    targetName: s.target_user_id ? namesMap.get(s.target_user_id) : null,
-  }));
+  const isManagerOrOwner = membership.role === 'owner' || membership.role === 'manager';
+  const swaps: SwapRequestView[] = slice.map((s) => {
+    const isPrivileged = isManagerOrOwner || s.requested_by === userId || s.target_user_id === userId;
+    return {
+      id: s.id,
+      teamId: s.team_id,
+      shiftId: s.shift_id,
+      requestedBy: s.requested_by,
+      targetUserId: s.target_user_id,
+      status: s.status as SwapStatus,
+      decidedBy: s.decided_by,
+      decidedAt: s.decided_at ? iso(s.decided_at) : null,
+      createdAt: iso(s.created_at),
+      updatedAt: iso(s.updated_at),
+      shiftLabel: s.shifts?.label,
+      shiftStartsAt: s.shifts?.starts_at ? iso(s.shifts.starts_at) : undefined,
+      shiftEndsAt: s.shifts?.ends_at ? iso(s.shifts.ends_at) : undefined,
+      shiftDeleted: s.shifts ? s.shifts.deleted_at !== null : undefined,
+      requesterName: namesMap.get(s.requested_by),
+      targetName: s.target_user_id ? namesMap.get(s.target_user_id) : null,
+      ...(isPrivileged
+        ? {
+            note: s.note ?? undefined,
+            declineReason: s.decline_reason ?? undefined,
+            cancelledBy: s.cancelled_by ?? null,
+            cancelledAt: s.cancelled_at ? iso(s.cancelled_at) : null,
+          }
+        : {}),
+    };
+  });
 
   const last = slice[slice.length - 1];
   const nextCursor = hasMore && last ? encodeCursor(last.created_at, last.id) : null;
@@ -486,6 +509,12 @@ export async function getSwap(
   });
   const namesMap = new Map(users.map((u) => [u.id, u.display_name]));
 
+  const isPrivileged =
+    membership.role === 'owner' ||
+    membership.role === 'manager' ||
+    s.requested_by === userId ||
+    s.target_user_id === userId;
+
   return {
     id: s.id,
     teamId: s.team_id,
@@ -503,6 +532,14 @@ export async function getSwap(
     shiftDeleted: s.shifts ? s.shifts.deleted_at !== null : undefined,
     requesterName: namesMap.get(s.requested_by),
     targetName: s.target_user_id ? namesMap.get(s.target_user_id) : null,
+    ...(isPrivileged
+      ? {
+          note: s.note ?? undefined,
+          declineReason: s.decline_reason ?? undefined,
+          cancelledBy: s.cancelled_by ?? null,
+          cancelledAt: s.cancelled_at ? iso(s.cancelled_at) : null,
+        }
+      : {}),
   };
 }
 
@@ -533,10 +570,14 @@ export async function decideSwap(
         requested_by: string;
         target_user_id: string | null;
         status: string;
+        note: string | null;
+        decline_reason: string | null;
+        cancelled_by: string | null;
+        cancelled_at: Date | null;
         created_at: Date;
         updated_at: Date;
       }>
-    >`SELECT id, team_id, shift_id, requested_by, target_user_id, status, created_at, updated_at
+    >`SELECT id, team_id, shift_id, requested_by, target_user_id, status, note, decline_reason, cancelled_by, cancelled_at, created_at, updated_at
       FROM swap_requests
       WHERE id = ${swapId}::uuid AND team_id = ${teamId}::uuid
       FOR UPDATE`;
@@ -632,6 +673,7 @@ export async function decideSwap(
         data: {
           team_id: teamId,
           kind: 'swap.approved',
+          audience: 'involved',
           actor_user_id: userId,
           subject_id: lockedSwap.id,
           data: {
@@ -659,6 +701,10 @@ export async function decideSwap(
         shiftLabel: lockedShift.label,
         shiftStartsAt: iso(lockedShift.starts_at),
         shiftEndsAt: iso(lockedShift.ends_at),
+        note: updated.note ?? undefined,
+        declineReason: updated.decline_reason ?? undefined,
+        cancelledBy: updated.cancelled_by ?? null,
+        cancelledAt: updated.cancelled_at ? iso(updated.cancelled_at) : null,
       };
     } else {
       // Rejected
@@ -666,6 +712,7 @@ export async function decideSwap(
         where: { id: lockedSwap.id },
         data: {
           status: 'rejected',
+          decline_reason: input.declineReason,
           decided_by: userId,
           decided_at: now,
           updated_at: now,
@@ -676,6 +723,7 @@ export async function decideSwap(
         data: {
           team_id: teamId,
           kind: 'swap.rejected',
+          audience: 'involved',
           actor_user_id: userId,
           subject_id: lockedSwap.id,
           data: {
@@ -701,6 +749,10 @@ export async function decideSwap(
         shiftLabel: lockedShift.label,
         shiftStartsAt: iso(lockedShift.starts_at),
         shiftEndsAt: iso(lockedShift.ends_at),
+        note: updated.note ?? undefined,
+        declineReason: updated.decline_reason ?? undefined,
+        cancelledBy: updated.cancelled_by ?? null,
+        cancelledAt: updated.cancelled_at ? iso(updated.cancelled_at) : null,
       };
     }
   });
@@ -744,10 +796,14 @@ export async function cancelSwap(
         requested_by: string;
         target_user_id: string | null;
         status: string;
+        note: string | null;
+        decline_reason: string | null;
+        cancelled_by: string | null;
+        cancelled_at: Date | null;
         created_at: Date;
         updated_at: Date;
       }>
-    >`SELECT id, team_id, shift_id, requested_by, target_user_id, status, created_at, updated_at
+    >`SELECT id, team_id, shift_id, requested_by, target_user_id, status, note, decline_reason, cancelled_by, cancelled_at, created_at, updated_at
       FROM swap_requests
       WHERE id = ${swapId}::uuid AND team_id = ${teamId}::uuid
       FOR UPDATE`;
@@ -780,6 +836,8 @@ export async function cancelSwap(
       where: { id: lockedSwap.id },
       data: {
         status: 'cancelled',
+        cancelled_by: userId,
+        cancelled_at: now,
         updated_at: now,
       },
     });
@@ -788,6 +846,7 @@ export async function cancelSwap(
       data: {
         team_id: teamId,
         kind: 'swap.cancelled',
+        audience: 'involved',
         actor_user_id: userId,
         subject_id: lockedSwap.id,
         data: {
@@ -809,6 +868,10 @@ export async function cancelSwap(
       decidedAt: updated.decided_at ? iso(updated.decided_at) : null,
       createdAt: iso(updated.created_at),
       updatedAt: iso(updated.updated_at),
+      note: updated.note ?? undefined,
+      declineReason: updated.decline_reason ?? undefined,
+      cancelledBy: updated.cancelled_by ?? null,
+      cancelledAt: updated.cancelled_at ? iso(updated.cancelled_at) : null,
     };
   });
 }

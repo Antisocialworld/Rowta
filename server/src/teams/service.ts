@@ -809,6 +809,7 @@ export async function deleteTeam(
         team_id: teamId,
         actor_user_id: userId,
         kind: 'team.deleted',
+        audience: 'managers',
         subject_id: teamId,
         data: { name: team.name },
       },
@@ -898,6 +899,7 @@ export async function transferTeam(
         team_id: teamId,
         actor_user_id: userId,
         kind: 'team.transferred',
+        audience: 'managers',
         subject_id: input.targetUserId,
         data: {
           previousOwnerId: userId,
