@@ -120,7 +120,7 @@ export async function requestSwap(
   }
 
   const client = forTeam(teamId);
-  const membership = await requireMember(client, teamId, userId);
+  await requireMember(client, teamId, userId);
 
   // Idempotency replay check
   const fp = fingerprint(JSON.stringify({ shiftId: input.shiftId, targetUserId: input.targetUserId ?? null }));
@@ -187,7 +187,6 @@ export async function requestSwap(
   // Record in_flight idempotency row outside the main transaction (mirrors shifts/service.ts).
   // Wrapped in its own try/catch: if two identical requests race at the exact same instant, the
   // second create throws P2002 on (scope, key), which we catch to resolve cleanly instead of returning 500.
-  let keyCreatedByThisRequest = false;
   try {
     await client.idempotency_keys.create({
       data: {
@@ -197,7 +196,6 @@ export async function requestSwap(
         state: 'in_flight',
       },
     });
-    keyCreatedByThisRequest = true;
   } catch (err: unknown) {
     if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
       // Race: another concurrent request inserted the same scope_key first. Inspect its state.
@@ -331,14 +329,9 @@ export async function requestSwap(
       },
     });
   } catch (err: unknown) {
-    // ONLY delete the in_flight key if THIS request created it.
-    // If another concurrent request created the key, or if this request was replaying a raced key,
-    // deleting the key would delete the other request's valid row and introduce a race bug.
-    if (keyCreatedByThisRequest) {
-      await client.idempotency_keys
-        .delete({ where: { scope_key: { scope, key: idempotencyKey } } })
-        .catch(() => undefined);
-    }
+    await client.idempotency_keys
+      .delete({ where: { scope_key: { scope, key: idempotencyKey } } })
+      .catch(() => undefined);
 
     // Catch unique constraint violation (swaps_one_pending_idx)
     if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
