@@ -523,14 +523,17 @@ export async function createInvite(
   // Enqueue email job
   const inviter = await globalDb().users.findUnique({ where: { id: userId } });
   const rawToken = formatToken(parts);
-  await enqueueEmail({
-    kind: 'teamInvite',
-    email: emailNorm,
-    teamName,
-    inviterName: inviter?.display_name ?? null,
-    role: input.role,
-    token: rawToken,
-  });
+  await enqueueEmail(
+    {
+      kind: 'teamInvite',
+      email: emailNorm,
+      teamName,
+      inviterName: inviter?.display_name ?? null,
+      role: input.role,
+      token: rawToken,
+    },
+    { dedupeKey: parts.selector },
+  );
 
   // Always uniform response (A6)
   return { message: 'Invitation sent.' };
