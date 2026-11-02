@@ -305,7 +305,7 @@ describe('quiet-hours engine', () => {
       }
 
       // Subcase 2: now during first occurrence after first 01:30 (01:45 EDT = 05:45:00Z)
-      // The first 01:30 has passed; the next strictly future occurrence is the second 01:30 (06:30:00Z).
+      // The wall clock reads 01:45, which is past the 01:30 window end, so the user is outside quiet hours.
       const now2 = new Date('2026-11-01T05:45:00.000Z');
       const decision2 = decideDelivery({
         now: now2,
@@ -314,11 +314,7 @@ describe('quiet-hours engine', () => {
         quietEnd: '01:30',
         urgent: false,
       });
-      expect(decision2.action).toBe('delay');
-      if (decision2.action === 'delay') {
-        expect(decision2.deliverAt.toISOString()).toBe('2026-11-01T06:30:00.000Z');
-        expect(decision2.delayMs).toBe(45 * 60 * 1000);
-      }
+      expect(decision2).toEqual({ action: 'send' });
 
       // Subcase 3: now during second occurrence before second 01:30 (01:15 EST = 06:15:00Z)
       const now3 = new Date('2026-11-01T06:15:00.000Z');
@@ -334,6 +330,18 @@ describe('quiet-hours engine', () => {
         expect(decision3.deliverAt.toISOString()).toBe('2026-11-01T06:30:00.000Z');
         expect(decision3.delayMs).toBe(15 * 60 * 1000);
       }
+
+      // Subcase 4: now during second occurrence after the second 01:30 (01:45 EST = 06:45:00Z)
+      // The wall clock reads 01:45 EST, which is past the 01:30 window end, so the user is outside quiet hours.
+      const now4 = new Date('2026-11-01T06:45:00.000Z');
+      const decision4 = decideDelivery({
+        now: now4,
+        timeZone: 'America/New_York',
+        quietStart: '22:00',
+        quietEnd: '01:30',
+        urgent: false,
+      });
+      expect(decision4).toEqual({ action: 'send' });
     });
 
     it('handles Europe/London across both 2027 DST transitions', () => {
