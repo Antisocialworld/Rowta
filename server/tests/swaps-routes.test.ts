@@ -481,7 +481,7 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
     await post(
       app,
       `/teams/${f.teamId}/swaps/${swap.id}/decide`,
-      { status: 'rejected' },
+      { status: 'rejected', declineReason: 'Coverage conflict' },
       f.managerAuth,
     );
 
@@ -850,6 +850,11 @@ describe('Phase 5 swaps lifecycle, permissions and constraints', () => {
   });
 
   describe('Swap v2: notes, decline reasons, cancellation audit, activity audience', () => {
+    // Clear rate-limit keys to give this block a fresh rate-limit budget.
+    beforeAll(async () => {
+      await clearRateKeys();
+    });
+
     it('enforces declineReason rules on decideSwap (reject requires 1-140 chars; approve forbids it)', async () => {
       const shiftId = await createShift(f, f.staff1Id);
       const createRes = await post(
