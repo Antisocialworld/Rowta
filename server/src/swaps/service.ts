@@ -773,6 +773,84 @@ export async function decideSwap(
   return result;
 }
 
+export type AutoCancelReason = 'shift_reassigned' | 'shift_deleted';
+
+async function applySwapCancellation(
+  tx: ShardTx,
+  teamId: string,
+  swapId: string,
+  shiftId: string,
+  actorUserId: string,
+  now: Date,
+  reasonCode?: AutoCancelReason,
+) {
+  const updated = await tx.swap_requests.update({
+    where: { id: swapId },
+    data: {
+      status: 'cancelled',
+      cancelled_by: actorUserId,
+      cancelled_at: now,
+      updated_at: now,
+    },
+  });
+
+  await tx.activity_events.create({
+    data: {
+      team_id: teamId,
+      kind: 'swap.cancelled',
+      audience: 'involved',
+      actor_user_id: actorUserId,
+      subject_id: swapId,
+      data: {
+        swapId,
+        shiftId,
+        cancelledBy: actorUserId,
+        ...(reasonCode ? { reason: reasonCode } : {}),
+      },
+    },
+  });
+
+  return updated;
+}
+
+/**
+ * Automatically cancel any pending swaps for a shift (e.g. when reassigned or deleted).
+ * Acquires row locks on pending swaps FOR UPDATE.
+ * Must be called BEFORE updating or locking the shift row to maintain consistent lock ordering with decideSwap.
+ */
+export async function cancelPendingSwapsForShift(
+  tx: ShardTx,
+  teamId: string,
+  shiftId: string,
+  actorUserId: string,
+  reasonCode: AutoCancelReason,
+): Promise<number> {
+  const lockedSwaps = await tx.$queryRaw<
+    Array<{
+      id: string;
+      team_id: string;
+      shift_id: string;
+      requested_by: string;
+      target_user_id: string | null;
+      status: string;
+    }>
+  >`SELECT id, team_id, shift_id, requested_by, target_user_id, status
+    FROM swap_requests
+    WHERE shift_id = ${shiftId}::uuid AND team_id = ${teamId}::uuid AND status = 'pending'
+    FOR UPDATE`;
+
+  if (lockedSwaps.length === 0) {
+    return 0;
+  }
+
+  const now = new Date();
+  for (const swap of lockedSwaps) {
+    await applySwapCancellation(tx, teamId, swap.id, swap.shift_id, actorUserId, now, reasonCode);
+  }
+
+  return lockedSwaps.length;
+}
+
 /**
  * Cancel a pending swap request.
  * Requester may cancel their own pending swap; Owner/Manager may cancel any pending swap.
@@ -832,30 +910,14 @@ export async function cancelSwap(
     }
 
     const now = new Date();
-    const updated = await tx.swap_requests.update({
-      where: { id: lockedSwap.id },
-      data: {
-        status: 'cancelled',
-        cancelled_by: userId,
-        cancelled_at: now,
-        updated_at: now,
-      },
-    });
-
-    await tx.activity_events.create({
-      data: {
-        team_id: teamId,
-        kind: 'swap.cancelled',
-        audience: 'involved',
-        actor_user_id: userId,
-        subject_id: lockedSwap.id,
-        data: {
-          swapId: lockedSwap.id,
-          shiftId: lockedSwap.shift_id,
-          cancelledBy: userId,
-        },
-      },
-    });
+    const updated = await applySwapCancellation(
+      tx,
+      teamId,
+      lockedSwap.id,
+      lockedSwap.shift_id,
+      userId,
+      now,
+    );
 
     return {
       id: updated.id,

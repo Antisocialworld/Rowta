@@ -29,6 +29,7 @@ import {
 import { fingerprint } from '../security/fingerprint.ts';
 import { can, type Role } from '../security/policy.ts';
 import { HttpError } from '../middleware/error.ts';
+import { cancelPendingSwapsForShift } from '../swaps/service.ts';
 
 const FORBIDDEN = 'You do not have permission to perform this action.';
 
@@ -322,6 +323,10 @@ export async function updateShift(
     });
     if (!current) throw new HttpError(404, 'shift.notFound', 'Shift not found.');
 
+    if (input.assignedUserId !== current.assigned_user_id) {
+      await cancelPendingSwapsForShift(tx, teamId, current.id, userId, 'shift_reassigned');
+    }
+
     const updated = await tx.shifts.update({
       where: { id: current.id },
       data: {
@@ -353,6 +358,8 @@ export async function deleteShift(userId: string, teamId: string, shiftId: strin
       where: { id: shiftId, team_id: teamId, deleted_at: null },
     });
     if (!current) throw new HttpError(404, 'shift.notFound', 'Shift not found.');
+
+    await cancelPendingSwapsForShift(tx, teamId, current.id, userId, 'shift_deleted');
 
     await tx.shifts.update({
       where: { id: current.id },
