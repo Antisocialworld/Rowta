@@ -92,6 +92,10 @@ export const LIMITS: readonly LimitDef[] = [
   { id: 'swap.get', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap swap detail read' },
   { id: 'swap.decide', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'swap decide (approve/reject) write' },
   { id: 'swap.cancel', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'swap cancel write' },
+
+  // Phase 6 — Settings, quiet hours.
+  { id: 'settings.read', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap read' },
+  { id: 'settings.write', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'settings write' },
 ];
 
 const BY_ID = new Map(LIMITS.map((def) => [def.id, def]));

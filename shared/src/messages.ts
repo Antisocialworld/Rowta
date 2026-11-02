@@ -54,6 +54,14 @@ export const AUTH_MESSAGES = {
   'swap.decline_reason_required': 'Enter a decline reason.',
   'swap.decline_reason_invalid': 'Use 140 characters or fewer.',
   'swap.note_invalid': 'Use 140 characters or fewer.',
+  // Phase 6 — user settings & quiet hours.
+  'settings.empty': 'Provide at least one setting to update.',
+  'settings.quiet_pair': 'Quiet hours start and end must be set or cleared together.',
+  'settings.quiet_equal': 'Quiet hours start and end times cannot be equal.',
+  'settings.quiet_invalid': 'Enter a valid time in 24-hour format (HH:MM).',
+  'settings.time_zone_invalid': 'Choose a valid time zone.',
+  'settings.language_invalid': 'Choose a valid language code.',
+  'settings.theme_invalid': 'Choose a valid theme.',
   'generic.error': 'Something went wrong. Try again.',
 } as const;
 
