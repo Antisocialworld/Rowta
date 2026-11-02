@@ -896,13 +896,17 @@ export const swapsApi = {
   async decideSwap(
     teamId: string,
     swapId: string,
-    input: { status: 'approved' | 'rejected'; targetUserId?: string | null },
+    input: { status: 'approved'; targetUserId?: string | null } | { status: 'rejected'; declineReason: string },
   ): Promise<SwapRequestView> {
-    decideSwapSchema.parse(input);
+    const validated = decideSwapSchema.parse(input);
+    const body =
+      validated.status === 'approved'
+        ? { status: 'approved' as const, targetUserId: validated.targetUserId ?? null }
+        : { status: 'rejected' as const, declineReason: validated.declineReason as string };
     const out = await send({
       method: 'POST',
       path: `/teams/${encodeURIComponent(teamId)}/swaps/${encodeURIComponent(swapId)}/decide`,
-      body: input,
+      body,
       auth: true,
       dataSchema: swapViewSchema,
     });

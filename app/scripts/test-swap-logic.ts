@@ -2,19 +2,25 @@
 import assert from 'node:assert/strict';
 import type { SwapRequestView } from '@rowta/shared';
 import {
+  buildDecideSwapPayload,
   canCancelSwap,
   canDecideSwap,
   canDecideSwapWithShift,
   canRequestSwap,
   filterSwapsByTab,
+  formatDeclineReasonCounter,
   getEligibleSwapTargets,
   getSwapIneligibleReason,
+  getTrimmedDeclineReason,
   INITIAL_SHIFT_SWAP_STATE,
   hasPendingSwapRequest,
+  isDeclineReady,
+  isDeclineReasonValid,
   mergeSwapPages,
   needsTargetPicker,
   shiftSwapReducer,
   swapIneligibleMessageKey,
+  SWAP_DECLINE_REASON_MAX_LENGTH,
 } from '../src/lib/swap-logic';
 import { formatSignedInUserName } from '../src/lib/user-name';
 
@@ -305,6 +311,58 @@ function testGetSwapIneligibleReason() {
   assert.equal(getSwapIneligibleReason(null, 'user-1', false, now), null);
 }
 
+function testDeclineReasonLogic() {
+  // 1. Validation: empty, whitespace-only, 1 char, 140 chars, 141 chars
+  assert.equal(isDeclineReasonValid(''), false, 'empty string must be invalid');
+  assert.equal(isDeclineReasonValid('   '), false, 'whitespace-only string must be invalid');
+  assert.equal(isDeclineReasonValid('a'), true, '1 char must be valid');
+  assert.equal(isDeclineReasonValid('  a  '), true, 'trimmed 1 char must be valid');
+
+  const char140 = 'x'.repeat(SWAP_DECLINE_REASON_MAX_LENGTH);
+  assert.equal(isDeclineReasonValid(char140), true, '140 chars must be valid');
+  assert.equal(isDeclineReasonValid(`  ${char140}  `), true, 'trimmed 140 chars must be valid');
+
+  const char141 = 'x'.repeat(SWAP_DECLINE_REASON_MAX_LENGTH + 1);
+  assert.equal(isDeclineReasonValid(char141), false, '141 chars must be invalid');
+  assert.equal(isDeclineReasonValid(`  ${char141}  `), false, 'trimmed 141 chars must be invalid');
+
+  // 2. getTrimmedDeclineReason
+  assert.equal(getTrimmedDeclineReason('  hello world  '), 'hello world');
+  assert.equal(getTrimmedDeclineReason(''), '');
+  assert.equal(getTrimmedDeclineReason('   '), '');
+
+  // 3. isDeclineReady (considers validity and busy state)
+  assert.equal(isDeclineReady('', false), false);
+  assert.equal(isDeclineReady('   ', false), false);
+  assert.equal(isDeclineReady('Valid reason', false), true);
+  assert.equal(isDeclineReady('Valid reason', true), false, 'must not be ready when busy');
+  assert.equal(isDeclineReady(char141, false), false);
+
+  // 4. Counter formatting
+  assert.equal(formatDeclineReasonCounter(''), '0 of 140 characters');
+  assert.equal(formatDeclineReasonCounter('   '), '0 of 140 characters');
+  assert.equal(formatDeclineReasonCounter('  abc  '), '3 of 140 characters');
+  assert.equal(formatDeclineReasonCounter(char140), '140 of 140 characters');
+
+  // 5. buildDecideSwapPayload: rejected payload includes trimmed declineReason
+  const rejectedPayload = buildDecideSwapPayload('rejected', { declineReason: '  Shift conflict  ' });
+  assert.equal(rejectedPayload.status, 'rejected');
+  assert.equal(rejectedPayload.declineReason, 'Shift conflict');
+
+  // 6. buildDecideSwapPayload: approved payload has NO declineReason key
+  const approvedPayload = buildDecideSwapPayload('approved', {
+    targetUserId: 'target-123',
+    declineReason: 'Should not exist in approved payload',
+  });
+  assert.equal(approvedPayload.status, 'approved');
+  assert.equal('targetUserId' in approvedPayload && approvedPayload.targetUserId, 'target-123');
+  assert.equal('declineReason' in approvedPayload, false, 'approved payload must NOT contain declineReason key');
+
+  const approvedPayloadNoTarget = buildDecideSwapPayload('approved');
+  assert.equal(approvedPayloadNoTarget.status, 'approved');
+  assert.equal('declineReason' in approvedPayloadNoTarget, false);
+}
+
 function runAll() {
   testOptimisticUpdateAndRollback();
   testCanRequestSwap();
@@ -318,7 +376,8 @@ function runAll() {
   testFormatSignedInUserName();
   testSwapButtonConditions();
   testGetSwapIneligibleReason();
-  console.log('test-swap-logic: 12 assertion suites passed');
+  testDeclineReasonLogic();
+  console.log('test-swap-logic: 13 assertion suites passed');
 }
 
 runAll();

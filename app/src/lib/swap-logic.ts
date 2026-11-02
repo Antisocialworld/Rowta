@@ -2,7 +2,7 @@
 // Optimistic update + rollback reducer, swap filter helpers, and permission helpers.
 // Pure functions with zero side-effects and zero React/DOM dependencies for straightforward testability.
 import type { SwapRequestView, SwapStatus } from '@rowta/shared';
-import type { MessageKey } from '../i18n/en';
+import { t, type MessageKey } from '../i18n/en';
 
 export interface ShiftSwapState {
   readonly hasPendingSwap: boolean;
@@ -236,6 +236,71 @@ export function getEligibleSwapTargets<T extends { readonly userId: string; read
   requestedBy: string,
 ): readonly T[] {
   return members.filter((m) => m.userId !== requestedBy);
+}
+
+/**
+ * Maximum character limit for a swap decline reason (Phase 5 / Swap v2; rules V1, V3).
+ */
+export const SWAP_DECLINE_REASON_MAX_LENGTH = 140;
+
+/**
+ * Returns the trimmed decline reason.
+ */
+export function getTrimmedDeclineReason(reason: string): string {
+  return reason.trim();
+}
+
+/**
+ * Checks whether the decline reason is valid (non-empty after trim and <= 140 characters).
+ */
+export function isDeclineReasonValid(reason: string): boolean {
+  const trimmed = reason.trim();
+  return trimmed.length >= 1 && trimmed.length <= SWAP_DECLINE_REASON_MAX_LENGTH;
+}
+
+/**
+ * Checks whether the Decline confirm button is ready to accept presses.
+ * Ready only when the trimmed reason is between 1 and 140 characters and not currently submitting.
+ */
+export function isDeclineReady(reason: string, isBusy = false): boolean {
+  return !isBusy && isDeclineReasonValid(reason);
+}
+
+/**
+ * Formats the live character counter showing trimmed characters used out of the maximum limit.
+ */
+export function formatDeclineReasonCounter(
+  reason: string,
+  maxLength = SWAP_DECLINE_REASON_MAX_LENGTH,
+): string {
+  const count = reason.trim().length;
+  return t('swap.declineModal.counter', { count, max: maxLength });
+}
+
+export type DecideSwapPayload =
+  | { readonly status: 'approved'; readonly targetUserId?: string | null }
+  | { readonly status: 'rejected'; readonly declineReason: string };
+
+/**
+ * Pure payload builder for swap decision endpoint.
+ * Rejected payload includes trimmed declineReason.
+ * Approved payload never includes declineReason.
+ */
+export function buildDecideSwapPayload(
+  status: 'approved' | 'rejected',
+  opts?: { readonly targetUserId?: string | null; readonly declineReason?: string },
+): DecideSwapPayload {
+  if (status === 'approved') {
+    return {
+      status: 'approved',
+      ...(opts?.targetUserId !== undefined ? { targetUserId: opts.targetUserId } : {}),
+    };
+  }
+  const trimmed = opts?.declineReason ? opts.declineReason.trim() : '';
+  return {
+    status: 'rejected',
+    declineReason: trimmed,
+  };
 }
 
 

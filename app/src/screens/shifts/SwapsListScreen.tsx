@@ -2,22 +2,36 @@
 // Owner/Manager can approve or reject pending swaps; staff can view and cancel their own.
 // Fast scrolling protected by createPagingGate and canRequestNextPage.
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View, type TextInstance } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View, type TextInputInstance, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SwapRequestView } from '@rowta/shared';
-import { Button, ConfirmDialog, EmptyState, LiveRegion, Skeleton, SwapTargetModal, Text } from '../../components';
+import {
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  Input,
+  LiveRegion,
+  SheetModal,
+  Skeleton,
+  SwapTargetModal,
+  Text,
+} from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { authApi, errorMessageKey, swapsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { canRequestNextPage, createPagingGate } from '../../lib/shift-feed';
 import {
+  buildDecideSwapPayload,
   canCancelSwap,
   canDecideSwapWithShift,
   filterSwapsByTab,
+  formatDeclineReasonCounter,
   getEligibleSwapTargets,
+  isDeclineReady,
   mergeSwapPages,
   needsTargetPicker,
+  SWAP_DECLINE_REASON_MAX_LENGTH,
   type SwapFilterTab,
 } from '../../lib/swap-logic';
 import { formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
@@ -44,8 +58,25 @@ export function SwapsListScreen() {
   const [tab, setTab] = useState<SwapFilterTab>('pending');
   const [cancellingSwapId, setCancellingSwapId] = useState<string | null>(null);
   const [approvingSwap, setApprovingSwap] = useState<SwapRequestView | null>(null);
+  const [decliningSwap, setDecliningSwap] = useState<SwapRequestView | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
+  const [declineFieldError, setDeclineFieldError] = useState<MessageKey | null>(null);
+  const [declineModalError, setDeclineModalError] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState<MessageKey | null>(null);
+
+  const declineInputRef = useRef<TextInputInstance>(null);
+  const declineButtonRefs = useRef<Map<string, unknown>>(new Map());
+  const lastDecliningSwapIdRef = useRef<string | null>(null);
+
+  if (decliningSwap) {
+    lastDecliningSwapIdRef.current = decliningSwap.id;
+  }
+
+  const declineReturnFocusRef = useRef<{ current: unknown }>({ current: null });
+  declineReturnFocusRef.current.current = lastDecliningSwapIdRef.current
+    ? declineButtonRefs.current.get(lastDecliningSwapIdRef.current) ?? null
+    : null;
 
   const membersQuery = useTeamMembers(selectedTeamId);
   const eligibleMembers = approvingSwap
@@ -79,6 +110,15 @@ export function SwapsListScreen() {
     focusOn(headingRef.current);
   }, []);
 
+  useEffect(() => {
+    if (decliningSwap) {
+      const timer = setTimeout(() => {
+        focusOn(declineInputRef.current);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [decliningSwap]);
+
   const requestMore = (): void => {
     if (
       !canRequestNextPage({
@@ -92,23 +132,71 @@ export function SwapsListScreen() {
     void gate.request();
   };
 
-  const handleDecide = async (swapId: string, status: 'approved' | 'rejected', targetUserId?: string) => {
+  const handleApprove = async (swapId: string, targetUserId?: string) => {
     if (!selectedTeamId) return;
     setBusy(true);
     setAnnouncement(null);
     try {
-      await swapsApi.decideSwap(selectedTeamId, swapId, { status, targetUserId: targetUserId ?? null });
+      const payload = buildDecideSwapPayload('approved', { targetUserId: targetUserId ?? null });
+      await swapsApi.decideSwap(selectedTeamId, swapId, payload);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['swaps', selectedTeamId] }),
         queryClient.invalidateQueries({ queryKey: ['shifts', selectedTeamId] }),
         queryClient.invalidateQueries({ queryKey: ['swaps'] }),
         queryClient.invalidateQueries({ queryKey: ['shifts'] }),
       ]);
-      setAnnouncement(status === 'approved' ? 'swap.toast.approved' : 'swap.toast.rejected');
+      setAnnouncement('swap.toast.approved');
       setApprovingSwap(null);
     } catch (err: unknown) {
       const code = err instanceof Error && 'code' in err ? String((err as { code: string }).code) : 'generic.error';
       setAnnouncement(errorMessageKey(code));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOpenDeclineModal = (swap: SwapRequestView) => {
+    setDecliningSwap(swap);
+    setDeclineReason('');
+    setDeclineFieldError(null);
+    setDeclineModalError(null);
+  };
+
+  const handleCloseDeclineModal = () => {
+    setDecliningSwap(null);
+    setDeclineReason('');
+    setDeclineFieldError(null);
+    setDeclineModalError(null);
+  };
+
+  const handleConfirmDecline = async () => {
+    if (!selectedTeamId || !decliningSwap) return;
+    const trimmed = declineReason.trim();
+    if (trimmed.length === 0) {
+      setDeclineFieldError('swap.decline_reason_required');
+      return;
+    }
+    if (trimmed.length > SWAP_DECLINE_REASON_MAX_LENGTH) {
+      setDeclineFieldError('swap.decline_reason_invalid');
+      return;
+    }
+    setBusy(true);
+    setDeclineFieldError(null);
+    setDeclineModalError(null);
+    try {
+      const payload = buildDecideSwapPayload('rejected', { declineReason: trimmed });
+      await swapsApi.decideSwap(selectedTeamId, decliningSwap.id, payload);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['swaps', selectedTeamId] }),
+        queryClient.invalidateQueries({ queryKey: ['shifts', selectedTeamId] }),
+        queryClient.invalidateQueries({ queryKey: ['swaps'] }),
+        queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+      ]);
+      setAnnouncement('swap.toast.rejected');
+      handleCloseDeclineModal();
+    } catch (err: unknown) {
+      const code = err instanceof Error && 'code' in err ? String((err as { code: string }).code) : 'generic.error';
+      setDeclineModalError(errorMessageKey(code));
     } finally {
       setBusy(false);
     }
@@ -207,17 +295,24 @@ export function SwapsListScreen() {
                     if (needsTargetPicker(item)) {
                       setApprovingSwap(item);
                     } else {
-                      void handleDecide(item.id, 'approved');
+                      void handleApprove(item.id);
                     }
                   }}
                   testID={`swap-approve-${item.id}`}
                 />
                 <Button
+                  ref={(node) => {
+                    if (node) {
+                      declineButtonRefs.current.set(item.id, node);
+                    } else {
+                      declineButtonRefs.current.delete(item.id);
+                    }
+                  }}
                   label="swap.action.reject"
                   variant="secondary"
                   busy={busy}
                   ready={!busy}
-                  onPress={() => void handleDecide(item.id, 'rejected')}
+                  onPress={() => handleOpenDeclineModal(item)}
                   testID={`swap-reject-${item.id}`}
                 />
               </>
@@ -237,6 +332,42 @@ export function SwapsListScreen() {
       </View>
     );
   };
+
+  const trimmedDeclineReason = declineReason.trim();
+  const declineNotReadyReason: MessageKey | undefined =
+    trimmedDeclineReason.length === 0
+      ? 'swap.decline_reason_required'
+      : trimmedDeclineReason.length > SWAP_DECLINE_REASON_MAX_LENGTH
+        ? 'swap.decline_reason_invalid'
+        : undefined;
+
+  const declineFooter = (
+    <View style={styles.modalFooterRow}>
+      <Button
+        label="swap.declineModal.cancel"
+        variant="ghost"
+        fullWidth={false}
+        onPress={handleCloseDeclineModal}
+        testID="swap-decline-cancel"
+      />
+      <Button
+        label="swap.declineModal.confirm"
+        variant="danger"
+        fullWidth={false}
+        busy={busy}
+        ready={isDeclineReady(declineReason, busy)}
+        reason={declineNotReadyReason}
+        onNotReady={() => {
+          if (declineNotReadyReason) {
+            setDeclineFieldError(declineNotReadyReason);
+            focusOn(declineInputRef.current);
+          }
+        }}
+        onPress={() => void handleConfirmDecline()}
+        testID="swap-decline-confirm"
+      />
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -319,12 +450,51 @@ export function SwapsListScreen() {
         onRetry={() => void membersQuery.refetch()}
         onConfirm={(targetUserId) => {
           if (approvingSwap) {
-            void handleDecide(approvingSwap.id, 'approved', targetUserId);
+            void handleApprove(approvingSwap.id, targetUserId);
           }
         }}
         onCancel={() => setApprovingSwap(null)}
         testID="swap-target-picker-modal"
       />
+
+      <SheetModal
+        visible={decliningSwap !== null}
+        onClose={handleCloseDeclineModal}
+        headingKey="swap.declineModal.title"
+        returnFocusRef={declineReturnFocusRef.current}
+        footer={declineFooter}
+        testID="swap-decline-modal"
+        cardTestID="swap-decline-modal-card"
+        headingTestID="swap-decline-modal-heading"
+      >
+        <View style={styles.modalBody}>
+          <Input
+            ref={declineInputRef}
+            label="swap.declineModal.reasonLabel"
+            value={declineReason}
+            onChangeText={(value) => {
+              setDeclineReason(value);
+              setDeclineFieldError(null);
+              setDeclineModalError(null);
+            }}
+            variant="text"
+            errorKey={declineFieldError ?? undefined}
+            editable={!busy}
+            testID="swap-decline-reason-input"
+          />
+          <Text
+            variant="body-small"
+            tone="secondary"
+            style={styles.counterText}
+            testID="swap-decline-counter"
+          >
+            {formatDeclineReasonCounter(declineReason)}
+          </Text>
+          {declineModalError !== null ? (
+            <LiveRegion tone="error">{declineModalError}</LiveRegion>
+          ) : null}
+        </View>
+      </SheetModal>
 
       <ConfirmDialog
         visible={cancellingSwapId !== null}
@@ -410,5 +580,17 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     gap: Number(spacing.base),
+  },
+  modalFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: Number(spacing.small),
+  },
+  modalBody: {
+    gap: Number(spacing.base),
+  },
+  counterText: {
+    alignSelf: 'flex-end',
   },
 });
