@@ -269,7 +269,7 @@ export function DashboardScreen() {
                             style={styles.swapPressable}
                           >
                             <View style={styles.swapHeaderRow}>
-                              <Text variant="title-small" numberOfLines={1}>
+                              <Text variant="title-small" numberOfLines={1} style={styles.swapTitle}>
                                 {swap.shiftLabel ?? t('teams.view.shift.heading')}
                               </Text>
                               <Badge label="swap.status.pending" tone="warning" />
@@ -506,6 +506,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.small,
+  },
+  swapTitle: {
+    flexShrink: 1,
   },
   cardPadding: {
     padding: spacing.medium,
