@@ -48,7 +48,7 @@ export function ShiftCard({ shift, badge, selected = false, onPress, testID }: S
         <Text variant="title-small" numberOfLines={1}>
           {shift.role}
         </Text>
-        <Text variant="body-small" tone="secondary" numberOfLines={1}>
+        <Text variant="body-small" tone="secondary" numberOfLines={2}>
           {[shift.day, shift.time].join(' ')}
         </Text>
         <Text variant="label-small" tone="secondary" numberOfLines={1}>
