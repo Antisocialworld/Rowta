@@ -65,7 +65,7 @@ export function CalendarScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
             {t('teams.view.calendar.heading')}
           </Text>
@@ -111,7 +111,15 @@ export function CalendarScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors['color-surface'] },
-  container: { flex: 1, alignItems: 'center', padding: Number(spacing.base) },
-  content: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, gap: Number(spacing.base), paddingBottom: Number(spacing.base) },
+  container: {
+    flex: 1,
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+    padding: Number(spacing.base),
+    gap: Number(spacing.base),
+  },
+  scroll: { flex: 1, width: '100%' },
+  content: { gap: Number(spacing.base), paddingBottom: Number(spacing.base) },
   list: { gap: Number(spacing.base) },
 });
