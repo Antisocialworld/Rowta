@@ -475,9 +475,15 @@ interface ShiftSearchRow {
   ends_at: Date;
   label: string;
   notes: string | null;
-  created_by: string;
   created_at: Date;
   updated_at: Date;
+}
+
+const FUZZY_MIN_QUERY_LENGTH = 4;
+const FUZZY_WORD_SIMILARITY_THRESHOLD = 0.3;
+
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, '\\$&');
 }
 
 export async function searchTeam(
@@ -489,32 +495,52 @@ export async function searchTeam(
   const membership = await requireMember(client, teamId, userId);
   requireAction(userId, membership, 'view_team');
   const q = query.q;
+  const escapedQ = escapeLike(q);
+  const likePrefix = `${escapedQ}%`;
+  const likeContains = `%${escapedQ}%`;
 
   const memberships = await client.memberships.findMany({
     where: { team_id: teamId, removed_at: null },
     orderBy: { created_at: 'asc' },
   });
   const memberIds = memberships.map((m) => m.user_id);
-  const users = await globalDb().users.findMany({
-    where: {
-      id: { in: memberIds },
-      display_name: { contains: q, mode: 'insensitive' },
-    },
-    take: SEARCH_RESULT_LIMIT,
-  });
+
+  let userRows: Array<{ id: string; display_name: string }> = [];
+  if (memberIds.length > 0) {
+    userRows = await globalDb().$queryRaw<Array<{ id: string; display_name: string }>>`
+      SELECT id::text, display_name
+      FROM users
+      WHERE id = ANY(${memberIds}::uuid[])
+        AND (
+          display_name ILIKE ${likeContains}
+          OR (char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} AND word_similarity(${q}, display_name) >= ${FUZZY_WORD_SIMILARITY_THRESHOLD})
+        )
+      ORDER BY
+        CASE
+          WHEN lower(display_name) = lower(${q}) THEN 1
+          WHEN lower(display_name) LIKE lower(${likePrefix}) THEN 2
+          WHEN lower(display_name) LIKE lower(${likeContains}) THEN 3
+          ELSE 4
+        END ASC,
+        CASE
+          WHEN char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} THEN word_similarity(${q}, display_name)
+          ELSE 0
+        END DESC,
+        CASE
+          WHEN char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} THEN similarity(${q}, display_name)
+          ELSE 0
+        END DESC,
+        display_name ASC
+      LIMIT ${SEARCH_RESULT_LIMIT}
+    `;
+  }
+
   const roleById = new Map(memberships.map((m) => [m.user_id, roleOf(m)]));
-  const members = users
-    .map((u) => ({
-      userId: u.id,
-      displayName: u.display_name,
-      role: roleById.get(u.id) ?? 'staff',
-    }))
-    .sort((a, b) => {
-      const aPrefix = a.displayName.toLowerCase().startsWith(q.toLowerCase()) ? 0 : 1;
-      const bPrefix = b.displayName.toLowerCase().startsWith(q.toLowerCase()) ? 0 : 1;
-      return aPrefix - bPrefix || a.displayName.localeCompare(b.displayName);
-    })
-    .slice(0, SEARCH_RESULT_LIMIT);
+  const members = userRows.map((u) => ({
+    userId: u.id,
+    displayName: u.display_name,
+    role: roleById.get(u.id) ?? 'staff',
+  }));
 
   const shiftRows = await client.$queryRaw<ShiftSearchRow[]>`
     SELECT id::text, team_id::text, assigned_user_id::text, starts_at, ends_at, label, notes, created_at, updated_at
@@ -523,10 +549,26 @@ export async function searchTeam(
       AND deleted_at IS NULL
       AND (
         search @@ plainto_tsquery('simple', ${q})
-        OR label ILIKE ${`%${q}%`}
-        OR coalesce(notes, '') ILIKE ${`%${q}%`}
+        OR label ILIKE ${likeContains}
+        OR coalesce(notes, '') ILIKE ${likeContains}
+        OR (char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} AND word_similarity(${q}, label) >= ${FUZZY_WORD_SIMILARITY_THRESHOLD})
       )
-    ORDER BY ts_rank_cd(search, plainto_tsquery('simple', ${q})) DESC, starts_at DESC
+    ORDER BY
+      CASE
+        WHEN lower(label) = lower(${q}) THEN 1
+        WHEN lower(label) LIKE lower(${likePrefix}) THEN 2
+        WHEN lower(label) LIKE lower(${likeContains}) OR lower(coalesce(notes, '')) LIKE lower(${likeContains}) OR search @@ plainto_tsquery('simple', ${q}) THEN 3
+        ELSE 4
+      END ASC,
+      CASE
+        WHEN char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} THEN word_similarity(${q}, label)
+        ELSE ts_rank_cd(search, plainto_tsquery('simple', ${q}))
+      END DESC,
+      CASE
+        WHEN char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} THEN similarity(${q}, label)
+        ELSE 0
+      END DESC,
+      starts_at DESC
     LIMIT ${SEARCH_RESULT_LIMIT}
   `;
 
@@ -536,9 +578,25 @@ export async function searchTeam(
     WHERE team_id = ${teamId}::uuid
       AND (
         search @@ plainto_tsquery('simple', ${q})
-        OR coalesce(data ->> 'label', '') ILIKE ${`%${q}%`}
+        OR coalesce(data ->> 'label', '') ILIKE ${likeContains}
+        OR (char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} AND word_similarity(${q}, coalesce(data ->> 'label', '')) >= ${FUZZY_WORD_SIMILARITY_THRESHOLD})
       )
-    ORDER BY ts_rank_cd(search, plainto_tsquery('simple', ${q})) DESC, created_at DESC
+    ORDER BY
+      CASE
+        WHEN lower(coalesce(data ->> 'label', '')) = lower(${q}) THEN 1
+        WHEN lower(coalesce(data ->> 'label', '')) LIKE lower(${likePrefix}) THEN 2
+        WHEN lower(coalesce(data ->> 'label', '')) LIKE lower(${likeContains}) OR search @@ plainto_tsquery('simple', ${q}) THEN 3
+        ELSE 4
+      END ASC,
+      CASE
+        WHEN char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} THEN word_similarity(${q}, coalesce(data ->> 'label', ''))
+        ELSE ts_rank_cd(search, plainto_tsquery('simple', ${q}))
+      END DESC,
+      CASE
+        WHEN char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} THEN similarity(${q}, coalesce(data ->> 'label', ''))
+        ELSE 0
+      END DESC,
+      created_at DESC
     LIMIT ${SEARCH_RESULT_LIMIT}
   `;
 
