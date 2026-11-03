@@ -65,7 +65,7 @@ check(modalSrc.includes('<SheetModal'), 'SearchModal mounts SheetModal');
 check(modalSrc.includes('anchor="top"'), 'SearchModal specifies anchor="top"');
 check(modalSrc.includes('headingKey="teams.view.search.heading"'), 'sets headingKey');
 check(modalSrc.includes('testID="search-input"'), 'input sets testID="search-input"');
-check(modalSrc.includes('testID="search-submit"'), 'submit button sets testID="search-submit"');
+check(modalSrc.includes('clearTestID="search-clear"'), 'input wires clear control clearTestID="search-clear"');
 check(modalSrc.includes('testID="search-close"'), 'close button sets testID="search-close"');
 check(modalSrc.includes('focusOn(inputRef.current)'), 'auto-focuses search input on open (U7)');
 check(modalSrc.includes("openShift({ name: 'detail'"), 'navigates to shift detail on item press');

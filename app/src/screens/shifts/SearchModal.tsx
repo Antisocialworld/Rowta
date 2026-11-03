@@ -1,16 +1,15 @@
 // SearchModal — team-scoped search modal sheet (Phase 4, Stage M4a; PRD 8.4; rules U1, U7, X14; ADR 0018, ADR 0021).
-// Top-anchored SheetModal (anchor="top") providing live team-wide search over people, shifts and activity.
+// Top-anchored SheetModal (anchor="top") providing real-time team-wide search over people, shifts and activity.
 // Selecting a shift navigates to shift detail and closes the search sheet.
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { SEARCH_QUERY_MIN_LENGTH } from '@rowta/shared';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { EmptyState } from '../../components/EmptyState';
 import { Input } from '../../components/Input';
-import { LiveRegion } from '../../components/LiveRegion';
 import { ShiftCard } from '../../components/ShiftCard';
 import { Skeleton } from '../../components/Skeleton';
 import { Text } from '../../components/Text';
@@ -18,6 +17,12 @@ import { SheetModal } from '../../components/SheetModal';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, errorTextKey, shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
+import {
+  createDebouncedRunner,
+  evaluateSearchQuery,
+  getVisibleSearchResults,
+  SEARCH_DEBOUNCE_MS,
+} from '../../lib/search-debounce';
 import { shiftQueryKeys } from '../../lib/shift-cache';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeamMembers, useTeams } from '../../state/teams';
@@ -36,7 +41,6 @@ const ROLE_TONE: Record<string, 'primary' | 'neutral'> = {
   manager: 'neutral',
   staff: 'neutral',
 };
-const SEARCH_SHIFTS_KEY: MessageKey = 'search.section.shifts';
 
 export type SearchModalProps = {
   readonly visible?: boolean;
@@ -56,6 +60,7 @@ export function SearchModal(props: SearchModalProps) {
   const testID = props.testID ?? 'search-modal';
 
   const inputRef = useRef<TextInputInstance>(null);
+  const debouncerRef = useRef(createDebouncedRunner(SEARCH_DEBOUNCE_MS));
   const openShift = useShiftNav((state) => state.open);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const membersQuery = useTeamMembers(selectedTeamId);
@@ -68,15 +73,17 @@ export function SearchModal(props: SearchModalProps) {
     queryKey: shiftQueryKeys.search(selectedTeamId ?? '', lastQuery ?? ''),
     queryFn: () => shiftsApi.search(selectedTeamId as string, lastQuery as string),
     enabled: selectedTeamId !== null && lastQuery !== null && lastQuery.length >= SEARCH_QUERY_MIN_LENGTH,
+    placeholderData: lastQuery !== null ? keepPreviousData : undefined,
   });
 
-  const results = searchQuery.data ?? null;
-  const busy = searchQuery.isFetching;
-  const errorKey = searchQuery.isError
-    ? searchQuery.error instanceof ApiError
-      ? errorTextKey(searchQuery.error)
-      : 'generic.error'
-    : null;
+  const results = getVisibleSearchResults(lastQuery, searchQuery.data);
+  const isInitialLoading = searchQuery.isFetching && results === null;
+  const errorKey =
+    lastQuery !== null && searchQuery.isError
+      ? searchQuery.error instanceof ApiError
+        ? errorTextKey(searchQuery.error)
+        : 'generic.error'
+      : null;
 
   useEffect(() => {
     if (visible) {
@@ -84,31 +91,67 @@ export function SearchModal(props: SearchModalProps) {
     }
   }, [visible]);
 
+  useEffect(() => {
+    const debouncer = debouncerRef.current;
+    return () => {
+      debouncer.cancel();
+    };
+  }, []);
+
   const handleClose = () => {
+    debouncerRef.current.cancel();
     setQuery('');
     setLastQuery(null);
     setFieldError(null);
     onClose();
   };
 
-  const run = (raw: string): void => {
-    const trimmed = raw.trim();
-    if (selectedTeamId === null) return;
-    if (trimmed.length < SEARCH_QUERY_MIN_LENGTH) {
-      setFieldError('search.query.tooShort');
-      focusOn(inputRef.current);
-      return;
-    }
+  const handleQueryChange = (text: string) => {
+    setQuery(text);
     setFieldError(null);
-    if (lastQuery === trimmed) {
+
+    const decision = evaluateSearchQuery(text, lastQuery);
+    if (decision.type === 'empty') {
+      debouncerRef.current.cancel();
+      setLastQuery(null);
+    } else if (decision.type === 'no_change') {
+      debouncerRef.current.cancel();
+    } else {
+      debouncerRef.current.run(() => {
+        setLastQuery(decision.query);
+      }, false);
+    }
+  };
+
+  const handleSubmit = () => {
+    debouncerRef.current.cancel();
+    const decision = evaluateSearchQuery(query, lastQuery);
+    if (decision.type === 'empty') {
+      setLastQuery(null);
+    } else if (decision.type === 'no_change') {
       void searchQuery.refetch();
     } else {
-      setLastQuery(trimmed);
+      setLastQuery(decision.query);
     }
+  };
+
+  const handleClear = () => {
+    debouncerRef.current.cancel();
+    setQuery('');
+    setLastQuery(null);
+    setFieldError(null);
+    focusOn(inputRef.current);
   };
 
   const names = new Map((membersQuery.data?.members ?? []).map((member) => [member.userId, member.displayName]));
   const total = results === null ? 0 : results.members.length + results.shifts.length + results.activity.length;
+
+  const announcementText =
+    results !== null && lastQuery !== null
+      ? total === 0
+        ? t('search.empty.title')
+        : t('search.results.count', { count: total })
+      : null;
 
   const footer = (
     <Button
@@ -137,43 +180,36 @@ export function SearchModal(props: SearchModalProps) {
           ref={inputRef}
           label="action.openSearch"
           value={query}
-          onChangeText={(value) => {
-            setQuery(value);
-            setFieldError(null);
-          }}
+          onChangeText={handleQueryChange}
           errorKey={fieldError ?? undefined}
           maxLength={100}
           returnKeyType="search"
-          onSubmitEditing={() => void run(query)}
+          onSubmitEditing={handleSubmit}
+          onClear={handleClear}
+          clearLabel="action.clearSearch"
+          clearTestID="search-clear"
           testID="search-input"
         />
-        <Button
-          label="action.search"
-          icon="search"
-          busy={busy}
-          onPress={() => void run(query)}
-          testID="search-submit"
-        />
 
-        {busy ? <Skeleton variant="block" /> : null}
+        {isInitialLoading ? <Skeleton variant="block" /> : null}
 
-        {!busy && errorKey !== null ? (
+        {!isInitialLoading && errorKey !== null ? (
           <EmptyState
             kind="error"
             bodyKey={errorKey}
-            action={{ label: 'action.retry', onPress: () => void run(query) }}
+            action={{ label: 'action.retry', onPress: handleSubmit }}
           />
         ) : null}
 
-        {!busy && errorKey === null && results === null ? (
+        {!isInitialLoading && errorKey === null && results === null ? (
           <EmptyState kind="empty" titleKey="search.prompt.title" bodyKey="search.prompt.body" />
         ) : null}
 
-        {!busy && errorKey === null && results !== null && total === 0 ? (
+        {!isInitialLoading && errorKey === null && results !== null && total === 0 ? (
           <EmptyState kind="empty" titleKey="search.empty.title" bodyKey="search.empty.body" />
         ) : null}
 
-        {!busy && errorKey === null && results !== null && total > 0 ? (
+        {!isInitialLoading && errorKey === null && results !== null && total > 0 ? (
           <View style={styles.sections}>
             {results.members.length > 0 ? (
               <View style={styles.section}>
@@ -222,7 +258,11 @@ export function SearchModal(props: SearchModalProps) {
           </View>
         ) : null}
 
-        {lastQuery !== null ? <LiveRegion>{SEARCH_SHIFTS_KEY}</LiveRegion> : null}
+        {announcementText !== null ? (
+          <Text accessibilityLiveRegion="polite" style={styles.visuallyHidden}>
+            {announcementText}
+          </Text>
+        ) : null}
       </View>
     </SheetModal>
   );
@@ -244,5 +284,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Number(spacing.base),
   },
+  visuallyHidden: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    overflow: 'hidden',
+    opacity: 0,
+  },
 });
-

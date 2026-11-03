@@ -84,6 +84,10 @@ export type InputProps = {
   id?: string;
   name?: string;
   autoComplete?: TextInputProps['autoComplete'];
+  /** Optional handler to clear the input text. Renders a clear button inside the field when value is non-empty. */
+  onClear?: () => void;
+  clearLabel?: MessageKey;
+  clearTestID?: string;
 };
 
 export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
@@ -104,6 +108,9 @@ export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
     id,
     name,
     autoComplete,
+    onClear,
+    clearLabel,
+    clearTestID,
   },
   ref,
 ) {
@@ -167,6 +174,26 @@ export const Input = forwardRef<TextInputInstance, InputProps>(function Input(
           >
             <MaterialIcons
               name={hidden ? 'visibility' : 'visibility-off'}
+              size={iconSize('title-medium')}
+              color={colors['color-on-surface-variant']}
+              accessibilityElementsHidden
+            />
+          </Pressable>
+        ) : null}
+        {onClear !== undefined && value.length > 0 ? (
+          <Pressable
+            onPress={() => {
+              onClear();
+              hapticSelection();
+            }}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t(clearLabel ?? 'action.clearSearch')}
+            style={styles.toggle}
+            testID={clearTestID ?? (testID !== undefined ? `${testID}-clear` : undefined)}
+          >
+            <MaterialIcons
+              name="close"
               size={iconSize('title-medium')}
               color={colors['color-on-surface-variant']}
               accessibilityElementsHidden
