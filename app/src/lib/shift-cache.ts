@@ -10,6 +10,8 @@ export const shiftQueryKeys = {
   search: (teamId: string, query: string) => ['shifts', teamId, 'search', query] as const,
   activity: (teamId: string) => ['shifts', teamId, 'activity'] as const,
   swapsRoot: () => ['swaps'] as const,
+  teamSwaps: (teamId: string) => ['swaps', teamId] as const,
+  shiftSwaps: (teamId: string, shiftId: string) => ['swaps', teamId, 'shift', shiftId] as const,
   teamsRoot: () => ['teams'] as const,
 };
 
@@ -65,4 +67,59 @@ export async function evictDeletedShiftFromQueryClient(
   // 5. Invalidate teams queries
   await queryClient.invalidateQueries({ queryKey: shiftQueryKeys.teamsRoot() });
 }
+
+/**
+ * Invalidate swap queries and activity queries for a specific team when a shift changes (edit or delete).
+ * Scoped strictly to teamId so other teams' caches are untouched.
+ * Also invalidates the shift's own swap query when shiftId is provided.
+ */
+export async function invalidateShiftSwapsAndActivity(
+  queryClient: ShiftQueryClient,
+  teamId: string,
+  shiftId?: string,
+): Promise<void> {
+  // Invalidate all swap queries for this team (pending, history, etc.)
+  await queryClient.invalidateQueries({ queryKey: shiftQueryKeys.teamSwaps(teamId) });
+
+  // Invalidate shift's specific swap query if shiftId is present
+  if (shiftId) {
+    await queryClient.invalidateQueries({ queryKey: shiftQueryKeys.shiftSwaps(teamId, shiftId) });
+  }
+
+  // Invalidate activity queries for this team
+  await queryClient.invalidateQueries({ queryKey: shiftQueryKeys.activity(teamId) });
+}
+
+/**
+ * Invalidate caches after a shift is edited (including reassign):
+ * 1. Invalidates ['shifts'] (as today, for general calendar/shifts lists)
+ * 2. Invalidates swap queries for THAT team only: ['swaps', teamId]
+ * 3. Invalidates the shift's own swap query: ['swaps', teamId, 'shift', shiftId]
+ * 4. Invalidates activity queries for THAT team only: ['shifts', teamId, 'activity']
+ */
+export async function invalidateAfterShiftEdit(
+  queryClient: ShiftQueryClient,
+  teamId: string,
+  shiftId?: string,
+): Promise<void> {
+  await queryClient.invalidateQueries({ queryKey: shiftQueryKeys.shiftsRoot() });
+  await invalidateShiftSwapsAndActivity(queryClient, teamId, shiftId);
+}
+
+/**
+ * Evict and invalidate caches for THAT team after a shift is deleted:
+ * 1. Evicts the shift's own swap query from cache: ['swaps', teamId, 'shift', shiftId]
+ * 2. Invalidates swap queries for THAT team only: ['swaps', teamId]
+ * 3. Invalidates activity queries for THAT team only: ['shifts', teamId, 'activity']
+ */
+export async function invalidateAfterShiftDelete(
+  queryClient: ShiftQueryClient,
+  teamId: string,
+  shiftId: string,
+): Promise<void> {
+  queryClient.removeQueries({ queryKey: shiftQueryKeys.shiftSwaps(teamId, shiftId) });
+  await queryClient.invalidateQueries({ queryKey: shiftQueryKeys.teamSwaps(teamId) });
+  await queryClient.invalidateQueries({ queryKey: shiftQueryKeys.activity(teamId) });
+}
+
 

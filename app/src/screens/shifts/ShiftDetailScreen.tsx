@@ -10,7 +10,7 @@ import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, authApi, errorMessageKey, shiftsApi, swapsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { canManageShifts } from '../../lib/shift-access';
-import { evictDeletedShiftFromQueryClient } from '../../lib/shift-cache';
+import { evictDeletedShiftFromQueryClient, invalidateAfterShiftDelete } from '../../lib/shift-cache';
 import { formatShiftCreator } from '../../lib/shift-creator';
 import {
   canRequestSwap,
@@ -119,6 +119,7 @@ export function ShiftDetailScreen() {
     try {
       await shiftsApi.deleteShift(selectedTeamId, shiftId);
       await evictDeletedShiftFromQueryClient(queryClient, selectedTeamId, shiftId);
+      await invalidateAfterShiftDelete(queryClient, selectedTeamId, shiftId);
       setAnnouncement('shift.toast.deleted');
       setConfirming(false);
       back();

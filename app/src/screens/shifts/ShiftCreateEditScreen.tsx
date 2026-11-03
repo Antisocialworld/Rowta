@@ -26,6 +26,7 @@ import { ApiError, errorTextKey, fieldErrorKey, shiftsApi } from '../../lib/api'
 import { focusOn } from '../../lib/a11y';
 import { clampEndToStart, isEndBeforeStart } from '../../lib/date-picker';
 import { isoToLocalInput, parseLocalDateTime } from '../../lib/shift-time';
+import { invalidateAfterShiftEdit } from '../../lib/shift-cache';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeamMembers, useTeams } from '../../state/teams';
 import { colors, spacing } from '../../theme/tokens';
@@ -261,12 +262,13 @@ export function ShiftCreateEditScreen() {
     try {
       if (isEdit && shiftId !== null) {
         await shiftsApi.updateShift(selectedTeamId, shiftId, body);
+        await invalidateAfterShiftEdit(queryClient, selectedTeamId, shiftId);
         setAnnouncement('shift.toast.updated');
       } else {
         await shiftsApi.createShift(selectedTeamId, body, idempotencyKey);
+        await queryClient.invalidateQueries({ queryKey: ['shifts'] });
         setAnnouncement('shift.toast.created');
       }
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
       back();
     } catch (error) {
       if (error instanceof ApiError && error.fields !== undefined) {
