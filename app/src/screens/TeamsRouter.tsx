@@ -8,6 +8,7 @@
 import { useEffect } from 'react';
 import { BackHandler, Platform } from 'react-native';
 import { shouldListenForHardwareBack } from '../lib/hardware-back';
+import { DashboardScreen } from './DashboardScreen';
 import { TeamListScreen } from './teams/TeamListScreen';
 import { MembersScreen } from './teams/MembersScreen';
 import { TeamSettingsScreen } from './teams/TeamSettingsScreen';
@@ -19,6 +20,7 @@ import { ShiftCreateEditScreen } from './shifts/ShiftCreateEditScreen';
 import { ShiftDetailScreen } from './shifts/ShiftDetailScreen';
 import { SwapsListScreen } from './shifts/SwapsListScreen';
 import { useTeamsView } from '../state/teams-view';
+import { useTeams } from '../state/teams';
 import { useShiftNav } from '../state/shift-nav';
 
 export function TeamsRouter() {
@@ -26,6 +28,8 @@ export function TeamsRouter() {
   const teamsBack = useTeamsView((state) => state.back);
   const shiftRoute = useShiftNav((state) => state.route);
   const shiftBack = useShiftNav((state) => state.back);
+  const selectedTeamId = useTeams((state) => state.selectedTeamId);
+  const selectTeam = useTeams((state) => state.selectTeam);
 
   useEffect(() => {
     if (!shouldListenForHardwareBack(Platform.OS)) return;
@@ -34,13 +38,17 @@ export function TeamsRouter() {
       if (shiftRoute !== null) {
         return shiftBack();
       }
+      if (view === 'list' && selectedTeamId !== null) {
+        selectTeam(null);
+        return true;
+      }
       return teamsBack();
     });
     return () => subscription.remove();
-  }, [teamsBack, shiftBack, shiftRoute]);
+  }, [teamsBack, shiftBack, shiftRoute, view, selectedTeamId, selectTeam]);
 
   // Shift layer renders on top of the teams surface when the machine has a route.
-  let screen = <TeamListScreen />;
+  let screen = selectedTeamId !== null ? <DashboardScreen /> : <TeamListScreen />;
   if (shiftRoute !== null) {
     if (shiftRoute.name === 'calendar') screen = <CalendarScreen />;
     else if (shiftRoute.name === 'detail') screen = <ShiftDetailScreen />;
