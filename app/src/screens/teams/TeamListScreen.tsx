@@ -44,6 +44,8 @@ export function TeamListScreen() {
   const message = useTeamsView((state) => state.message);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const selectTeam = useTeams((state) => state.selectTeam);
+  const pickingTeam = useTeams((state) => state.pickingTeam);
+  const setPickingTeam = useTeams((state) => state.setPickingTeam);
   const inviteResult = useTeams((state) => state.inviteResult);
   const setInviteResult = useTeams((state) => state.setInviteResult);
   const consumeInviteToken = useTeams((state) => state.consumeInviteToken);
@@ -313,6 +315,14 @@ export function TeamListScreen() {
             <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
           ) : null}
           <Button label="action.signOut" variant="ghost" onPress={() => { void signOut(); }} />
+          {pickingTeam && selectedTeamId !== null ? (
+            <Button
+              label="action.back"
+              variant="ghost"
+              onPress={() => setPickingTeam(false)}
+              testID="team-list-back"
+            />
+          ) : null}
           {toastMessage !== null ? <LiveRegion>{toastMessage}</LiveRegion> : null}
           <CreateTeamModal
             visible={createModalOpen}

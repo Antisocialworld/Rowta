@@ -57,7 +57,7 @@ const ROLE_TONE: Record<string, 'primary' | 'neutral'> = {
 export function DashboardScreen() {
   const headingRef = useRef<TextInstance>(null);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
-  const selectTeam = useTeams((state) => state.selectTeam);
+  const setPickingTeam = useTeams((state) => state.setPickingTeam);
   const openShift = useShiftNav((state) => state.open);
 
   const meQuery = useQuery({
@@ -185,7 +185,7 @@ export function DashboardScreen() {
                   label="dashboard.switchTeam"
                   variant="ghost"
                   fullWidth={false}
-                  onPress={() => selectTeam(null)}
+                  onPress={() => setPickingTeam(true)}
                   testID="dashboard-switch-team"
                 />
               </View>

@@ -35,6 +35,8 @@ export type InviteResult =
 export type TeamsState = {
   /** The team every scoped screen (members, invites, settings) operates on. Memory only (non-secret). */
   selectedTeamId: string | null;
+  /** True while the user has tapped 'Switch team' and is viewing the teams list (rule U2, PRD §12). */
+  pickingTeam: boolean;
   /** Outcome of the last automatic invite accept; a result view renders it, then it is dismissed. */
   inviteResult: InviteResult | null;
   /** Idempotency-Key for the in-flight create-team attempt: reused on retry, new per new attempt. */
@@ -44,6 +46,7 @@ export type TeamsState = {
   /** Last outcome of create-team submit attempt (indeterminate keeps key; 4xx/success clears). */
   createKeyLastOutcome: CreateTeamOutcome | null;
   selectTeam: (id: string | null) => void;
+  setPickingTeam: (picking: boolean) => void;
   setInviteResult: (result: InviteResult | null) => void;
   /** Called whenever the team-name field changes: a changed body must never reuse a key (422). */
   clearCreateKey: () => void;
@@ -70,11 +73,13 @@ function newIdempotencyKey(): string {
 
 export const useTeams = create<TeamsState>((set, get) => ({
   selectedTeamId: null,
+  pickingTeam: false,
   inviteResult: null,
   createIdempotencyKey: null,
   createKeyName: null,
   createKeyLastOutcome: null,
-  selectTeam: (id) => set({ selectedTeamId: id }),
+  selectTeam: (id) => set({ selectedTeamId: id, pickingTeam: false }),
+  setPickingTeam: (picking) => set({ pickingTeam: picking }),
   setInviteResult: (result) => set({ inviteResult: result }),
   clearCreateKey: () =>
     set({
@@ -184,6 +189,15 @@ export function inviteFailureDisposition(error: unknown): 'retry' | 'failed' {
     if (error.status >= 500 && error.status <= 599) return 'retry';
   }
   return 'failed';
+}
+
+/** Decision helper for showing the Dashboard vs TeamListScreen (PRD §12, rule U2).
+ * Shows Dashboard only when a team is selected AND the user is not actively picking/switching a team. */
+export function shouldShowDashboard(
+  selectedTeamId: string | null,
+  pickingTeam: boolean,
+): boolean {
+  return selectedTeamId !== null && !pickingTeam;
 }
 
 /** The switcher's fallback (B1): keep the preferred team while it is still in the list, else the

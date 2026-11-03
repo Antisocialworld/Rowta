@@ -2,7 +2,7 @@
 // PURE helpers and the PURE reducer, plus the idempotency-key discipline the create-team form
 // depends on (ADR 0012). Run from the repo root:
 //   npm exec --workspace @rowta/app -- tsx scripts/test-teams-store.ts
-import { inviteRoleOptions, resolveSelectedTeamId, useTeams } from '../src/state/teams';
+import { inviteRoleOptions, resolveSelectedTeamId, shouldShowDashboard, useTeams } from '../src/state/teams';
 import { TEAMS_VIEWS, initialTeamsState, teamsReducer } from '../src/state/teams-view';
 
 let failures = 0;
@@ -20,6 +20,14 @@ check(resolveSelectedTeamId(list, 'zz') === 'a', 'switcher: falls back to the FI
 check(resolveSelectedTeamId(list, null) === 'a', 'switcher: picks the first team when nothing is preferred');
 check(resolveSelectedTeamId([], 'a') === null, 'switcher: null when the list is empty (never invents a team)');
 check(resolveSelectedTeamId([], null) === null, 'switcher: null when the list is empty and nothing is preferred');
+
+// ---------------------------------------------------------------------------------------------
+// Dashboard visibility helper (Task A, PRD §12, rule U2)
+// ---------------------------------------------------------------------------------------------
+check(shouldShowDashboard('team-1', false) === true, 'dashboard: shows dashboard when team selected and not picking');
+check(shouldShowDashboard('team-1', true) === false, 'dashboard: shows team list when user is picking a team');
+check(shouldShowDashboard(null, false) === false, 'dashboard: shows team list when no team selected');
+check(shouldShowDashboard(null, true) === false, 'dashboard: shows team list when no team selected and picking');
 
 // ---------------------------------------------------------------------------------------------
 // Invite role visibility (B1, PRD 8.2): Owner invites Manager + Staff; Manager invites Staff ONLY;

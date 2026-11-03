@@ -20,7 +20,7 @@ import { ShiftCreateEditScreen } from './shifts/ShiftCreateEditScreen';
 import { ShiftDetailScreen } from './shifts/ShiftDetailScreen';
 import { SwapsListScreen } from './shifts/SwapsListScreen';
 import { useTeamsView } from '../state/teams-view';
-import { useTeams } from '../state/teams';
+import { shouldShowDashboard, useTeams } from '../state/teams';
 import { useShiftNav } from '../state/shift-nav';
 
 export function TeamsRouter() {
@@ -29,7 +29,8 @@ export function TeamsRouter() {
   const shiftRoute = useShiftNav((state) => state.route);
   const shiftBack = useShiftNav((state) => state.back);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
-  const selectTeam = useTeams((state) => state.selectTeam);
+  const pickingTeam = useTeams((state) => state.pickingTeam);
+  const setPickingTeam = useTeams((state) => state.setPickingTeam);
 
   useEffect(() => {
     if (!shouldListenForHardwareBack(Platform.OS)) return;
@@ -38,17 +39,17 @@ export function TeamsRouter() {
       if (shiftRoute !== null) {
         return shiftBack();
       }
-      if (view === 'list' && selectedTeamId !== null) {
-        selectTeam(null);
+      if (pickingTeam) {
+        setPickingTeam(false);
         return true;
       }
       return teamsBack();
     });
     return () => subscription.remove();
-  }, [teamsBack, shiftBack, shiftRoute, view, selectedTeamId, selectTeam]);
+  }, [teamsBack, shiftBack, shiftRoute, pickingTeam, setPickingTeam]);
 
   // Shift layer renders on top of the teams surface when the machine has a route.
-  let screen = selectedTeamId !== null ? <DashboardScreen /> : <TeamListScreen />;
+  let screen = shouldShowDashboard(selectedTeamId, pickingTeam) ? <DashboardScreen /> : <TeamListScreen />;
   if (shiftRoute !== null) {
     if (shiftRoute.name === 'calendar') screen = <CalendarScreen />;
     else if (shiftRoute.name === 'detail') screen = <ShiftDetailScreen />;
