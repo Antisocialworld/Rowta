@@ -480,7 +480,7 @@ async function main() {
     // 5. RESET (NEW PASSWORD) — shared resetNewPasswordSchema: 8-128 + identical confirmation
     // ------------------------------------------------------------------------------------
     phase = 'resetPassword';
-    const onReset = (await headingText(page)).includes('Choose a new password');
+    const onReset = (await headingText(page)).includes('New password');
     results.resetPassword = { empty: false, press: false, invalid: false, valid: false, note: onReset ? '' : 'UNVERIFIED: did not land on the new-password step' };
     if (onReset) {
       console.log('VIEW resetPassword inputs ' + JSON.stringify(await inputsSummary(page)));
