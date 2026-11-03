@@ -12,12 +12,15 @@ import { Worker, type Job } from 'bullmq';
 import { env } from '../config/env.ts';
 import { logger } from '../lib/logger.ts';
 import { closeAllDatabases } from '../db/clients.ts';
-import { closeAllQueues, createRedisConnection, getQueue, QUEUE_NAMES, type QueueName } from '../jobs/queues.ts';
+import { closeAllQueues, createRedisConnection, getQueue, QUEUE_NAMES, QUEUE_PREFIX, type QueueName } from '../jobs/queues.ts';
 import { startCron } from '../cron/registry.ts';
 import { processEmailJob } from '../jobs/email/processor.ts';
 import type { EmailJobData } from '../jobs/email/types.ts';
 import { runPurgeIdempotency, runPurgeTokens } from '../jobs/purge/processor.ts';
 import { runRepairUserTeamIndex } from '../jobs/repair/user-team-index.ts';
+import { processPushJob, registerSweeperRepeatableJob } from '../notifications/outbox.ts';
+import { registerExpireInvitesScheduler, runExpireInvites } from '../cron/expire-invites.ts';
+import { registerPushReceiptsScheduler, runCheckPushReceipts } from '../cron/push-receipts.ts';
 import { startWorkerLiveness } from './liveness.ts';
 
 const log = logger.child({ process: 'worker' });
@@ -61,6 +64,9 @@ async function processPurge(job: Job): Promise<unknown> {
   if (job.name === 'repair-user-team-index') {
     return runRepairUserTeamIndex();
   }
+  if (job.name === 'expire-invites') {
+    return runExpireInvites();
+  }
   return acknowledgeOnly(job);
 }
 
@@ -70,7 +76,12 @@ const PROCESSORS: Record<QueueName, (job: Job) => Promise<unknown>> = {
     if (job.name === 'heartbeat') return heartbeat(job as Job<{ entryName: string; windowStart: number }>);
     return acknowledgeOnly(job);
   },
-  push: acknowledgeOnly,
+  push: (job) => {
+    if (job.name === 'check-push-receipts') {
+      return runCheckPushReceipts();
+    }
+    return processPushJob(job);
+  },
   webhook: acknowledgeOnly,
   // The email processor GENERATES the 6-digit code / link token itself and stores its Argon2id
   // hash, so no secret ever sits in a job payload (J3, C2). It also decides send vs no-send
@@ -90,6 +101,7 @@ function createWorkers(): Worker[] {
         // Defaults come from DEFAULT_JOB_OPTIONS on the Queue; keep the worker in sync explicitly
         // so a job enqueued by a different process still gets the same retry behaviour.
         lockDuration: 30_000,
+        prefix: QUEUE_PREFIX,
       }),
   );
 }
@@ -123,6 +135,11 @@ async function main(): Promise<void> {
 
   // Touch every queue so a missing Redis connection fails at boot, not on the first job.
   for (const name of QUEUE_NAMES) getQueue(name);
+
+  // Register repeatable jobs on BullMQ (Phase 6 Stage 4 + Stage 5)
+  await registerSweeperRepeatableJob();
+  await registerExpireInvitesScheduler();
+  await registerPushReceiptsScheduler();
 
   const cronRedis = createRedisConnection(false);
   const cronHandle = env.CRON_ENABLED ? startCron(cronRedis) : null;

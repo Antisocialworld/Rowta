@@ -23,6 +23,7 @@ import {
 } from '../db/clients.ts';
 import { fingerprint } from '../security/fingerprint.ts';
 import { can, type Role } from '../security/policy.ts';
+import { enqueueNotification } from '../notifications/outbox.ts';
 import { HttpError } from '../middleware/error.ts';
 import { getQueue } from '../jobs/queues.ts';
 import { transitionSwap } from './state-machine.ts';
@@ -308,6 +309,43 @@ export async function requestSwap(
         },
       });
 
+      // Enqueue notification in transactional outbox (Phase 6 Stage 4; PRD 7.1, 8.7)
+      if (input.targetUserId) {
+        await enqueueNotification(tx, {
+          recipientUserId: input.targetUserId,
+          category: 'swap.requested',
+          payload: {
+            teamId,
+            swapId: swap.id,
+            shiftId: currentShift.id,
+          },
+          dedupeKey: `swap:${swap.id}:requested:${input.targetUserId}`,
+        });
+      } else {
+        // Open swap: notify team managers and owner
+        const managers = await tx.memberships.findMany({
+          where: {
+            team_id: teamId,
+            role: { in: ['owner', 'manager'] },
+          },
+          select: { user_id: true },
+        });
+        for (const mgr of managers) {
+          if (mgr.user_id !== userId) {
+            await enqueueNotification(tx, {
+              recipientUserId: mgr.user_id,
+              category: 'swap.requested',
+              payload: {
+                teamId,
+                swapId: swap.id,
+                shiftId: currentShift.id,
+              },
+              dedupeKey: `swap:${swap.id}:requested:${mgr.user_id}`,
+            });
+          }
+        }
+      }
+
       const view: SwapRequestView = {
         id: swap.id,
         teamId: swap.team_id,
@@ -351,17 +389,11 @@ export async function requestSwap(
     throw err;
   }
 
-  // Enqueue push notification job after commit (best-effort; acknowledged by worker in Phase 5; sent in Phase 6)
+  // Trigger outbox sweeper after commit (best-effort kick; Phase 6 Stage 4)
   try {
-    await getQueue('push').add('notify-swap-requested', {
-      teamId,
-      swapId: createdSwap.id,
-      shiftId: input.shiftId,
-      requesterId: userId,
-      targetUserId: input.targetUserId ?? null,
-    });
+    await getQueue('push').add('sweep-outbox', {});
   } catch (err) {
-    log.warn({ err }, 'failed to enqueue swap requested notification');
+    log.warn({ err }, 'failed to trigger sweep-outbox');
   }
 
   return createdSwap;
@@ -687,6 +719,23 @@ export async function decideSwap(
         },
       });
 
+      // Enqueue notification in transactional outbox for requester and target colleague (Phase 6 Stage 4; PRD 8.7)
+      const notifyRecipients = new Set<string>();
+      if (lockedSwap.requested_by) notifyRecipients.add(lockedSwap.requested_by);
+      if (finalTarget) notifyRecipients.add(finalTarget);
+      for (const recipientId of notifyRecipients) {
+        await enqueueNotification(tx, {
+          recipientUserId: recipientId,
+          category: 'swap.approved',
+          payload: {
+            teamId,
+            swapId: lockedSwap.id,
+            shiftId: lockedShift.id,
+          },
+          dedupeKey: `swap:${lockedSwap.id}:approved:${recipientId}`,
+        });
+      }
+
       return {
         id: updated.id,
         teamId: updated.team_id,
@@ -735,6 +784,18 @@ export async function decideSwap(
         },
       });
 
+      // Enqueue notification in transactional outbox for requester (Phase 6 Stage 4; PRD 8.7)
+      await enqueueNotification(tx, {
+        recipientUserId: lockedSwap.requested_by,
+        category: 'swap.rejected',
+        payload: {
+          teamId,
+          swapId: lockedSwap.id,
+          shiftId: lockedShift.id,
+        },
+        dedupeKey: `swap:${lockedSwap.id}:rejected:${lockedSwap.requested_by}`,
+      });
+
       return {
         id: updated.id,
         teamId: updated.team_id,
@@ -757,17 +818,11 @@ export async function decideSwap(
     }
   });
 
-  // Enqueue notification job after commit (best-effort; acknowledged by worker in Phase 5; delivery in Phase 6)
+  // Trigger outbox sweeper after commit (best-effort kick; Phase 6 Stage 4)
   try {
-    await getQueue('push').add('notify-swap-decided', {
-      teamId,
-      swapId: result.id,
-      shiftId: result.shiftId,
-      status: input.status,
-      decidedBy: userId,
-    });
+    await getQueue('push').add('sweep-outbox', {});
   } catch (err) {
-    log.warn({ err }, 'failed to enqueue swap decided notification');
+    log.warn({ err }, 'failed to trigger sweep-outbox');
   }
 
   return result;
@@ -809,6 +864,27 @@ async function applySwapCancellation(
       },
     },
   });
+
+  // Enqueue notification in transactional outbox for involved colleagues (Phase 6 Stage 4; PRD 8.7)
+  const cancelRecipients = new Set<string>();
+  if (updated.requested_by && updated.requested_by !== actorUserId) {
+    cancelRecipients.add(updated.requested_by);
+  }
+  if (updated.target_user_id && updated.target_user_id !== actorUserId) {
+    cancelRecipients.add(updated.target_user_id);
+  }
+  for (const recipientId of cancelRecipients) {
+    await enqueueNotification(tx, {
+      recipientUserId: recipientId,
+      category: 'swap.cancelled',
+      payload: {
+        teamId,
+        swapId,
+        shiftId,
+      },
+      dedupeKey: `swap:${swapId}:cancelled:${recipientId}`,
+    });
+  }
 
   return updated;
 }
@@ -865,7 +941,7 @@ export async function cancelSwap(
   const client = forTeam(teamId);
   const membership = await requireMember(client, teamId, userId);
 
-  return teamTransaction(teamId, async (tx: ShardTx) => {
+  const result = await teamTransaction(teamId, async (tx: ShardTx) => {
     const lockedSwaps = await tx.$queryRaw<
       Array<{
         id: string;
@@ -936,4 +1012,13 @@ export async function cancelSwap(
       cancelledAt: updated.cancelled_at ? iso(updated.cancelled_at) : null,
     };
   });
+
+  // Trigger outbox sweeper after commit (best-effort kick; Phase 6 Stage 4)
+  try {
+    await getQueue('push').add('sweep-outbox', {});
+  } catch (err) {
+    log.warn({ err }, 'failed to trigger sweep-outbox');
+  }
+
+  return result;
 }

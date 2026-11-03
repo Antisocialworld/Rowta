@@ -8,6 +8,9 @@ import { createHash } from 'node:crypto';
 
 export type Shard = 0 | 1;
 
+/** Canonical list of all database shards in the system (PRD 7.1). */
+export const ALL_SHARDS: readonly Shard[] = [0, 1] as const;
+
 /** Deterministic, uniform shard for a team. Same input always yields the same shard. */
 export function shardFor(teamId: string): Shard {
   // First 4 bytes of the digest as a big-endian uint32, modulo the shard count. Reading a fixed
