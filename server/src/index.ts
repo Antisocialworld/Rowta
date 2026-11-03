@@ -32,6 +32,7 @@ import { createTeamsRouter } from './teams/routes.ts';
 import { createShiftsRouter } from './shifts/routes.ts';
 import { createSwapsRouter } from './swaps/routes.ts';
 import { createSettingsRouter } from './settings/routes.ts';
+import { createDevicesRouter } from './devices/routes.ts';
 import { getDummyHash } from './security/argon2.ts';
 import { createRedisConnection } from './jobs/queues.ts';
 import { createHealthRoutes } from './health/router.ts';
@@ -156,6 +157,7 @@ export function createApp(deps: AppDeps): Hono {
   app.route('/', createShiftsRouter());
   app.route('/', createSwapsRouter());
   app.route('/', createSettingsRouter());
+  app.route('/', createDevicesRouter());
   app.route('/health', createHealthRoutes({ redis: deps.redis }));
 
   // 10. ONE error handler, plus the 404 handler. Nothing else formats an error body.

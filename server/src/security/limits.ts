@@ -96,6 +96,10 @@ export const LIMITS: readonly LimitDef[] = [
   // Phase 6 — Settings, quiet hours.
   { id: 'settings.read', key: 'user', max: 120, windowSec: 60, failMode: 'O', reason: 'cheap read' },
   { id: 'settings.write', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'settings write' },
+
+  // Phase 6 Stage 3 — Devices and push tokens.
+  { id: 'device.register', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'device registration write' },
+  { id: 'device.unregister', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'device unregistration write' },
 ];
 
 const BY_ID = new Map(LIMITS.map((def) => [def.id, def]));

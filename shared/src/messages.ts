@@ -62,6 +62,10 @@ export const AUTH_MESSAGES = {
   'settings.time_zone_invalid': 'Choose a valid time zone.',
   'settings.language_invalid': 'Choose a valid language code.',
   'settings.theme_invalid': 'Choose a valid theme.',
+  // Phase 6 Stage 3 — devices & push tokens.
+  'device.notFound': 'Device not found.',
+  'device.push_token_invalid': 'Enter a valid Expo push token.',
+  'device.platform_invalid': 'Choose a valid platform.',
   'generic.error': 'Something went wrong. Try again.',
 } as const;
 

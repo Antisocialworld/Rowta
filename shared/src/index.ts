@@ -7,3 +7,4 @@ export * from './teams.ts';
 export * from './shifts.ts';
 export * from './swaps.ts';
 export * from './settings.ts';
+export * from './devices.ts';
