@@ -3,7 +3,7 @@
 // Variants: empty | error — icon, title and body all come from catalog keys (a blank screen is a bug, so every
 //           list view renders one of these instead of nothing).
 // States:   none of its own; the optional action is a Button carrying busy/ready states.
-// Props:    kind (chooses the icon), titleKey, bodyKey, action {labelKey, onPress, busy?}, style.
+// Props:    kind (chooses the icon), titleKey, bodyKey, hideBody, action {labelKey, onPress, busy?}, style.
 // Icons:    decorative (hidden from assistive technology — the title and body already say it, X1).
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -24,11 +24,12 @@ export type EmptyStateProps = {
   kind?: EmptyStateKind;
   titleKey?: MessageKey;
   bodyKey?: MessageKey;
+  hideBody?: boolean;
   action?: { label: MessageKey; onPress: () => void; busy?: boolean };
   style?: StyleProp<ViewStyle>;
 };
 
-export function EmptyState({ kind = 'empty', titleKey, bodyKey, action, style }: EmptyStateProps) {
+export function EmptyState({ kind = 'empty', titleKey, bodyKey, hideBody = false, action, style }: EmptyStateProps) {
   const title = titleKey ?? (kind === 'error' ? 'generic.error.title' : 'generic.empty.title');
   const body = bodyKey ?? (kind === 'error' ? 'generic.error.body' : 'generic.empty.body');
   return (
@@ -43,9 +44,11 @@ export function EmptyState({ kind = 'empty', titleKey, bodyKey, action, style }:
       <Text variant="title-medium" style={styles.center}>
         {t(title)}
       </Text>
-      <Text variant="body-medium" tone="secondary" style={styles.center}>
-        {t(body)}
-      </Text>
+      {hideBody ? null : (
+        <Text variant="body-medium" tone="secondary" style={styles.center}>
+          {t(body)}
+        </Text>
+      )}
       {action !== undefined ? (
         <Button
           label={action.label}

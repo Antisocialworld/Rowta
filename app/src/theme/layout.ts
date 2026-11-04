@@ -23,6 +23,12 @@ export const TOUCH_SLOP = MIN_TOUCH_TARGET / 2; // 22
  * cap only bites above 400. Promoted from AuthPage's local CARD_MAX_WIDTH (same value, unchanged).
  */
 export const CONTENT_MAX_WIDTH = 400;
+/** Phones at or below this width use compact dashboard empty states. */
+export const COMPACT_MAX_WIDTH = 600;
+
+export function isCompactWidth(width: number): boolean {
+  return width <= COMPACT_MAX_WIDTH;
+}
 
 /** Icon sizes follow the type scale: an icon sits on the text size of the style it accompanies (U5, X6). */
 export function iconSize(style: TypeStyleName = 'label-large'): number {
