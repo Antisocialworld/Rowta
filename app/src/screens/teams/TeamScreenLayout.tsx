@@ -16,32 +16,45 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH, HAIRLINE, MIN_TOUCH_TARGET } from '../../theme/layout';
 
 export type TeamScreenLayoutProps = {
   readonly children: ReactNode;
   readonly testID?: string;
   readonly style?: StyleProp<ViewStyle>;
   readonly contentContainerStyle?: StyleProp<ViewStyle>;
+  readonly footer?: ReactNode;
 };
+
+const FOOTER_HEIGHT = MIN_TOUCH_TARGET + spacing.medium * 2;
 
 export function TeamScreenLayout({
   children,
   testID,
   style,
   contentContainerStyle,
+  footer,
 }: TeamScreenLayoutProps) {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']} testID={testID}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            footer !== undefined ? styles.scrollContentWithFooter : null,
+            contentContainerStyle,
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           <View style={[styles.content, style]}>{children}</View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {footer !== undefined ? (
+        <View style={styles.footer}>
+          <View style={styles.footerContent}>{footer}</View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -55,10 +68,26 @@ const styles = StyleSheet.create({
     padding: Number(spacing.base),
     paddingBottom: Number(spacing.veryLarge),
   },
+  scrollContentWithFooter: {
+    paddingBottom: FOOTER_HEIGHT,
+  },
   content: {
     width: '100%',
     maxWidth: CONTENT_MAX_WIDTH,
     gap: Number(spacing.base),
+  },
+  footer: {
+    paddingHorizontal: Number(spacing.base),
+    paddingTop: Number(spacing.small),
+    paddingBottom: Number(spacing.small),
+    backgroundColor: colors['color-surface'],
+    borderTopWidth: HAIRLINE,
+    borderTopColor: colors['color-outline-variant'],
+  },
+  footerContent: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
   },
 });
 

@@ -5,6 +5,7 @@ import { greetingKeyForHour } from '../src/lib/dashboard-greeting.ts';
 import { teamContextLabel } from '../src/lib/team-context.ts';
 import {
   canViewPendingSwaps,
+  excludeShiftById,
   filterThisWeekShifts,
   formatLastUpdatedTime,
   getDashboardCalendarRange,
@@ -232,6 +233,66 @@ function mockShift(id: string, assigned: string, starts: string, ends: string): 
     getLatestUpdatedTimestamp(1000, 5000, 3000, null, undefined),
     5000,
   );
+}
+
+// 11. excludeShiftById — "Your week" must not repeat "Your next shift"
+{
+  const refDate = new Date('2026-11-04T12:00:00Z');
+  const { weekStart, weekEnd } = getDashboardCalendarRange(refDate);
+  const now = new Date(weekStart.getTime() + 60 * 3600_000);
+
+  // a) Only one shift: it is the next shift, so the week list is empty.
+  const only = mockShift(
+    'only',
+    userId,
+    new Date(weekStart.getTime() + 70 * 3600_000).toISOString(),
+    new Date(weekStart.getTime() + 78 * 3600_000).toISOString(),
+  );
+  const weekOnly = filterThisWeekShifts([only], userId, weekStart, weekEnd);
+  const nextOnly = pickNextShift([only], userId, now);
+  expect('only one shift: next shift is the only week shift', nextOnly?.id, 'only');
+  expect('only one shift: week list excludes it', excludeShiftById(weekOnly.shifts, nextOnly?.id).length, 0);
+
+  // b) Two shifts: the later one remains after the earlier (next) shift is excluded.
+  const early = mockShift(
+    'early',
+    userId,
+    new Date(weekStart.getTime() + 70 * 3600_000).toISOString(),
+    new Date(weekStart.getTime() + 78 * 3600_000).toISOString(),
+  );
+  const later = mockShift(
+    'later',
+    userId,
+    new Date(weekStart.getTime() + 90 * 3600_000).toISOString(),
+    new Date(weekStart.getTime() + 98 * 3600_000).toISOString(),
+  );
+  const weekTwo = filterThisWeekShifts([later, early], userId, weekStart, weekEnd);
+  const nextTwo = pickNextShift([later, early], userId, now);
+  expect('two shifts: earliest is next', nextTwo?.id, 'early');
+  const remainingTwo = excludeShiftById(weekTwo.shifts, nextTwo?.id);
+  expect('two shifts: later shift remains', remainingTwo.length, 1);
+  expect('two shifts: remaining id is later', remainingTwo[0]?.id, 'later');
+
+  // c) Next shift is not first in the week list: exclusion is by id, not by position.
+  const endedEarlier = mockShift(
+    'ended-earlier',
+    userId,
+    new Date(weekStart.getTime() + 2 * 3600_000).toISOString(),
+    new Date(weekStart.getTime() + 4 * 3600_000).toISOString(),
+  );
+  const upcoming = mockShift(
+    'upcoming',
+    userId,
+    new Date(weekStart.getTime() + 70 * 3600_000).toISOString(),
+    new Date(weekStart.getTime() + 78 * 3600_000).toISOString(),
+  );
+  const weekThree = filterThisWeekShifts([endedEarlier, upcoming], userId, weekStart, weekEnd);
+  const nextThree = pickNextShift([endedEarlier, upcoming], userId, now);
+  expect('next shift is not the first week item', nextThree?.id, 'upcoming');
+  expect('week list first item is the ended shift', weekThree.shifts[0]?.id, 'ended-earlier');
+  const remainingThree = excludeShiftById(weekThree.shifts, nextThree?.id);
+  expect('exclusion by id leaves the first item', remainingThree.length, 1);
+  expect('exclusion by id keeps the ended shift', remainingThree[0]?.id, 'ended-earlier');
 }
 
 console.log(`\nResults: ${pass} passed, ${fail} failed.`);

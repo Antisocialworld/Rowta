@@ -32,6 +32,7 @@ import { formatShiftDay, formatShiftTimeRange } from '../lib/shift-time';
 import { teamContextLabel } from '../lib/team-context';
 import {
   canViewPendingSwaps,
+  excludeShiftById,
   filterThisWeekShifts,
   formatLastUpdatedTime,
   getDashboardCalendarRange,
@@ -116,6 +117,11 @@ export function DashboardScreen() {
     () => filterThisWeekShifts(shifts, currentUserId, range.weekStart, range.weekEnd),
     [shifts, currentUserId, range.weekStart, range.weekEnd],
   );
+  const weekShifts = useMemo(
+    () => excludeShiftById(thisWeekData.shifts, nextShift?.id),
+    [thisWeekData.shifts, nextShift?.id],
+  );
+  const weekCount = weekShifts.length;
 
   // Derive pending swaps data
   const pendingSwapsData = useMemo(
@@ -394,56 +400,54 @@ export function DashboardScreen() {
             </View>
 
             {/* 5. Section: Your Week */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                <Text variant="title-medium" style={styles.sectionTitle}>
-                  {t('dashboard.thisWeek.title')}
-                </Text>
-                {thisWeekData.count > 0 ? (
-                  <Text variant="label-medium" tone="secondary">
-                    {thisWeekData.count === 1
-                      ? t('dashboard.thisWeek.countSingle')
-                      : t('dashboard.thisWeek.count', { count: thisWeekData.count })}
+            {calendarQuery.isLoading || calendarQuery.isError || weekCount > 0 ? (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text variant="title-medium" style={styles.sectionTitle}>
+                    {t('dashboard.thisWeek.title')}
                   </Text>
-                ) : null}
-              </View>
-
-              {calendarQuery.isLoading ? (
-                <Skeleton variant="block" style={{ height: 76 }} />
-              ) : calendarQuery.isError ? (
-                <Card style={styles.cardPadding}>
-                  <Text variant="body-medium" tone="error" style={styles.errorText}>
-                    {t('dashboard.card.error')}
-                  </Text>
-                  <Button
-                    label="dashboard.card.retry"
-                    variant="secondary"
-                    fullWidth={false}
-                    onPress={() => void calendarQuery.refetch()}
-                  />
-                </Card>
-              ) : thisWeekData.count === 0 ? (
-                <Card style={styles.cardPadding}>
-                  <EmptyState kind="empty" titleKey="dashboard.thisWeek.empty" hideBody={compact} />
-                </Card>
-              ) : (
-                <View style={styles.cardList}>
-                  {thisWeekData.shifts.map((shift: ShiftView) => (
-                    <ShiftCard
-                      key={shift.id}
-                      shift={{
-                        role: shift.label,
-                        day: formatShiftDay(shift.startsAt),
-                        time: formatShiftTimeRange(shift.startsAt, shift.endsAt),
-                        member: currentUserName,
-                      }}
-                      onPress={() => openShift({ name: 'detail', shiftId: shift.id })}
-                      testID={`dashboard-week-shift-${shift.id}`}
-                    />
-                  ))}
+                  {!calendarQuery.isLoading && !calendarQuery.isError && weekCount > 0 ? (
+                    <Text variant="label-medium" tone="secondary">
+                      {weekCount === 1
+                        ? t('dashboard.thisWeek.countSingle')
+                        : t('dashboard.thisWeek.count', { count: weekCount })}
+                    </Text>
+                  ) : null}
                 </View>
-              )}
-            </View>
+
+                {calendarQuery.isLoading ? (
+                  <Skeleton variant="block" style={{ height: 76 }} />
+                ) : calendarQuery.isError ? (
+                  <Card style={styles.cardPadding}>
+                    <Text variant="body-medium" tone="error" style={styles.errorText}>
+                      {t('dashboard.card.error')}
+                    </Text>
+                    <Button
+                      label="dashboard.card.retry"
+                      variant="secondary"
+                      fullWidth={false}
+                      onPress={() => void calendarQuery.refetch()}
+                    />
+                  </Card>
+                ) : (
+                  <View style={styles.cardList}>
+                    {weekShifts.map((shift: ShiftView) => (
+                      <ShiftCard
+                        key={shift.id}
+                        shift={{
+                          role: shift.label,
+                          day: formatShiftDay(shift.startsAt),
+                          time: formatShiftTimeRange(shift.startsAt, shift.endsAt),
+                          member: currentUserName,
+                        }}
+                        onPress={() => openShift({ name: 'detail', shiftId: shift.id })}
+                        testID={`dashboard-week-shift-${shift.id}`}
+                      />
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : null}
 
             {/* 6. Section: Recent Activity (Everyone) */}
             <View style={styles.section}>
@@ -486,7 +490,7 @@ export function DashboardScreen() {
               <View style={styles.activityViewAll}>
                 <Button
                   label="dashboard.activity.viewAll"
-                  variant="ghost"
+                  variant="secondary"
                   onPress={() => openShift({ name: 'activity' })}
                   testID="dashboard-view-all-activity"
                 />

@@ -118,6 +118,18 @@ export function filterThisWeekShifts(
 }
 
 /**
+ * Remove the shift already shown as "Your next shift" from the "Your week" list, by id.
+ * Returns a new array and never mutates the input.
+ */
+export function excludeShiftById(
+  shifts: readonly ShiftView[],
+  shiftId: string | null | undefined,
+): ShiftView[] {
+  if (!shiftId) return shifts.slice();
+  return shifts.filter((s) => s.id !== shiftId);
+}
+
+/**
  * Format dataUpdatedAt epoch ms as HH:MM in device local time (en-GB).
  */
 export function formatLastUpdatedTime(timestamp: number | null | undefined): string {

@@ -13,7 +13,7 @@ import { canManageShifts } from '../../lib/shift-access';
 import { evictDeletedShiftFromQueryClient, invalidateAfterShiftDelete } from '../../lib/shift-cache';
 import { formatShiftCreator } from '../../lib/shift-creator';
 import {
-  canRequestSwap,
+  canViewerRequestSwap,
   getSwapIneligibleReason,
   INITIAL_SHIFT_SWAP_STATE,
   shiftSwapReducer,
@@ -96,18 +96,14 @@ export function ShiftDetailScreen() {
   const shift = shiftQuery.data;
   const currentUserId = meQuery.data?.userId ?? '';
 
-  const isAssignee = shift ? shift.assignee.userId === currentUserId : false;
-  const eligibleForSwap =
-    shift &&
-    isAssignee &&
-    canRequestSwap(
-      { assignedUserId: shift.assignee.userId, endsAt: shift.endsAt },
-      currentUserId,
-      swapState.hasPendingSwap,
-    );
+  const eligibleForSwap = canViewerRequestSwap(
+    shift ? { assignedUserId: shift.assignedUserId, endsAt: shift.endsAt } : null,
+    currentUserId,
+    swapState.hasPendingSwap,
+  );
   const ineligibleReason = shift
     ? getSwapIneligibleReason(
-        { assignedUserId: shift.assignee.userId, endsAt: shift.endsAt },
+        { assignedUserId: shift.assignedUserId, endsAt: shift.endsAt },
         currentUserId,
         swapState.hasPendingSwap,
       )

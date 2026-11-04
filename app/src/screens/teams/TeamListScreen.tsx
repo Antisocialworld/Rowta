@@ -150,20 +150,19 @@ export function TeamListScreen() {
     void queryClient.invalidateQueries({ queryKey: ['teams'] });
   }, [setInviteResult, queryClient]);
 
+  const backFooter =
+    pickingTeam && selectedTeamId !== null ? (
+      <Button
+        label="action.back"
+        variant="secondary"
+        onPress={() => setPickingTeam(false)}
+        testID="team-list-back"
+      />
+    ) : undefined;
+
   return (
-    <TeamScreenLayout testID="team-list-screen">
+    <TeamScreenLayout testID="team-list-screen" footer={backFooter}>
       <View style={styles.topRow}>
-        {pickingTeam && selectedTeamId !== null ? (
-          <Button
-            label="action.back"
-            variant="ghost"
-            fullWidth={false}
-            onPress={() => setPickingTeam(false)}
-            testID="team-list-back"
-          />
-        ) : (
-          <View style={styles.topSpacer} />
-        )}
         <AccountMenu testID="teams-account-button" />
       </View>
       <View style={styles.headerBlock}>
@@ -328,11 +327,8 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     minHeight: MIN_TOUCH_TARGET,
-  },
-  topSpacer: {
-    flex: 1,
   },
   headerBlock: { gap: Number(spacing.extraSmall) },
   list: { gap: Number(spacing.base) },

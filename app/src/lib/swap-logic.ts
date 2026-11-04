@@ -121,6 +121,27 @@ export function canRequestSwap(
   return true;
 }
 
+/**
+ * Mirror of the server's create-swap rule (server/src/swaps/service.ts requestSwap):
+ * the shift must exist and not be deleted, the viewer must be its current assignee,
+ * the shift must not have ended, and no swap may already be pending for it.
+ * Role is irrelevant: a manager/admin who is not the assignee cannot request.
+ */
+export function canViewerRequestSwap(
+  shift: {
+    readonly assignedUserId: string;
+    readonly endsAt: string;
+    readonly deletedAt?: string | null;
+  } | null | undefined,
+  currentUserId: string,
+  hasPendingSwap: boolean,
+  nowMs = Date.now(),
+): boolean {
+  if (shift === null || shift === undefined) return false;
+  if (shift.deletedAt !== null && shift.deletedAt !== undefined) return false;
+  return canRequestSwap(shift, currentUserId, hasPendingSwap, nowMs);
+}
+
 export type SwapIneligibleReason =
   | 'not_assignee'
   | 'shift_ended'

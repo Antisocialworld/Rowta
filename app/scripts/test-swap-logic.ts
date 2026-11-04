@@ -7,6 +7,7 @@ import {
   canDecideSwap,
   canDecideSwapWithShift,
   canRequestSwap,
+  canViewerRequestSwap,
   filterSwapsByTab,
   formatDeclineReasonCounter,
   getEligibleSwapTargets,
@@ -84,6 +85,37 @@ function testCanRequestSwap() {
 
   // Past shift -> blocked
   assert.equal(canRequestSwap(pastShift, 'user-1', false, now), false);
+}
+
+function testCanViewerRequestSwap() {
+  const now = 1_000_000;
+  const future = { assignedUserId: 'assignee', endsAt: new Date(now + 10_000).toISOString() };
+  const past = { assignedUserId: 'assignee', endsAt: new Date(now - 10_000).toISOString() };
+
+  // The assignee may request on a future, non-deleted shift with no pending swap.
+  assert.equal(canViewerRequestSwap(future, 'assignee', false, now), true);
+
+  // A manager/admin who is not the assignee may not request (role is irrelevant to the server rule).
+  assert.equal(canViewerRequestSwap(future, 'manager-not-assignee', false, now), false);
+  assert.equal(canViewerRequestSwap(future, 'owner-not-assignee', false, now), false);
+
+  // Staff who is not the assignee may not request.
+  assert.equal(canViewerRequestSwap(future, 'staff-not-assignee', false, now), false);
+
+  // The server rejects a shift that has already ended.
+  assert.equal(canViewerRequestSwap(past, 'assignee', false, now), false);
+
+  // The server rejects a second pending swap for the same shift.
+  assert.equal(canViewerRequestSwap(future, 'assignee', true, now), false);
+
+  // Missing or deleted shifts cannot be swapped.
+  assert.equal(canViewerRequestSwap(null, 'assignee', false, now), false);
+  assert.equal(canViewerRequestSwap(undefined, 'assignee', false, now), false);
+  assert.equal(
+    canViewerRequestSwap({ ...future, deletedAt: '2026-01-01T00:00:00Z' }, 'assignee', false, now),
+    false,
+  );
+  assert.equal(canViewerRequestSwap({ ...future, deletedAt: null }, 'assignee', false, now), true);
 }
 
 function testCanDecideSwap() {
@@ -366,6 +398,7 @@ function testDeclineReasonLogic() {
 function runAll() {
   testOptimisticUpdateAndRollback();
   testCanRequestSwap();
+  testCanViewerRequestSwap();
   testCanDecideSwap();
   testCanDecideSwapWithShift();
   testCanCancelSwap();
@@ -377,7 +410,7 @@ function runAll() {
   testSwapButtonConditions();
   testGetSwapIneligibleReason();
   testDeclineReasonLogic();
-  console.log('test-swap-logic: 13 assertion suites passed');
+  console.log('test-swap-logic: 14 assertion suites passed');
 }
 
 runAll();
