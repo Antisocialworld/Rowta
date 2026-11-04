@@ -46,6 +46,7 @@ import {
   changeMemberRoleSchema,
   createShiftSchema,
   createTeamSchema,
+  registerDeviceSchema,
   inviteListResponseSchema,
   inviteItemSchema,
   type InviteItem,
@@ -99,6 +100,7 @@ import {
   type TeamListResponse,
   type TeamResponse,
   type TeamSettingsResponse,
+  type DeviceView,
 } from '@rowta/shared';
 import { isMessageKey, type MessageKey } from '../i18n/en';
 
@@ -372,6 +374,14 @@ async function send(input: RequestInput): Promise<RequestOutput> {
 // Endpoints (shared request schemas validate the INPUT the app sends — V1 — and the shared response
 // schemas above validate every byte the app trusts — S5)
 // ---------------------------------------------------------------------------------------------
+
+const deviceViewSchema = z.object({
+  id: z.string(),
+  platform: z.string(),
+  deviceId: z.string(),
+  lastSeenAt: z.string(),
+  createdAt: z.string(),
+});
 
 export type SignInResult = { kind: 'tokens'; tokens: AuthTokensResponse } | { kind: 'prompt'; meta: CodeTimerMeta };
 
@@ -922,6 +932,24 @@ export const swapsApi = {
       dataSchema: swapViewSchema,
     });
     return out.data as SwapRequestView;
+  },
+};
+
+export const devicesApi = {
+  async registerDevice(
+    input: z.input<typeof registerDeviceSchema>,
+    idempotencyKey: string,
+  ): Promise<DeviceView> {
+    registerDeviceSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: '/devices',
+      body: input,
+      headers: { 'idempotency-key': idempotencyKey },
+      auth: true,
+      dataSchema: deviceViewSchema,
+    });
+    return out.data as DeviceView;
   },
 };
 
