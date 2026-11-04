@@ -30,6 +30,11 @@ import { fingerprint } from '../security/fingerprint.ts';
 import { can, type Role } from '../security/policy.ts';
 import { HttpError } from '../middleware/error.ts';
 import { cancelPendingSwapsForShift } from '../swaps/service.ts';
+import { enqueueNotification } from '../notifications/outbox.ts';
+import {
+  decideShiftNotifications,
+  shiftNotificationDedupeKey,
+} from '../notifications/shift-notifications.ts';
 
 const FORBIDDEN = 'You do not have permission to perform this action.';
 
@@ -234,6 +239,34 @@ export async function createShift(
         startsAt: iso(created.starts_at),
         endsAt: iso(created.ends_at),
       });
+
+      // Enqueue shift.assigned notification for the new assignee inside the same transaction
+      const createNotifications = decideShiftNotifications({
+        actorUserId: userId,
+        action: 'create',
+        currentAssigneeId: null,
+        newAssigneeId: input.assignedUserId,
+        relevantFieldsChanged: false,
+      });
+      for (const n of createNotifications) {
+        await enqueueNotification(tx, {
+          recipientUserId: n.recipientUserId,
+          category: n.category,
+          payload: {
+            type: 'shift',
+            shiftId: created.id,
+            teamId,
+            label: created.label,
+          },
+          dedupeKey: shiftNotificationDedupeKey({
+            shiftId: created.id,
+            category: n.category,
+            recipientUserId: n.recipientUserId,
+            eventTimestampIso: iso(created.created_at),
+          }),
+        });
+      }
+
       return created;
     });
 
@@ -342,6 +375,39 @@ export async function updateShift(
       startsAt: iso(updated.starts_at),
       endsAt: iso(updated.ends_at),
     });
+
+    // Enqueue shift change notifications for the assignee(s) inside the same transaction
+    const assigneeChanged = input.assignedUserId !== current.assigned_user_id;
+    const relevantFieldsChanged =
+      input.label !== current.label ||
+      input.startsAt !== iso(current.starts_at) ||
+      input.endsAt !== iso(current.ends_at);
+    const updateNotifications = decideShiftNotifications({
+      actorUserId: userId,
+      action: 'update',
+      currentAssigneeId: current.assigned_user_id,
+      newAssigneeId: input.assignedUserId,
+      relevantFieldsChanged: assigneeChanged || relevantFieldsChanged,
+    });
+    for (const n of updateNotifications) {
+      await enqueueNotification(tx, {
+        recipientUserId: n.recipientUserId,
+        category: n.category,
+        payload: {
+          type: 'shift',
+          shiftId: updated.id,
+          teamId,
+          label: updated.label,
+        },
+          dedupeKey: shiftNotificationDedupeKey({
+            shiftId: updated.id,
+            category: n.category,
+            recipientUserId: n.recipientUserId,
+            eventTimestampIso: iso(updated.updated_at),
+          }),
+        });
+      }
+
     return updated;
   });
 
@@ -370,6 +436,33 @@ export async function deleteShift(userId: string, teamId: string, shiftId: strin
       startsAt: iso(current.starts_at),
       endsAt: iso(current.ends_at),
     });
+
+    // Enqueue shift.cancelled notification for the assignee inside the same transaction
+    const deleteNotifications = decideShiftNotifications({
+      actorUserId: userId,
+      action: 'delete',
+      currentAssigneeId: current.assigned_user_id,
+      newAssigneeId: null,
+      relevantFieldsChanged: false,
+    });
+    for (const n of deleteNotifications) {
+      await enqueueNotification(tx, {
+        recipientUserId: n.recipientUserId,
+        category: n.category,
+        payload: {
+          type: 'shift',
+          shiftId: current.id,
+          teamId,
+          label: current.label,
+        },
+          dedupeKey: shiftNotificationDedupeKey({
+            shiftId: current.id,
+            category: n.category,
+            recipientUserId: n.recipientUserId,
+            eventTimestampIso: iso(current.updated_at),
+          }),
+        });
+      }
   });
 
   return { deleted: true };

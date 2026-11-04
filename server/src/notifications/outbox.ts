@@ -175,7 +175,10 @@ function getTicketErrorCode(ticket?: PushTicketResult): string {
   return 'send_failed';
 }
 
-function getNotificationContent(category: string): { title: string; body: string } {
+function getNotificationContent(
+  category: string,
+  payload?: Record<string, unknown>,
+): { title: string; body: string } {
   switch (category) {
     case 'swap.requested':
       return { title: 'Shift swap requested', body: 'A colleague requested a shift swap.' };
@@ -185,6 +188,21 @@ function getNotificationContent(category: string): { title: string; body: string
       return { title: 'Shift swap declined', body: 'Your shift swap request was declined.' };
     case 'swap.cancelled':
       return { title: 'Shift swap cancelled', body: 'A shift swap request was cancelled.' };
+    case 'shift.assigned':
+      return {
+        title: 'Shift assigned',
+        body: typeof payload?.label === 'string' ? payload.label : 'A shift has been assigned to you.',
+      };
+    case 'shift.changed':
+      return {
+        title: 'Shift changed',
+        body: typeof payload?.label === 'string' ? payload.label : 'A shift has been updated.',
+      };
+    case 'shift.cancelled':
+      return {
+        title: 'Shift cancelled',
+        body: typeof payload?.label === 'string' ? payload.label : 'A shift has been cancelled.',
+      };
     default:
       return { title: 'Notification', body: 'You have a new update.' };
   }
@@ -258,6 +276,20 @@ export async function sweepShardOutbox(
         continue;
       }
 
+      // Check category toggle in settings: notify_shift_changes switched off
+      if (row.category.startsWith('shift.') && settings && !settings.notify_shift_changes) {
+        const updated = await client.$executeRaw`
+          UPDATE notification_outbox
+          SET status = 'skipped',
+              last_error = 'user_disabled_shifts',
+              claimed_at = NULL,
+              claimed_by = NULL
+          WHERE id = ${row.id}::uuid AND claimed_by = ${sweeperId};
+        `;
+        if (updated > 0) skipped += 1;
+        continue;
+      }
+
       // Check quiet hours
       const isUrgent = row.category.startsWith('billing.restriction');
       const quietStart = formatTimeString(settings?.quiet_start ?? null);
@@ -305,7 +337,7 @@ export async function sweepShardOutbox(
       }
 
       // 3. Format push message with deep link
-      const { title, body } = getNotificationContent(row.category);
+      const { title, body } = getNotificationContent(row.category, row.payload as Record<string, unknown>);
       const url = getDeepLinkUrl(row.category, row.payload as Record<string, unknown>);
 
       log.debug(
