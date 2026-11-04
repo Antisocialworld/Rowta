@@ -11,7 +11,12 @@ import { Button, EmptyState, LiveRegion, Skeleton, Text } from '../../components
 import { t, type MessageKey } from '../../i18n/en';
 import { shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
-import { canRequestNextPage, createPagingGate, mergeActivityPages } from '../../lib/shift-feed';
+import {
+  activityEventShiftId,
+  canRequestNextPage,
+  createPagingGate,
+  mergeActivityPages,
+} from '../../lib/shift-feed';
 import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeams } from '../../state/teams';
@@ -24,6 +29,7 @@ const END_KEY: MessageKey = 'activity.end';
 export function ActivityScreen() {
   const headingRef = useRef<TextInstance>(null);
   const back = useShiftNav((state) => state.back);
+  const open = useShiftNav((state) => state.open);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId);
   const query = useInfiniteQuery({
@@ -110,7 +116,12 @@ export function ActivityScreen() {
             contentContainerStyle={styles.listContent}
             data={events}
             keyExtractor={(event) => event.id}
-            renderItem={({ item }) => <ActivityRow event={item} />}
+            renderItem={({ item }) => {
+              const shiftId = activityEventShiftId(item);
+              const onPress = shiftId === null ? undefined : () => open({ name: 'detail', shiftId });
+              const pressProps = onPress !== undefined ? { onPress } : {};
+              return <ActivityRow event={item} {...pressProps} />;
+            }}
             onEndReached={requestMore}
             onEndReachedThreshold={0.4}
             ListFooterComponent={renderFooter}

@@ -8,6 +8,7 @@
 //      one request per page, zero duplicate cursor requests, logged with timestamps.
 // Run: npx tsx app/scripts/test-shift-feed.ts
 import {
+  activityEventShiftId,
   canRequestNextPage,
   createPagingGate,
   mergeActivityPages,
@@ -59,6 +60,51 @@ function makeEvent(id: string, kind = 'shift.created'): ActivityEventPayload {
   const mergedEmpty = mergeActivityPages([[], [], []]);
   expect('mergeActivityPages with empty pages returns empty array', mergedEmpty, []);
 }
+
+// ---------------------------------------------------------------------------------------------
+// 1b. activityEventShiftId (activity cards open their shift)
+// ---------------------------------------------------------------------------------------------
+function eventWithSubject(kind: string, subjectId: string | null): ActivityEventPayload {
+  return {
+    id: 'e-1',
+    kind,
+    actor: null,
+    subjectId,
+    data: {},
+    createdAt: '2026-11-04T00:00:00.000Z',
+  };
+}
+
+expect(
+  'activityEventShiftId: shift.created with id returns the id',
+  activityEventShiftId(eventWithSubject('shift.created', 'shift-1')),
+  'shift-1',
+);
+expect(
+  'activityEventShiftId: shift.updated with id returns the id',
+  activityEventShiftId(eventWithSubject('shift.updated', 'shift-2')),
+  'shift-2',
+);
+expect(
+  'activityEventShiftId: shift.deleted returns null',
+  activityEventShiftId(eventWithSubject('shift.deleted', 'shift-3')),
+  null,
+);
+expect(
+  'activityEventShiftId: unknown kind returns null',
+  activityEventShiftId(eventWithSubject('shift.archived', 'shift-4')),
+  null,
+);
+expect(
+  'activityEventShiftId: null subjectId returns null',
+  activityEventShiftId(eventWithSubject('shift.updated', null)),
+  null,
+);
+expect(
+  'activityEventShiftId: empty-string subjectId returns null',
+  activityEventShiftId(eventWithSubject('shift.updated', '')),
+  null,
+);
 
 // ---------------------------------------------------------------------------------------------
 // 2. canRequestNextPage

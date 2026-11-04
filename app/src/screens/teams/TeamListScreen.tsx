@@ -6,13 +6,12 @@
 // source of truth (S5).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
-import { ApiError, authApi, teamsApi } from '../../lib/api';
+import { ApiError, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { devToolsVisible } from '../../lib/dev-tools';
-import { formatSignedInUserName } from '../../lib/user-name';
 import { canInviteMembers, canManageTeamSettings, teamRoleKey } from '../../lib/team-role';
 import { useAuthFlow } from '../../state/auth-context';
 import { useAuthSession } from '../../state/auth-session';
@@ -94,13 +93,6 @@ export function TeamListScreen() {
     }
   };
 
-  const meQuery = useQuery({
-    queryKey: ['auth', 'me'],
-    queryFn: () => authApi.me(),
-    staleTime: 5 * 60 * 1000,
-  });
-  const userName = formatSignedInUserName(meQuery.data);
-
   useEffect(() => {
     focusOn(headingRef.current);
   }, []);
@@ -169,11 +161,6 @@ export function TeamListScreen() {
         <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
           {t('teams.view.list.heading')}
         </Text>
-        {userName ? (
-          <Text variant="body-medium" tone="secondary" testID="user-display-name">
-            {t('teams.user.signedInAs', { name: userName })}
-          </Text>
-        ) : null}
       </View>
       <Button
         ref={createTriggerRef}

@@ -42,6 +42,7 @@ import {
   pickRecentActivity,
 } from '../lib/dashboard-shifts';
 import { AccountMenu } from '../components/AccountMenu';
+import { activityEventShiftId } from '../lib/shift-feed';
 import { useTeams, useTeamsList } from '../state/teams';
 import { useShiftNav } from '../state/shift-nav';
 import { ActivityRow } from './shifts/ActivityRow';
@@ -482,9 +483,12 @@ export function DashboardScreen() {
                 </Card>
               ) : (
                 <View style={styles.cardList}>
-                  {recentActivity.map((event) => (
-                    <ActivityRow key={event.id} event={event} />
-                  ))}
+                  {recentActivity.map((event) => {
+                    const shiftId = activityEventShiftId(event);
+                    const onPress = shiftId === null ? undefined : () => openShift({ name: 'detail', shiftId });
+                    const pressProps = onPress !== undefined ? { onPress } : {};
+                    return <ActivityRow key={event.id} event={event} {...pressProps} />;
+                  })}
                 </View>
               )}
               <View style={styles.activityViewAll}>

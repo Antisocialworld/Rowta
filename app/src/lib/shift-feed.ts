@@ -22,6 +22,13 @@ export function mergeActivityPages(pages: readonly (readonly ActivityEventPayloa
   return merged;
 }
 
+/** The shift id an activity card may open: only created/updated events with a non-empty subject id. */
+export function activityEventShiftId(event: ActivityEventPayload): string | null {
+  if (event.kind !== 'shift.created' && event.kind !== 'shift.updated') return null;
+  if (typeof event.subjectId !== 'string' || event.subjectId.length === 0) return null;
+  return event.subjectId;
+}
+
 export type PagingGate = {
   /** Runs `request` unless a previous call is still in flight. Never rejects. */
   request: () => Promise<void>;
