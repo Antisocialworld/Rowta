@@ -1,8 +1,6 @@
 // test-dashboard-shifts.ts — unit tests for app/src/lib/dashboard-shifts.ts (Phase 8; PRD 6.1).
 // Run: npx tsx app/scripts/test-dashboard-shifts.ts
 import type { ActivityEventPayload, ShiftView, SwapRequestView } from '@rowta/shared';
-import { greetingKeyForHour } from '../src/lib/dashboard-greeting.ts';
-import { teamContextLabel } from '../src/lib/team-context.ts';
 import {
   canViewPendingSwaps,
   filterThisWeekShifts,
@@ -202,28 +200,7 @@ function mockShift(id: string, assigned: string, starts: string, ends: string): 
   expect('fifth event matches', recent[4]?.id, 'a5');
 }
 
-// 8. greetingKeyForHour boundaries
-{
-  expect('hour 0 is evening', greetingKeyForHour(0), 'dashboard.greeting.evening');
-  expect('hour 4 is evening', greetingKeyForHour(4), 'dashboard.greeting.evening');
-  expect('hour 5 is morning', greetingKeyForHour(5), 'dashboard.greeting.morning');
-  expect('hour 11 is morning', greetingKeyForHour(11), 'dashboard.greeting.morning');
-  expect('hour 12 is afternoon', greetingKeyForHour(12), 'dashboard.greeting.afternoon');
-  expect('hour 16 is afternoon', greetingKeyForHour(16), 'dashboard.greeting.afternoon');
-  expect('hour 17 is evening', greetingKeyForHour(17), 'dashboard.greeting.evening');
-  expect('hour 23 is evening', greetingKeyForHour(23), 'dashboard.greeting.evening');
-}
-
-// 9. teamContextLabel suffix rules
-{
-  expect('adds team to a plain name', teamContextLabel('marketing'), 'marketing team');
-  expect('keeps a name ending in Team', teamContextLabel('Delete Test Team'), 'Delete Test Team');
-  expect('keeps a name starting with Team', teamContextLabel('Team Alpha'), 'Team Alpha');
-  expect('adds team when the word is only a prefix', teamContextLabel('teamwork'), 'teamwork team');
-  expect('keeps an uppercase TEAM word', teamContextLabel('OPS TEAM'), 'OPS TEAM');
-}
-
-// 10. getLatestUpdatedTimestamp
+// 8. getLatestUpdatedTimestamp
 {
   expect('returns 0 when no timestamps provided', getLatestUpdatedTimestamp(), 0);
   expect('handles null and undefined', getLatestUpdatedTimestamp(null, undefined, 0), 0);

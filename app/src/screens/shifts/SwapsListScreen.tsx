@@ -35,7 +35,6 @@ import {
   type SwapFilterTab,
 } from '../../lib/swap-logic';
 import { formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
-import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { colors, shape, spacing } from '../../theme/tokens';
@@ -257,9 +256,7 @@ export function SwapsListScreen() {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text variant="title-medium" style={styles.cardTitle}>
-            {item.shiftLabel ?? t('teams.view.shift.heading')}
-          </Text>
+          <Text variant="title-medium">{item.shiftLabel ?? t('teams.view.shift.heading')}</Text>
           <Text variant="label-medium" tone={item.status === 'approved' ? 'success' : item.status === 'rejected' ? 'error' : 'secondary'}>
             {t(statusKey)}
           </Text>
@@ -378,9 +375,6 @@ export function SwapsListScreen() {
         <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
           {t('swap.list.title')}
         </Text>
-        {teamQuery.data !== undefined ? (
-          <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
-        ) : null}
 
         {/* Filter Tabs */}
         <View style={styles.tabs} accessibilityRole="tablist">
@@ -529,7 +523,6 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     borderBottomWidth: 1,
     borderBottomColor: colors['color-outline-variant'],
     gap: Number(spacing.small),
@@ -557,10 +550,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: Number(spacing.small),
-  },
-  cardTitle: {
-    flexShrink: 1,
   },
   metaRow: {
     flexDirection: 'row',

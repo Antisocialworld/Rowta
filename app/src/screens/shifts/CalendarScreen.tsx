@@ -1,7 +1,7 @@
 // CalendarScreen — the next 14 days of shifts for the selected team (Phase 4; PRD 6.1, 8.3).
 // Server data only (S5): the range is computed locally, the server decides which shifts overlap it.
 // Four states: loading (Skeleton), error (EmptyState + retry), empty (EmptyState), ready (ShiftCard
-// rows). Owner/Manager see New shift; every role sees Search. Shift details open on tap.
+// rows). Owner/Manager see New shift; every role sees Activity and Search. Shift details open on tap.
 import { useEffect, useMemo, useRef } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -94,6 +94,7 @@ export function CalendarScreen() {
           {manager ? (
             <Button label="action.newShift" icon="add" onPress={() => open({ name: 'create' })} testID="shift-create-entry" />
           ) : null}
+          <Button label="action.openActivity" icon="history" variant="secondary" onPress={() => open({ name: 'activity' })} />
           <Button
             ref={searchTriggerRef}
             label="action.openSearch"
