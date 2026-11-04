@@ -190,14 +190,20 @@ export function ShiftCreateEditScreen() {
       setAssigneeError(undefined);
     }
     const start = parseLocalDateTime(startsAt);
-    if (start === null) {
+    if (startsAt.trim().length === 0) {
+      setStartsAtError('shift.form.startRequired');
+      ok = false;
+    } else if (start === null) {
       setStartsAtError('shift.form.timeFormat');
       ok = false;
     } else {
       setStartsAtError(undefined);
     }
     const end = parseLocalDateTime(endsAt);
-    if (end === null) {
+    if (endsAt.trim().length === 0) {
+      setEndsAtError('shift.form.endRequired');
+      ok = false;
+    } else if (end === null) {
       setEndsAtError('shift.form.timeFormat');
       ok = false;
     } else if (start !== null && new Date(end).getTime() <= new Date(start).getTime()) {
@@ -448,7 +454,6 @@ export function ShiftCreateEditScreen() {
               onPress={() => void submit()}
               onNotReady={validate}
               ready={isReady}
-              reason="auth.field.required"
               testID="shift-submit"
             />
           ) : null}
