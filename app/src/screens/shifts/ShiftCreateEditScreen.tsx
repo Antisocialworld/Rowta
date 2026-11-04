@@ -27,8 +27,9 @@ import { focusOn } from '../../lib/a11y';
 import { clampEndToStart, isEndBeforeStart } from '../../lib/date-picker';
 import { isoToLocalInput, parseLocalDateTime } from '../../lib/shift-time';
 import { invalidateAfterShiftEdit } from '../../lib/shift-cache';
+import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
-import { useTeamMembers, useTeams } from '../../state/teams';
+import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { colors, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH, iconSize } from '../../theme/layout';
 
@@ -49,6 +50,7 @@ export function ShiftCreateEditScreen() {
   const back = useShiftNav((state) => state.back);
   const route = useShiftNav((state) => state.route);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
+  const teamQuery = useTeam(selectedTeamId);
   const membersQuery = useTeamMembers(selectedTeamId);
 
   const isEdit = route?.name === 'edit';
@@ -311,6 +313,9 @@ export function ShiftCreateEditScreen() {
             <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
               {t(headingKey)}
             </Text>
+            {teamQuery.data !== undefined ? (
+              <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
+            ) : null}
           {isLoading ? (
             <View style={styles.stack}>
               <Skeleton variant="text" />

@@ -20,6 +20,7 @@ import {
   swapIneligibleMessageKey,
 } from '../../lib/swap-logic';
 import { formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
+import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { colors, shape, spacing } from '../../theme/tokens';
@@ -172,6 +173,9 @@ export function ShiftDetailScreen() {
           <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
             {t('teams.view.shift.heading')}
           </Text>
+          {teamQuery.data !== undefined ? (
+            <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
+          ) : null}
 
           {shiftQuery.isLoading ? (
             <View style={styles.stack}>
