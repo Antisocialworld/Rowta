@@ -2,10 +2,11 @@
 // list + role-aware switcher, the create-team entry, the ALWAYS-shown invite-accept result card
 // (decisions 1-3), and the Phase 1 placeholder actions (gallery, sign out) so nothing regresses.
 // States: loading (Skeleton), error (EmptyState kind=error + retry), empty (EmptyState + create
-// CTA), ready (one Card per team). Every string is a catalog key (U8); the server list is the only
-// source of truth (S5).
+// CTA), ready (compact team rows with a selected-team panel). Every string is a catalog key (U8);
+// the server list is the only source of truth (S5).
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
+import { Pressable, StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
@@ -19,13 +20,91 @@ import { resolveSelectedTeamId, useDeletedTeams, useTeams, useTeamsList } from '
 import { useTeamsView } from '../../state/teams-view';
 import { useInviteModal } from '../../state/invite-modal';
 import { AccountMenu } from '../../components/AccountMenu';
-import { spacing } from '../../theme/tokens';
-import { MIN_TOUCH_TARGET } from '../../theme/layout';
+import { colors, shape, spacing, state } from '../../theme/tokens';
+import { MIN_TOUCH_TARGET, RING, iconSize } from '../../theme/layout';
 import { InviteResultCard } from './InviteResultCard';
 import { TeamScreenLayout } from './TeamScreenLayout';
 import { DeletedTeamsModal } from './DeletedTeamsModal';
 import { CreateTeamModal } from './CreateTeamModal';
 import { shouldCloseDeletedTeamsModal, shouldShowDeletedTeamsTrigger } from '../../lib/deleted-teams-logic';
+
+const SHORT_ROLE_KEY: Record<string, MessageKey> = {
+  owner: 'role.owner',
+  manager: 'role.manager',
+  staff: 'role.staff',
+};
+
+function TeamRow({
+  team,
+  selected,
+  panelOpen,
+  onSelect,
+}: {
+  team: { id: string; name: string; role: string };
+  selected: boolean;
+  panelOpen: boolean;
+  onSelect: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const shortRole = t(SHORT_ROLE_KEY[team.role] ?? 'role.staff');
+  const cue = selected ? t('teams.selected') : t('action.switchTeam');
+  const accessibleLabel = [team.name, shortRole, cue].join(', ');
+  const handlePress = (): void => {
+    onSelect();
+  };
+
+  return (
+    <Pressable
+      testID={`team-select-${team.id}`}
+      onPress={handlePress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={accessibleLabel}
+      accessibilityState={{ selected, expanded: selected ? panelOpen : undefined }}
+      style={({ pressed }) => [
+        styles.teamRow,
+        {
+          borderColor:
+            focused || selected ? colors['color-primary'] : colors['color-surface-container'],
+        },
+        pressed && { opacity: 1 - state.pressed },
+      ]}
+    >
+      <View style={styles.teamRowText}>
+        <Text variant="title-medium" numberOfLines={1} style={styles.teamName}>
+          {team.name}
+        </Text>
+        <Text variant="body-small" tone="secondary" testID={`team-role-${team.id}`}>
+          {shortRole}
+        </Text>
+      </View>
+      <View style={styles.teamRowCue}>
+        {selected ? (
+          <Text variant="label-medium" tone="primary">
+            {cue}
+          </Text>
+        ) : (
+          <View style={styles.switchPill}>
+            <Text variant="label-medium" style={{ color: colors['color-on-secondary-container'] }}>
+              {cue}
+            </Text>
+          </View>
+        )}
+        {selected ? (
+          <MaterialIcons
+            name={panelOpen ? 'expand-less' : 'expand-more'}
+            size={iconSize('title-medium')}
+            color={colors['color-on-surface-variant']}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
 
 export function TeamListScreen() {
   const headingRef = useRef<TextInstance>(null);
@@ -52,6 +131,7 @@ export function TeamListScreen() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const createTriggerRef = useRef<ViewInstance>(null);
   const inviteTriggerRef = useRef<ViewInstance>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const deletedTeamsQuery = useDeletedTeams();
   const deletedTeams = deletedTeamsQuery.data?.teams;
@@ -142,6 +222,31 @@ export function TeamListScreen() {
     void queryClient.invalidateQueries({ queryKey: ['teams'] });
   }, [setInviteResult, queryClient]);
 
+  const handleOpenMembers = (): void => {
+    go('members');
+  };
+
+  const handleOpenSettings = (): void => {
+    go('teamSettings');
+  };
+
+  const handleOpenInvite = (): void => {
+    openInviteModal('teamList', inviteTriggerRef);
+  };
+
+  const handleTeamPress = (teamId: string, selected: boolean): void => {
+    if (selected) {
+      setPanelOpen((open) => !open);
+      return;
+    }
+    if (pickingTeam) {
+      setSelectedTeamId(teamId);
+    } else {
+      selectTeam(teamId);
+    }
+    setPanelOpen(true);
+  };
+
   const backFooter =
     pickingTeam && selectedTeamId !== null ? (
       <Button
@@ -187,14 +292,21 @@ export function TeamListScreen() {
         <View style={styles.list}>
           {teams?.map((team) => {
             const selected = team.id === selectedTeamId;
+            const handleRowPress = (): void => {
+              handleTeamPress(team.id, selected);
+            };
             return (
-              <Card key={team.id} variant={selected ? 'raised' : 'flat'} testID={`team-card-${team.id}`}>
-                <View style={styles.row}>
-                  <View style={styles.teamInfo}>
-                    <View style={styles.rowText}>
-                      <Text variant="title-medium">{team.name}</Text>
-                    </View>
-                    <Text variant="body-medium" tone="secondary" testID={`team-role-${team.id}`}>
+              <View key={team.id} testID={`team-card-${team.id}`} style={styles.teamBlock}>
+                <TeamRow
+                  team={team}
+                  selected={selected}
+                  panelOpen={panelOpen}
+                  onSelect={handleRowPress}
+                />
+                {selected && panelOpen ? (
+                  <Card variant="raised">
+                    <Text variant="title-medium">{team.name}</Text>
+                    <Text variant="body-medium" tone="secondary">
                       {t(teamRoleKey(team.role))}
                     </Text>
                     {team.createdBy ? (
@@ -202,35 +314,12 @@ export function TeamListScreen() {
                         {t('teams.createdBy', { name: team.createdBy.displayName })}
                       </Text>
                     ) : null}
-                  </View>
-                  {selected ? (
-                    <Text variant="label-medium" tone="primary">
-                      {t('teams.selected')}
-                    </Text>
-                  ) : (
-                    <Button
-                      label="action.switchTeam"
-                      variant="ghost"
-                      fullWidth={false}
-                      onPress={() => {
-                        if (pickingTeam) {
-                          setSelectedTeamId(team.id);
-                        } else {
-                          selectTeam(team.id);
-                        }
-                      }}
-                      testID={`team-select-${team.id}`}
-                    />
-                  )}
-                </View>
-                {selected ? (
-                  <View style={styles.selectedActions}>
-                    <View style={styles.rowActions}>
+                    <View style={styles.panelActions}>
                       <Button
                         label="action.manageMembers"
                         variant="secondary"
                         fullWidth={false}
-                        onPress={() => go('members')}
+                        onPress={handleOpenMembers}
                         testID="team-open-members"
                       />
                       {canManageTeamSettings(team.role) ? (
@@ -239,7 +328,7 @@ export function TeamListScreen() {
                           variant="secondary"
                           icon="settings"
                           fullWidth={false}
-                          onPress={() => go('teamSettings')}
+                          onPress={handleOpenSettings}
                           testID="team-open-settings"
                         />
                       ) : null}
@@ -249,14 +338,14 @@ export function TeamListScreen() {
                           label="action.invitePeople"
                           variant="secondary"
                           fullWidth={false}
-                          onPress={() => openInviteModal('teamList', inviteTriggerRef)}
+                          onPress={handleOpenInvite}
                           testID="team-open-invite"
                         />
                       ) : null}
                     </View>
-                  </View>
+                  </Card>
                 ) : null}
-              </Card>
+              </View>
             );
           })}
         </View>
@@ -319,9 +408,36 @@ const styles = StyleSheet.create({
   },
   headerBlock: { gap: Number(spacing.extraSmall) },
   list: { gap: Number(spacing.base) },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },
-  teamInfo: { gap: Number(spacing.extraSmall), flexShrink: 1, flex: 1 },
-  rowText: { flexDirection: 'row', alignItems: 'center', gap: Number(spacing.small), flexWrap: 'wrap', flexShrink: 1 },
-  selectedActions: { gap: Number(spacing.small), marginTop: Number(spacing.medium) },
-  rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Number(spacing.small) },
+  teamBlock: { gap: Number(spacing.small) },
+  teamRow: {
+    minHeight: MIN_TOUCH_TARGET,
+    borderWidth: RING,
+    borderRadius: shape.medium,
+    paddingHorizontal: Number(spacing.small),
+    paddingVertical: Number(spacing.small),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Number(spacing.base),
+  },
+  teamRowText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Number(spacing.small),
+    flexShrink: 1,
+    flex: 1,
+  },
+  teamName: { flexShrink: 1 },
+  teamRowCue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Number(spacing.extraSmall),
+  },
+  switchPill: {
+    backgroundColor: colors['color-secondary-container'],
+    borderRadius: shape.medium,
+    paddingHorizontal: Number(spacing.extraSmall),
+    paddingVertical: Number(spacing.extraSmall),
+  },
+  panelActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Number(spacing.small) },
 });
