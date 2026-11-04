@@ -370,10 +370,29 @@ export async function updateShift(
         notes: input.notes ?? null,
       },
     });
+    // Record what changed on the shift (additive, never stores notes text).
+    const changes: Record<string, { from: unknown; to: unknown } | boolean> = {};
+    if (input.label !== current.label) {
+      changes.label = { from: current.label, to: input.label };
+    }
+    if (input.startsAt !== iso(current.starts_at)) {
+      changes.startsAt = { from: iso(current.starts_at), to: input.startsAt };
+    }
+    if (input.endsAt !== iso(current.ends_at)) {
+      changes.endsAt = { from: iso(current.ends_at), to: input.endsAt };
+    }
+    if (input.assignedUserId !== current.assigned_user_id) {
+      changes.assignedUserId = { from: current.assigned_user_id, to: input.assignedUserId };
+    }
+    if ((input.notes ?? null) !== current.notes) {
+      changes.notesChanged = true;
+    }
+
     await writeActivity(tx, teamId, userId, 'shift.updated', updated.id, {
       label: updated.label,
       startsAt: iso(updated.starts_at),
       endsAt: iso(updated.ends_at),
+      changes,
     });
 
     // Enqueue shift change notifications for the assignee(s) inside the same transaction
@@ -530,12 +549,25 @@ export async function listActivity(
   const limit = query.limit ?? ACTIVITY_PAGE_DEFAULT;
   const cursor = query.cursor === undefined ? null : decodeCursor(query.cursor);
   const fetchLimit = limit + 1;
+  // Reuse the role names from policy.ts (Role = 'owner' | 'manager' | 'staff').
+  const role = membership.role;
+  // Audience enforcement (owner decision):
+  //   'team'       -> every member
+  //   'managers'   -> owner or manager only
+  //   'involved'   -> owner or manager, or the actor themselves
+  //   anything else -> managers-only (fail closed)
 
   const rows: ActivityRow[] = cursor
     ? await client.$queryRaw<ActivityRow[]>`
         SELECT id::text, kind, actor_user_id::text, subject_id::text, data, created_at
         FROM activity_events
         WHERE team_id = ${teamId}::uuid
+        AND (
+          audience = 'team'
+          OR (audience = 'managers' AND ${role} IN ('owner', 'manager'))
+          OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
+          OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
+        )
           AND (created_at, id) < (${cursor.t}::timestamptz, ${cursor.id}::uuid)
         ORDER BY created_at DESC, id DESC
         LIMIT ${fetchLimit}
@@ -544,6 +576,12 @@ export async function listActivity(
         SELECT id::text, kind, actor_user_id::text, subject_id::text, data, created_at
         FROM activity_events
         WHERE team_id = ${teamId}::uuid
+        AND (
+          audience = 'team'
+          OR (audience = 'managers' AND ${role} IN ('owner', 'manager'))
+          OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
+          OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
+        )
         ORDER BY created_at DESC, id DESC
         LIMIT ${fetchLimit}
       `;
@@ -591,6 +629,8 @@ export async function searchTeam(
   const escapedQ = escapeLike(q);
   const likePrefix = `${escapedQ}%`;
   const likeContains = `%${escapedQ}%`;
+  // Same audience filter as listActivity (owner decision): reuse role names from policy.ts.
+  const role = membership.role;
 
   const memberships = await client.memberships.findMany({
     where: { team_id: teamId, removed_at: null },
@@ -669,11 +709,17 @@ export async function searchTeam(
     SELECT id::text, kind, actor_user_id::text, subject_id::text, data, created_at
     FROM activity_events
     WHERE team_id = ${teamId}::uuid
-      AND (
-        search @@ plainto_tsquery('simple', ${q})
-        OR coalesce(data ->> 'label', '') ILIKE ${likeContains}
-        OR (char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} AND word_similarity(${q}, coalesce(data ->> 'label', '')) >= ${FUZZY_WORD_SIMILARITY_THRESHOLD})
-      )
+    AND (
+      audience = 'team'
+      OR (audience = 'managers' AND ${role} IN ('owner', 'manager'))
+      OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
+      OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
+    )
+    AND (
+      search @@ plainto_tsquery('simple', ${q})
+      OR coalesce(data ->> 'label', '') ILIKE ${likeContains}
+      OR (char_length(${q}) >= ${FUZZY_MIN_QUERY_LENGTH} AND word_similarity(${q}, coalesce(data ->> 'label', '')) >= ${FUZZY_WORD_SIMILARITY_THRESHOLD})
+    )
     ORDER BY
       CASE
         WHEN lower(coalesce(data ->> 'label', '')) = lower(${q}) THEN 1
