@@ -204,26 +204,94 @@ export async function listTeams(
     where: { user_id: userId },
   });
 
+  if (indexRows.length === 0) {
+    return [];
+  }
+
+  // 1. Group team IDs by shard using shardFor
+  const shardTeamIds = new Map<Shard, string[]>();
+  for (const row of indexRows) {
+    const shard = shardFor(row.team_id);
+    const existing = shardTeamIds.get(shard);
+    if (existing) {
+      existing.push(row.team_id);
+    } else {
+      shardTeamIds.set(shard, [row.team_id]);
+    }
+  }
+
+  // 2. Per shard, run ONE memberships.findMany and ONE teams.findMany, shards in parallel
+  type MembershipRow = { team_id: string; role: string; removed_at: Date | null };
+  type TeamRow = { id: string; name: string; managers_can_revoke_invites: boolean; deleted_at: Date | null; created_by: string | null };
+
+  const membershipMap = new Map<string, MembershipRow>();
+  const teamMap = new Map<string, TeamRow>();
+
+  await Promise.all(
+    [...shardTeamIds.entries()].map(async ([shard, teamIds]) => {
+      const shardClient = writeDb(shard);
+      const [memberships, teams] = await Promise.all([
+        shardClient.memberships.findMany({
+          where: {
+            user_id: userId,
+            team_id: { in: teamIds },
+          },
+        }),
+        shardClient.teams.findMany({
+          where: {
+            id: { in: teamIds },
+          },
+        }),
+      ]);
+
+      for (const m of memberships) {
+        membershipMap.set(m.team_id, m);
+      }
+      for (const t of teams) {
+        teamMap.set(t.id, t);
+      }
+    }),
+  );
+
+  // 3. Filter valid teams and collect distinct created_by IDs
+  const creatorIds = new Set<string>();
+  for (const row of indexRows) {
+    const membership = membershipMap.get(row.team_id);
+    if (!membership || membership.removed_at !== null) continue;
+
+    const team = teamMap.get(row.team_id);
+    if (!team || team.deleted_at !== null) continue;
+
+    if (team.created_by) {
+      creatorIds.add(team.created_by);
+    }
+  }
+
+  // 4. Run ONE DB0 users.findMany for distinct created_by IDs
+  const creatorMap = new Map<string, { id: string; display_name: string }>();
+  if (creatorIds.size > 0) {
+    const creators = await db0.users.findMany({
+      where: { id: { in: [...creatorIds] } },
+      select: { id: true, display_name: true },
+    });
+    for (const c of creators) {
+      creatorMap.set(c.id, c);
+    }
+  }
+
+  // 5. Rebuild the result in the exact same order as indexRows
   const teams: { id: string; name: string; role: Role; managersCanRevokeInvites: boolean; createdBy?: { userId: string; displayName: string } | null }[] = [];
 
   for (const row of indexRows) {
-    const shardClient = forTeam(row.team_id);
-    const membership = await shardClient.memberships.findUnique({
-      where: { team_id_user_id: { team_id: row.team_id, user_id: userId } },
-    });
+    const membership = membershipMap.get(row.team_id);
     if (!membership || membership.removed_at !== null) continue;
 
-    const team = await shardClient.teams.findUnique({
-      where: { id: row.team_id },
-    });
+    const team = teamMap.get(row.team_id);
     if (!team || team.deleted_at !== null) continue;
 
     let createdBy: { userId: string; displayName: string } | null = null;
     if (team.created_by) {
-      const creatorUser = await db0.users.findUnique({
-        where: { id: team.created_by },
-        select: { id: true, display_name: true },
-      });
+      const creatorUser = creatorMap.get(team.created_by);
       if (creatorUser) {
         createdBy = { userId: creatorUser.id, displayName: creatorUser.display_name };
       }

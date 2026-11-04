@@ -6,7 +6,8 @@ import type { Hono } from 'hono';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { signAccessToken } from '../src/security/access-token.ts';
 import * as service from '../src/teams/service.ts';
-import { globalDb } from '../src/db/clients.ts';
+import { globalDb, writeDb } from '../src/db/clients.ts';
+import { shardFor } from '../src/db/shard.ts';
 import {
   clearRateKeys,
   createVerifiedUser,
@@ -194,5 +195,181 @@ describe('Team isolation and cross-team protection (Rule S7)', () => {
         'teamId is required for team-scoped data access (rule S7)',
       );
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listTeams – batched shard queries (Task S1 refactor).
+// Tests call listTeams directly; rows are inserted via writeDb / globalDb so
+// the test does not go through HTTP and is not rate-limited.
+// ---------------------------------------------------------------------------
+describe('listTeams – batched shard queries', () => {
+  // Each test creates its own user so index rows do not cross-contaminate.
+  // All ZZ-country users are dropped in the shared teardown in auth-test.ts.
+
+  it('1. zero teams: returns [] when the user has no index rows', async () => {
+    const userId = await createVerifiedUser(uniqueEmail('lt-zero'), 'PassList123#');
+    const result = await service.listTeams(userId);
+    expect(result).toEqual([]);
+  });
+
+  it('2. one team: returns the team with all required fields', async () => {
+    const userId = await createVerifiedUser(uniqueEmail('lt-one'), 'PassList123#');
+    const teamId = randomUUID();
+    const shard = shardFor(teamId);
+    const db0 = globalDb();
+    const shardClient = writeDb(shard);
+
+    await shardClient.teams.create({
+      data: { id: teamId, name: 'Shard Test Team' },
+    });
+    await shardClient.memberships.create({
+      data: { team_id: teamId, user_id: userId, role: 'owner' },
+    });
+    await db0.user_team_index.create({
+      data: { user_id: userId, team_id: teamId },
+    });
+
+    const result = await service.listTeams(userId);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe(teamId);
+    expect(result[0]?.name).toBe('Shard Test Team');
+    expect(result[0]?.role).toBe('owner');
+    expect(result[0]?.managersCanRevokeInvites).toBe(true);
+    expect(result[0]?.createdBy).toBeNull();
+
+    // cleanup
+    await db0.user_team_index.delete({ where: { user_id_team_id: { user_id: userId, team_id: teamId } } });
+    await shardClient.memberships.deleteMany({ where: { team_id: teamId } });
+    await shardClient.teams.delete({ where: { id: teamId } });
+  });
+
+  it('3. two teams on different shards: both appear in indexRows order', async () => {
+    const userId = await createVerifiedUser(uniqueEmail('lt-two'), 'PassList123#');
+    const db0 = globalDb();
+
+    // Find one UUID per shard (brute-force; fast in practice — ~50% hit per try)
+    let idOnShard0 = '';
+    let idOnShard1 = '';
+    while (!idOnShard0 || !idOnShard1) {
+      const id = randomUUID();
+      if (!idOnShard0 && shardFor(id) === 0) idOnShard0 = id;
+      if (!idOnShard1 && shardFor(id) === 1) idOnShard1 = id;
+    }
+
+    // Insert shard-0 team first (controls result order via indexRows)
+    await writeDb(0).teams.create({ data: { id: idOnShard0, name: 'ShardZero Team' } });
+    await writeDb(0).memberships.create({ data: { team_id: idOnShard0, user_id: userId, role: 'staff' } });
+    await db0.user_team_index.create({ data: { user_id: userId, team_id: idOnShard0 } });
+
+    await writeDb(1).teams.create({ data: { id: idOnShard1, name: 'ShardOne Team' } });
+    await writeDb(1).memberships.create({ data: { team_id: idOnShard1, user_id: userId, role: 'manager' } });
+    await db0.user_team_index.create({ data: { user_id: userId, team_id: idOnShard1 } });
+
+    const result = await service.listTeams(userId);
+    expect(result).toHaveLength(2);
+    // Order must match insertion order in user_team_index (DB0 findMany returns in PK insertion order)
+    expect(result[0]?.id).toBe(idOnShard0);
+    expect(result[0]?.role).toBe('staff');
+    expect(result[1]?.id).toBe(idOnShard1);
+    expect(result[1]?.role).toBe('manager');
+
+    // cleanup
+    await db0.user_team_index.deleteMany({ where: { user_id: userId } });
+    await writeDb(0).memberships.deleteMany({ where: { team_id: idOnShard0 } });
+    await writeDb(0).teams.delete({ where: { id: idOnShard0 } });
+    await writeDb(1).memberships.deleteMany({ where: { team_id: idOnShard1 } });
+    await writeDb(1).teams.delete({ where: { id: idOnShard1 } });
+  });
+
+  it('4. removed membership: team absent from result', async () => {
+    const userId = await createVerifiedUser(uniqueEmail('lt-removed'), 'PassList123#');
+    const teamId = randomUUID();
+    const shard = shardFor(teamId);
+    const db0 = globalDb();
+    const shardClient = writeDb(shard);
+
+    await shardClient.teams.create({ data: { id: teamId, name: 'Removed Membership Team' } });
+    await shardClient.memberships.create({
+      data: { team_id: teamId, user_id: userId, role: 'staff', removed_at: new Date() },
+    });
+    await db0.user_team_index.create({ data: { user_id: userId, team_id: teamId } });
+
+    const result = await service.listTeams(userId);
+    expect(result).toHaveLength(0);
+
+    // cleanup
+    await db0.user_team_index.delete({ where: { user_id_team_id: { user_id: userId, team_id: teamId } } });
+    await shardClient.memberships.deleteMany({ where: { team_id: teamId } });
+    await shardClient.teams.delete({ where: { id: teamId } });
+  });
+
+  it('5. soft-deleted team: team absent from result', async () => {
+    const userId = await createVerifiedUser(uniqueEmail('lt-softdel'), 'PassList123#');
+    const teamId = randomUUID();
+    const shard = shardFor(teamId);
+    const db0 = globalDb();
+    const shardClient = writeDb(shard);
+
+    await shardClient.teams.create({
+      data: { id: teamId, name: 'Deleted Team', deleted_at: new Date() },
+    });
+    await shardClient.memberships.create({ data: { team_id: teamId, user_id: userId, role: 'owner' } });
+    await db0.user_team_index.create({ data: { user_id: userId, team_id: teamId } });
+
+    const result = await service.listTeams(userId);
+    expect(result).toHaveLength(0);
+
+    // cleanup
+    await db0.user_team_index.delete({ where: { user_id_team_id: { user_id: userId, team_id: teamId } } });
+    await shardClient.memberships.deleteMany({ where: { team_id: teamId } });
+    await shardClient.teams.delete({ where: { id: teamId } });
+  });
+
+  it('6. creator null: createdBy is null when team.created_by is null', async () => {
+    const userId = await createVerifiedUser(uniqueEmail('lt-nocreator'), 'PassList123#');
+    const teamId = randomUUID();
+    const shard = shardFor(teamId);
+    const db0 = globalDb();
+    const shardClient = writeDb(shard);
+
+    // created_by defaults to NULL (no backfill for test rows)
+    await shardClient.teams.create({ data: { id: teamId, name: 'No Creator Team' } });
+    await shardClient.memberships.create({ data: { team_id: teamId, user_id: userId, role: 'owner' } });
+    await db0.user_team_index.create({ data: { user_id: userId, team_id: teamId } });
+
+    const result = await service.listTeams(userId);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.createdBy).toBeNull();
+
+    // cleanup
+    await db0.user_team_index.delete({ where: { user_id_team_id: { user_id: userId, team_id: teamId } } });
+    await shardClient.memberships.deleteMany({ where: { team_id: teamId } });
+    await shardClient.teams.delete({ where: { id: teamId } });
+  });
+
+  it('7. creator set and user exists in DB0: createdBy has userId and displayName', async () => {
+    const userId = await createVerifiedUser(uniqueEmail('lt-withcreator'), 'PassList123#');
+    const creatorId = await createVerifiedUser(uniqueEmail('lt-creator'), 'PassCreator123#');
+    const teamId = randomUUID();
+    const shard = shardFor(teamId);
+    const db0 = globalDb();
+    const shardClient = writeDb(shard);
+
+    // Set created_by to a real DB0 user (no FK on the shard — it's a uuid column)
+    await shardClient.teams.create({ data: { id: teamId, name: 'Creator Team', created_by: creatorId } });
+    await shardClient.memberships.create({ data: { team_id: teamId, user_id: userId, role: 'owner' } });
+    await db0.user_team_index.create({ data: { user_id: userId, team_id: teamId } });
+
+    const result = await service.listTeams(userId);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.createdBy).not.toBeNull();
+    expect(result[0]?.createdBy?.userId).toBe(creatorId);
+    expect(typeof result[0]?.createdBy?.displayName).toBe('string');
+
+    // cleanup
+    await db0.user_team_index.delete({ where: { user_id_team_id: { user_id: userId, team_id: teamId } } });
+    await shardClient.memberships.deleteMany({ where: { team_id: teamId } });
+    await shardClient.teams.delete({ where: { id: teamId } });
   });
 });
