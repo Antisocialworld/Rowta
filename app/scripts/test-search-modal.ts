@@ -84,6 +84,10 @@ check(routerSrc.includes('<SearchModal />'), 'TeamsRouter mounts <SearchModal />
 // 6. Text-scan: Trigger buttons wire openSearchModal
 // ---------------------------------------------------------------------------------------------
 console.log('\n--- 6. Trigger buttons text-scan ---');
+const teamListSrc = readFileSync(resolve(__dirname, '../src/screens/teams/TeamListScreen.tsx'), 'utf8');
+check(teamListSrc.includes('openSearchModal(searchTriggerRef)'), 'TeamListScreen wires openSearchModal with ref');
+check(teamListSrc.includes('testID="team-open-search"'), 'TeamListScreen keeps testID="team-open-search"');
+
 const membersSrc = readFileSync(resolve(__dirname, '../src/screens/teams/MembersScreen.tsx'), 'utf8');
 check(membersSrc.includes('openSearchModal(searchTriggerRef)'), 'MembersScreen wires openSearchModal with ref');
 check(membersSrc.includes('testID="members-open-search"'), 'MembersScreen keeps testID="members-open-search"');

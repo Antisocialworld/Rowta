@@ -12,9 +12,8 @@ import { t, type MessageKey } from '../../i18n/en';
 import { shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { canRequestNextPage, createPagingGate, mergeActivityPages } from '../../lib/shift-feed';
-import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
-import { useTeam, useTeams } from '../../state/teams';
+import { useTeams } from '../../state/teams';
 import { colors, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 import { ActivityRow } from './ActivityRow';
@@ -25,7 +24,6 @@ export function ActivityScreen() {
   const headingRef = useRef<TextInstance>(null);
   const back = useShiftNav((state) => state.back);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
-  const teamQuery = useTeam(selectedTeamId);
   const query = useInfiniteQuery({
     queryKey: ['shifts', selectedTeamId, 'activity'],
     queryFn: ({ pageParam }) => shiftsApi.listActivity(selectedTeamId as string, pageParam),
@@ -86,9 +84,6 @@ export function ActivityScreen() {
         <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
           {t('teams.view.activity.heading')}
         </Text>
-        {teamQuery.data !== undefined ? (
-          <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
-        ) : null}
         {query.isLoading ? (
           <View style={styles.list}>
             <Skeleton variant="block" />

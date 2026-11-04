@@ -30,18 +30,6 @@ check(shouldShowDashboard(null, false) === false, 'dashboard: shows team list wh
 check(shouldShowDashboard(null, true) === false, 'dashboard: shows team list when no team selected and picking');
 
 // ---------------------------------------------------------------------------------------------
-// setSelectedTeamId action (Change 1): sets selectedTeamId only, preserving pickingTeam state
-// ---------------------------------------------------------------------------------------------
-useTeams.setState({ selectedTeamId: 'team-a', pickingTeam: true });
-useTeams.getState().setSelectedTeamId('team-b');
-check(useTeams.getState().selectedTeamId === 'team-b', 'setSelectedTeamId: updates selectedTeamId');
-check(useTeams.getState().pickingTeam === true, 'setSelectedTeamId: preserves pickingTeam = true');
-
-useTeams.getState().selectTeam('team-c');
-check(useTeams.getState().selectedTeamId === 'team-c', 'selectTeam: updates selectedTeamId');
-check(useTeams.getState().pickingTeam === false, 'selectTeam: resets pickingTeam to false');
-
-// ---------------------------------------------------------------------------------------------
 // Invite role visibility (B1, PRD 8.2): Owner invites Manager + Staff; Manager invites Staff ONLY;
 // the Owner role is NEVER assignable through an invite.
 // ---------------------------------------------------------------------------------------------

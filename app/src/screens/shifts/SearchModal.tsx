@@ -24,9 +24,8 @@ import {
   SEARCH_DEBOUNCE_MS,
 } from '../../lib/search-debounce';
 import { shiftQueryKeys } from '../../lib/shift-cache';
-import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
-import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
+import { useTeamMembers, useTeams } from '../../state/teams';
 import { useSearchModal } from '../../state/search-modal';
 import { spacing } from '../../theme/tokens';
 import { ActivityRow } from './ActivityRow';
@@ -64,7 +63,6 @@ export function SearchModal(props: SearchModalProps) {
   const debouncerRef = useRef(createDebouncedRunner(SEARCH_DEBOUNCE_MS));
   const openShift = useShiftNav((state) => state.open);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
-  const teamQuery = useTeam(selectedTeamId);
   const membersQuery = useTeamMembers(selectedTeamId);
 
   const [query, setQuery] = useState('');
@@ -178,9 +176,6 @@ export function SearchModal(props: SearchModalProps) {
       footer={footer}
     >
       <View style={styles.body}>
-        {teamQuery.data !== undefined ? (
-          <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
-        ) : null}
         <Input
           ref={inputRef}
           label="action.openSearch"
