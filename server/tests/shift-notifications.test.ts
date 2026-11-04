@@ -7,7 +7,6 @@ import {
 } from '../src/notifications/shift-notifications.ts';
 
 const ACTOR = 'actor-user-id';
-const TEAM = 'team-user-id';
 
 describe('decideShiftNotifications', () => {
   describe('create', () => {
