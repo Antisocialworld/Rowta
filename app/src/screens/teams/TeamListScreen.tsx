@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
+import { Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, authApi, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
@@ -18,32 +18,28 @@ import { useAuthFlow } from '../../state/auth-context';
 import { useAuthSession } from '../../state/auth-session';
 import { resolveSelectedTeamId, useDeletedTeams, useTeams, useTeamsList } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
-import { useShiftNav } from '../../state/shift-nav';
 import { useInviteModal } from '../../state/invite-modal';
-import { useSearchModal } from '../../state/search-modal';
+import { AccountMenu } from '../../components/AccountMenu';
 import { spacing } from '../../theme/tokens';
+import { MIN_TOUCH_TARGET } from '../../theme/layout';
 import { InviteResultCard } from './InviteResultCard';
 import { TeamScreenLayout } from './TeamScreenLayout';
 import { DeletedTeamsModal } from './DeletedTeamsModal';
 import { CreateTeamModal } from './CreateTeamModal';
 import { shouldCloseDeletedTeamsModal, shouldShowDeletedTeamsTrigger } from '../../lib/deleted-teams-logic';
 
-const ROLE_LABEL: Record<string, MessageKey> = { owner: 'role.owner', manager: 'role.manager', staff: 'role.staff' };
-const ROLE_TONE: Record<string, 'primary' | 'neutral'> = { owner: 'primary', manager: 'neutral', staff: 'neutral' };
-
 export function TeamListScreen() {
   const headingRef = useRef<TextInstance>(null);
   const queryClient = useQueryClient();
-  const signOut = useAuthSession((state) => state.signOut);
   const openGallery = useAuthSession((state) => state.openGallery);
   const go = useTeamsView((state) => state.go);
-  const openShift = useShiftNav((state) => state.open);
   const openInviteModal = useInviteModal((state) => state.open);
-  const openSearchModal = useSearchModal((state) => state.open);
   const teamsQuery = useTeamsList({ refetchInterval: 15_000, refetchIntervalInBackground: false });
   const message = useTeamsView((state) => state.message);
+  const clearMessage = useTeamsView((state) => state.clearMessage);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const selectTeam = useTeams((state) => state.selectTeam);
+  const setSelectedTeamId = useTeams((state) => state.setSelectedTeamId);
   const pickingTeam = useTeams((state) => state.pickingTeam);
   const setPickingTeam = useTeams((state) => state.setPickingTeam);
   const inviteResult = useTeams((state) => state.inviteResult);
@@ -57,7 +53,6 @@ export function TeamListScreen() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const createTriggerRef = useRef<ViewInstance>(null);
   const inviteTriggerRef = useRef<ViewInstance>(null);
-  const searchTriggerRef = useRef<ViewInstance>(null);
 
   const deletedTeamsQuery = useDeletedTeams();
   const deletedTeams = deletedTeamsQuery.data?.teams;
@@ -110,13 +105,27 @@ export function TeamListScreen() {
     focusOn(headingRef.current);
   }, []);
 
+  useEffect(() => {
+    if (message !== 'teams.toast.deleted') return;
+    const timer = setTimeout(() => {
+      clearMessage();
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [message, clearMessage]);
+
   // The switcher's fallback (B1): preferred team while it is still in the list, else the first team.
   const teams = teamsQuery.data?.teams;
   useEffect(() => {
     if (teams === undefined) return;
     const next = resolveSelectedTeamId(teams, selectedTeamId);
-    if (next !== selectedTeamId) selectTeam(next);
-  }, [teams, selectedTeamId, selectTeam]);
+    if (next !== selectedTeamId) {
+      if (pickingTeam) {
+        setSelectedTeamId(next);
+      } else {
+        selectTeam(next);
+      }
+    }
+  }, [teams, selectedTeamId, selectTeam, pickingTeam, setSelectedTeamId]);
 
   // Live update on invite acceptance (Task 1): when an invite is accepted, refetch the team list at once
   useEffect(() => {
@@ -143,209 +152,188 @@ export function TeamListScreen() {
 
   return (
     <TeamScreenLayout testID="team-list-screen">
+      <View style={styles.topRow}>
+        {pickingTeam && selectedTeamId !== null ? (
+          <Button
+            label="action.back"
+            variant="ghost"
+            fullWidth={false}
+            onPress={() => setPickingTeam(false)}
+            testID="team-list-back"
+          />
+        ) : (
+          <View style={styles.topSpacer} />
+        )}
+        <AccountMenu testID="teams-account-button" />
+      </View>
       <View style={styles.headerBlock}>
         <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-              {t('teams.view.list.heading')}
-            </Text>
-            {userName ? (
-              <Text variant="body-medium" tone="secondary" testID="user-display-name">
-                {t('teams.user.signedInAs', { name: userName })}
-              </Text>
-            ) : null}
-          </View>
-          {message !== undefined ? (
-            <Card variant="flat" testID="teams-list-message">
-              <Text variant="body-medium">
-                {t(message)}
-              </Text>
-            </Card>
-          ) : null}
-          {inviteResult !== null ? (
-            <InviteResultCard
-              result={inviteResult}
-              onDismiss={dismissResult}
-              onRetry={inviteResult.kind === 'retry' ? retryAccept : undefined}
-              retryBusy={retryBusy}
-            />
-          ) : null}
-          {teamsQuery.isLoading ? (
-            <Skeleton variant="text" />
-          ) : teamsQuery.isError ? (
-            <EmptyState
-              kind="error"
-              action={{ label: 'action.retry', onPress: () => void teamsQuery.refetch() }}
-            />
-          ) : teams !== undefined && teams.length === 0 ? (
-            <EmptyState
-              kind="empty"
-              titleKey="teams.empty.title"
-              bodyKey="teams.empty.body"
-              action={{ label: 'action.createTeam', onPress: () => setCreateModalOpen(true) }}
-            />
-          ) : (
-            <View style={styles.list}>
-              {teams?.map((team) => {
-                const selected = team.id === selectedTeamId;
-                return (
-                  <Card key={team.id} variant={selected ? 'raised' : 'flat'} testID={`team-card-${team.id}`}>
-                    <View style={styles.row}>
-                      <View style={styles.teamInfo}>
-                        <View style={styles.rowText}>
-                          <Text variant="title-medium">{team.name}</Text>
-                          <Badge
-                            label={ROLE_LABEL[team.role] ?? 'role.staff'}
-                            tone={ROLE_TONE[team.role] ?? 'neutral'}
-                            testID={`team-badge-${team.id}`}
-                          />
-                        </View>
-                        <Text variant="body-medium" tone="secondary" testID={`team-role-${team.id}`}>
-                          {t(teamRoleKey(team.role))}
-                        </Text>
-                        {team.createdBy ? (
-                          <Text variant="body-small" tone="secondary" testID={`team-creator-${team.id}`}>
-                            {t('teams.createdBy', { name: team.createdBy.displayName })}
-                          </Text>
-                        ) : null}
-                      </View>
-                      {selected ? (
-                        <Text variant="label-medium" tone="primary">
-                          {t('teams.selected')}
-                        </Text>
-                      ) : (
-                        <Button
-                          label="action.switchTeam"
-                          variant="ghost"
-                          fullWidth={false}
-                          onPress={() => selectTeam(team.id)}
-                          testID={`team-select-${team.id}`}
-                        />
-                      )}
+          {t('teams.view.list.heading')}
+        </Text>
+        {userName ? (
+          <Text variant="body-medium" tone="secondary" testID="user-display-name">
+            {t('teams.user.signedInAs', { name: userName })}
+          </Text>
+        ) : null}
+      </View>
+      <Button
+        ref={createTriggerRef}
+        label="action.createTeam"
+        icon="group-add"
+        onPress={() => setCreateModalOpen(true)}
+        testID="team-create-entry"
+      />
+      {teamsQuery.isLoading ? (
+        <Skeleton variant="text" />
+      ) : teamsQuery.isError ? (
+        <EmptyState
+          kind="error"
+          action={{ label: 'action.retry', onPress: () => void teamsQuery.refetch() }}
+        />
+      ) : teams !== undefined && teams.length === 0 ? (
+        <EmptyState
+          kind="empty"
+          titleKey="teams.empty.title"
+          bodyKey="teams.empty.body"
+          action={{ label: 'action.createTeam', onPress: () => setCreateModalOpen(true) }}
+        />
+      ) : (
+        <View style={styles.list}>
+          {teams?.map((team) => {
+            const selected = team.id === selectedTeamId;
+            return (
+              <Card key={team.id} variant={selected ? 'raised' : 'flat'} testID={`team-card-${team.id}`}>
+                <View style={styles.row}>
+                  <View style={styles.teamInfo}>
+                    <View style={styles.rowText}>
+                      <Text variant="title-medium">{team.name}</Text>
                     </View>
-                    {selected ? (
-                      <View style={styles.selectedActions}>
-                        <View style={styles.rowActions}>
-                          <Button
-                            label="action.openShifts"
-                            variant="primary"
-                            icon="calendar-today"
-                            fullWidth={false}
-                            onPress={() => openShift({ name: 'calendar' })}
-                            testID="team-open-shifts"
-                          />
-                          <Button
-                            label="swap.list.title"
-                            variant="secondary"
-                            icon="sync"
-                            fullWidth={false}
-                            onPress={() => openShift({ name: 'swaps' })}
-                            testID="team-open-swaps"
-                          />
-                          <Button
-                            label="action.openActivity"
-                            variant="secondary"
-                            icon="history"
-                            fullWidth={false}
-                            onPress={() => openShift({ name: 'activity' })}
-                            testID="team-open-activity"
-                          />
-                          <Button
-                            ref={searchTriggerRef}
-                            label="action.openSearch"
-                            variant="secondary"
-                            icon="search"
-                            fullWidth={false}
-                            onPress={() => openSearchModal(searchTriggerRef)}
-                            testID="team-open-search"
-                          />
-                        </View>
-                        <View style={styles.rowActions}>
-                          <Button
-                            label="action.manageMembers"
-                            variant="secondary"
-                            fullWidth={false}
-                            onPress={() => go('members')}
-                            testID="team-open-members"
-                          />
-                          {canManageTeamSettings(team.role) ? (
-                            <Button
-                              label="action.teamSettings"
-                              variant="secondary"
-                              icon="settings"
-                              fullWidth={false}
-                              onPress={() => go('teamSettings')}
-                              testID="team-open-settings"
-                            />
-                          ) : null}
-                          {canInviteMembers(team.role) ? (
-                            <Button
-                              ref={inviteTriggerRef}
-                              label="action.invitePeople"
-                              variant="secondary"
-                              fullWidth={false}
-                              onPress={() => openInviteModal('teamList', inviteTriggerRef)}
-                              testID="team-open-invite"
-                            />
-                          ) : null}
-                        </View>
-                      </View>
+                    <Text variant="body-medium" tone="secondary" testID={`team-role-${team.id}`}>
+                      {t(teamRoleKey(team.role))}
+                    </Text>
+                    {team.createdBy ? (
+                      <Text variant="body-small" tone="secondary" testID={`team-creator-${team.id}`}>
+                        {t('teams.createdBy', { name: team.createdBy.displayName })}
+                      </Text>
                     ) : null}
-                  </Card>
-                );
-              })}
-            </View>
-          )}
-          <Button
-            ref={createTriggerRef}
-            label="action.createTeam"
-            icon="group-add"
-            onPress={() => setCreateModalOpen(true)}
-            testID="team-create-entry"
-          />
-          {shouldShowDeletedTeamsTrigger(deletedTeams) ? (
-            <Button
-              ref={deletedTriggerRef}
-              label="teams.deleted.button"
-              labelParams={{ count: deletedTeams?.length ?? 0 }}
-              variant="ghost"
-              onPress={() => setDeletedModalOpen(true)}
-              testID="deleted-teams-trigger"
-            />
-          ) : null}
-          {devToolsVisible(__DEV__) ? (
-            <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
-          ) : null}
-          <Button label="action.signOut" variant="ghost" onPress={() => { void signOut(); }} />
-          {pickingTeam && selectedTeamId !== null ? (
-            <Button
-              label="action.back"
-              variant="ghost"
-              onPress={() => setPickingTeam(false)}
-              testID="team-list-back"
-            />
-          ) : null}
-          {toastMessage !== null ? <LiveRegion>{toastMessage}</LiveRegion> : null}
-          <CreateTeamModal
-            visible={createModalOpen}
-            onClose={() => setCreateModalOpen(false)}
-            returnFocusRef={createTriggerRef}
-          />
-          <DeletedTeamsModal
-            visible={deletedModalOpen}
-            teams={deletedTeams ?? []}
-            isLoading={deletedTeamsQuery.isLoading}
-            isError={deletedTeamsQuery.isError}
-            restoreBusyId={restoreBusyId}
-            onRetry={() => void deletedTeamsQuery.refetch()}
-            onRestore={handleRestore}
-            onClose={handleCloseDeletedModal}
-            returnFocusRef={deletedTriggerRef}
-            testID="deleted-teams-modal"
-          />
+                  </View>
+                  {selected ? (
+                    <Text variant="label-medium" tone="primary">
+                      {t('teams.selected')}
+                    </Text>
+                  ) : (
+                    <Button
+                      label="action.switchTeam"
+                      variant="ghost"
+                      fullWidth={false}
+                      onPress={() => {
+                        if (pickingTeam) {
+                          setSelectedTeamId(team.id);
+                        } else {
+                          selectTeam(team.id);
+                        }
+                      }}
+                      testID={`team-select-${team.id}`}
+                    />
+                  )}
+                </View>
+                {selected ? (
+                  <View style={styles.selectedActions}>
+                    <View style={styles.rowActions}>
+                      <Button
+                        label="action.manageMembers"
+                        variant="secondary"
+                        fullWidth={false}
+                        onPress={() => go('members')}
+                        testID="team-open-members"
+                      />
+                      {canManageTeamSettings(team.role) ? (
+                        <Button
+                          label="action.teamSettings"
+                          variant="secondary"
+                          icon="settings"
+                          fullWidth={false}
+                          onPress={() => go('teamSettings')}
+                          testID="team-open-settings"
+                        />
+                      ) : null}
+                      {canInviteMembers(team.role) ? (
+                        <Button
+                          ref={inviteTriggerRef}
+                          label="action.invitePeople"
+                          variant="secondary"
+                          fullWidth={false}
+                          onPress={() => openInviteModal('teamList', inviteTriggerRef)}
+                          testID="team-open-invite"
+                        />
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
+              </Card>
+            );
+          })}
+        </View>
+      )}
+      {message !== undefined ? (
+        <Card variant="flat" testID="teams-list-message">
+          <Text variant="body-medium">{t(message)}</Text>
+        </Card>
+      ) : null}
+      {inviteResult !== null ? (
+        <InviteResultCard
+          result={inviteResult}
+          onDismiss={dismissResult}
+          onRetry={inviteResult.kind === 'retry' ? retryAccept : undefined}
+          retryBusy={retryBusy}
+        />
+      ) : null}
+      {shouldShowDeletedTeamsTrigger(deletedTeams) ? (
+        <Button
+          ref={deletedTriggerRef}
+          label="teams.deleted.button"
+          labelParams={{ count: deletedTeams?.length ?? 0 }}
+          variant="ghost"
+          fullWidth={false}
+          onPress={() => setDeletedModalOpen(true)}
+          testID="deleted-teams-trigger"
+        />
+      ) : null}
+      {devToolsVisible(__DEV__) ? (
+        <Button label="gallery.title" icon="widgets" variant="secondary" onPress={openGallery} />
+      ) : null}
+      {toastMessage !== null ? <LiveRegion>{toastMessage}</LiveRegion> : null}
+      <CreateTeamModal
+        visible={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        returnFocusRef={createTriggerRef}
+      />
+      <DeletedTeamsModal
+        visible={deletedModalOpen}
+        teams={deletedTeams ?? []}
+        isLoading={deletedTeamsQuery.isLoading}
+        isError={deletedTeamsQuery.isError}
+        restoreBusyId={restoreBusyId}
+        onRetry={() => void deletedTeamsQuery.refetch()}
+        onRestore={handleRestore}
+        onClose={handleCloseDeletedModal}
+        returnFocusRef={deletedTriggerRef}
+        testID="deleted-teams-modal"
+      />
     </TeamScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: MIN_TOUCH_TARGET,
+  },
+  topSpacer: {
+    flex: 1,
+  },
   headerBlock: { gap: Number(spacing.extraSmall) },
   list: { gap: Number(spacing.base) },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Number(spacing.base) },

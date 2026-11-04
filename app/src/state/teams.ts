@@ -46,6 +46,7 @@ export type TeamsState = {
   /** Last outcome of create-team submit attempt (indeterminate keeps key; 4xx/success clears). */
   createKeyLastOutcome: CreateTeamOutcome | null;
   selectTeam: (id: string | null) => void;
+  setSelectedTeamId: (id: string | null) => void;
   setPickingTeam: (picking: boolean) => void;
   setInviteResult: (result: InviteResult | null) => void;
   /** Called whenever the team-name field changes: a changed body must never reuse a key (422). */
@@ -79,6 +80,7 @@ export const useTeams = create<TeamsState>((set, get) => ({
   createKeyName: null,
   createKeyLastOutcome: null,
   selectTeam: (id) => set({ selectedTeamId: id, pickingTeam: false }),
+  setSelectedTeamId: (id) => set({ selectedTeamId: id }),
   setPickingTeam: (picking) => set({ pickingTeam: picking }),
   setInviteResult: (result) => set({ inviteResult: result }),
   clearCreateKey: () =>

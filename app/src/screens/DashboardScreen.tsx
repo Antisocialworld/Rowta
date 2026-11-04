@@ -1,11 +1,11 @@
 // DashboardScreen — Phase 8 Stages A & B (rules U1, U2, U5, U8, X1, X2, X6; PRD 6.1, 8.3, 8.5, 12).
 // Signed-in home view for the active team:
-// 1. Team identity shell (name, role badge, switch team trigger, "Updated HH:MM" freshness).
-// 2. Quick navigation shortcuts (Calendar, Activity).
+// 1. Greeting, team identity, role line, Teams trigger and "Updated HH:MM" freshness.
+// 2. Quick navigation shortcuts (Calendar, Swaps).
 // 3. "Your next shift" card (first upcoming / in-progress shift, loading, empty, error states).
-// 4. "This week" card (shifts in current week + count, loading, empty, error states).
-// 5. "Pending swaps" card (Owner/Manager only; count + up to 3 rows; tap opens swaps list).
-// 6. "Recent activity" card (latest 5 events for everyone).
+// 4. "Your week" card (shifts in current week + count, loading, empty, error states).
+// 5. "Pending swaps" card (Owner/Manager only; shown when count is 1 or more).
+// 6. "Recent activity" card (latest 3 events for everyone).
 // 7. Pull-to-refresh (RefreshControl refetches calendar, swaps, activity; updates freshness).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -15,9 +15,11 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
   type TextInstance,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import type { ShiftView } from '@rowta/shared';
@@ -25,7 +27,9 @@ import { Badge, Button, Card, EmptyState, ShiftCard, Skeleton, Text } from '../c
 import { t, type MessageKey } from '../i18n/en';
 import { authApi, shiftsApi, swapsApi } from '../lib/api';
 import { focusOn } from '../lib/a11y';
+import { greetingKeyForHour } from '../lib/dashboard-greeting';
 import { formatShiftDay, formatShiftTimeRange } from '../lib/shift-time';
+import { teamContextLabel } from '../lib/team-context';
 import {
   canViewPendingSwaps,
   filterThisWeekShifts,
@@ -36,11 +40,19 @@ import {
   pickPendingSwaps,
   pickRecentActivity,
 } from '../lib/dashboard-shifts';
+import { AccountMenu } from '../components/AccountMenu';
 import { useTeams, useTeamsList } from '../state/teams';
 import { useShiftNav } from '../state/shift-nav';
 import { ActivityRow } from './shifts/ActivityRow';
-import { colors, spacing } from '../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../theme/layout';
+import { colors, shape, spacing, state } from '../theme/tokens';
+import {
+  CONTENT_MAX_WIDTH,
+  HAIRLINE,
+  MIN_TOUCH_TARGET,
+  RING,
+  iconSize,
+  isCompactWidth,
+} from '../theme/layout';
 
 const ROLE_LABEL: Record<string, MessageKey> = {
   owner: 'role.owner',
@@ -48,17 +60,14 @@ const ROLE_LABEL: Record<string, MessageKey> = {
   staff: 'role.staff',
 };
 
-const ROLE_TONE: Record<string, 'primary' | 'neutral'> = {
-  owner: 'primary',
-  manager: 'neutral',
-  staff: 'neutral',
-};
-
 export function DashboardScreen() {
   const headingRef = useRef<TextInstance>(null);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const setPickingTeam = useTeams((state) => state.setPickingTeam);
   const openShift = useShiftNav((state) => state.open);
+  const { width } = useWindowDimensions();
+  const compact = isCompactWidth(width);
+  const [swapsFocused, setSwapsFocused] = useState(false);
 
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],
@@ -81,15 +90,15 @@ export function DashboardScreen() {
 
   // 2. Pending swaps query (Owner and Manager only; strictly disabled for Staff)
   const swapsQuery = useQuery({
-    queryKey: ['swaps', selectedTeamId, 'pending'],
+    queryKey: ['swaps', selectedTeamId, 'dashboard-pending'],
     queryFn: () => swapsApi.listSwaps(selectedTeamId as string, { status: 'pending', limit: 20 }),
     enabled: selectedTeamId !== null && isManagerOrOwner,
   });
 
-  // 3. Recent activity query (latest 5 events for everyone)
+  // 3. Recent activity query (latest 3 events for everyone)
   const activityQuery = useQuery({
-    queryKey: ['shifts', selectedTeamId, 'activity', { limit: 5 }],
-    queryFn: () => shiftsApi.listActivity(selectedTeamId as string, undefined, 5),
+    queryKey: ['shifts', selectedTeamId, 'activity', { limit: 3 }],
+    queryFn: () => shiftsApi.listActivity(selectedTeamId as string, undefined, 3),
     enabled: selectedTeamId !== null,
   });
 
@@ -101,7 +110,7 @@ export function DashboardScreen() {
   const currentUserName = meQuery.data?.displayName ?? '';
   const shifts = calendarQuery.data?.shifts ?? [];
 
-  // Derive "Your next shift" and "This week" using pure helpers
+  // Derive "Your next shift" and "Your week" using pure helpers
   const nextShift = useMemo(() => pickNextShift(shifts, currentUserId), [shifts, currentUserId]);
   const thisWeekData = useMemo(
     () => filterThisWeekShifts(shifts, currentUserId, range.weekStart, range.weekEnd),
@@ -113,12 +122,21 @@ export function DashboardScreen() {
     () => pickPendingSwaps(swapsQuery.data?.swaps ?? []),
     [swapsQuery.data?.swaps],
   );
+  const pendingCountKnown = isManagerOrOwner && swapsQuery.isSuccess;
+  const showPendingBadge = pendingCountKnown && pendingSwapsData.count > 0;
+  const pendingBadgeText =
+    pendingSwapsData.count > 9
+      ? t('dashboard.pendingSwaps.badgeCap')
+      : String(pendingSwapsData.count);
 
   // Derive recent activity events
   const recentActivity = useMemo(
-    () => pickRecentActivity(activityQuery.data?.events ?? []),
+    () => pickRecentActivity(activityQuery.data?.events ?? [], 3),
     [activityQuery.data?.events],
   );
+
+  const teamName = selectedTeam?.name ?? t('dashboard.title');
+  const teamLabel = teamContextLabel(teamName);
 
   // Pull-to-refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -164,31 +182,50 @@ export function DashboardScreen() {
           }
         >
           <View style={styles.content}>
-            {/* 1. Header: Team name, role badge, last updated, switch team */}
+            {/* 1. Header: greeting, team identity, role, last updated, Teams trigger */}
             <View style={styles.header}>
-              <View style={styles.titleRow}>
-                <Text ref={headingRef} variant="headline-small" style={styles.teamTitle} numberOfLines={2}>
-                  {selectedTeam?.name ?? t('dashboard.title')}
+              <View style={styles.greetingRow}>
+                <Text
+                  ref={headingRef}
+                  variant="headline-small"
+                  style={styles.greetingTitle}
+                >
+                  {t(greetingKeyForHour(new Date().getHours()))}
                 </Text>
-                <Badge label={ROLE_LABEL[role] ?? 'role.staff'} tone={ROLE_TONE[role] ?? 'neutral'} />
+                <AccountMenu testID="dashboard-account-button" />
               </View>
 
-              <View style={styles.metaRow}>
-                {updatedTime ? (
-                  <Text variant="body-small" tone="secondary">
-                    {t('dashboard.lastUpdated', { time: updatedTime })}
-                  </Text>
-                ) : (
-                  <View />
-                )}
-                <Button
-                  label="dashboard.switchTeam"
-                  variant="ghost"
-                  fullWidth={false}
-                  onPress={() => setPickingTeam(true)}
-                  testID="dashboard-switch-team"
-                />
-              </View>
+              <Card variant="flat" style={styles.identityCard}>
+                <View style={styles.identityRow}>
+                  <View style={styles.identityText}>
+                    <Text
+                      variant="title-medium"
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      style={styles.teamLabel}
+                    >
+                      {teamLabel}
+                    </Text>
+                  </View>
+                  <View style={styles.teamsButton}>
+                    <Button
+                      label="dashboard.switchTeam"
+                      variant="ghost"
+                      fullWidth={false}
+                      onPress={() => setPickingTeam(true)}
+                      testID="dashboard-switch-team"
+                    />
+                  </View>
+                </View>
+                <Text variant="body-medium" tone="secondary">
+                  {t('dashboard.roleLine', { role: t(ROLE_LABEL[role] ?? 'role.staff') })}
+                </Text>
+              </Card>
+              {updatedTime ? (
+                <Text variant="body-small" tone="secondary">
+                  {t('dashboard.lastUpdated', { time: updatedTime })}
+                </Text>
+              ) : null}
             </View>
 
             {/* 2. Quick Navigation Shortcuts */}
@@ -203,100 +240,118 @@ export function DashboardScreen() {
                 />
               </View>
               <View style={styles.actionButton}>
-                <Button
-                  label="dashboard.action.activity"
-                  variant="secondary"
-                  icon="history"
-                  onPress={() => openShift({ name: 'activity' })}
-                  testID="dashboard-open-activity"
-                />
+                <Pressable
+                  onPress={() => openShift({ name: 'swaps' })}
+                  onFocus={() => setSwapsFocused(true)}
+                  onBlur={() => setSwapsFocused(false)}
+                  accessible
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    pendingCountKnown
+                      ? t('dashboard.action.swapsPending', { count: pendingSwapsData.count })
+                      : t('swap.list.title')
+                  }
+                  testID="dashboard-open-swaps"
+                  style={({ pressed }) => [
+                    styles.swapsAction,
+                    {
+                      backgroundColor: colors['color-secondary-container'],
+                      borderColor: swapsFocused
+                        ? colors['color-on-secondary-container']
+                        : colors['color-secondary-container'],
+                      opacity: pressed ? 1 - state.pressed : 1,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="sync"
+                    size={iconSize('label-large')}
+                    color={colors['color-on-secondary-container']}
+                    accessibilityElementsHidden
+                  />
+                  <Text
+                    variant="label-large"
+                    style={[styles.actionLabel, { color: colors['color-on-secondary-container'] }]}
+                  >
+                    {t('swap.list.title')}
+                  </Text>
+                  {showPendingBadge ? (
+                    <View
+                      style={styles.pendingCountBadge}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                    >
+                      <Text variant="label-small" style={{ color: colors['color-on-warning-container'] }}>
+                        {pendingBadgeText}
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
               </View>
             </View>
 
-            {/* 3. Section: Pending Swaps (Owner / Manager only) */}
-            {isManagerOrOwner ? (
+            {/* 3. Section: Pending Swaps (Owner / Manager only; hidden at zero) */}
+            {isManagerOrOwner && pendingSwapsData.count > 0 ? (
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <Text variant="title-medium" style={styles.sectionTitle}>
                     {t('dashboard.pendingSwaps.title')}
                   </Text>
-                  {pendingSwapsData.count > 0 ? (
-                    <Text variant="label-medium" tone="secondary">
-                      {pendingSwapsData.count === 1
-                        ? t('dashboard.pendingSwaps.countSingle')
-                        : t('dashboard.pendingSwaps.count', { count: pendingSwapsData.count })}
-                    </Text>
-                  ) : null}
+                  <Text variant="label-medium" tone="secondary">
+                    {pendingSwapsData.count === 1
+                      ? t('dashboard.pendingSwaps.countSingle')
+                      : t('dashboard.pendingSwaps.count', { count: pendingSwapsData.count })}
+                  </Text>
                 </View>
 
-                {swapsQuery.isLoading ? (
-                  <Skeleton variant="block" style={{ height: 76 }} />
-                ) : swapsQuery.isError ? (
-                  <Card style={styles.cardPadding}>
-                    <Text variant="body-medium" tone="error" style={styles.errorText}>
-                      {t('dashboard.card.error')}
-                    </Text>
-                    <Button
-                      label="dashboard.card.retry"
-                      variant="secondary"
-                      fullWidth={false}
-                      onPress={() => void swapsQuery.refetch()}
-                    />
-                  </Card>
-                ) : pendingSwapsData.count === 0 ? (
-                  <Card style={styles.cardPadding}>
-                    <EmptyState kind="empty" titleKey="dashboard.pendingSwaps.empty" />
-                  </Card>
-                ) : (
-                  <View style={styles.cardList}>
-                    {pendingSwapsData.items.map((swap) => {
-                      const shiftTimeText = (swap.shiftStartsAt && swap.shiftEndsAt)
-                        ? `${formatShiftDay(swap.shiftStartsAt)} ${formatShiftTimeRange(swap.shiftStartsAt, swap.shiftEndsAt)}`
-                        : '';
-                      return (
-                        <Card key={swap.id} variant="flat" testID={`dashboard-pending-swap-${swap.id}`}>
-                          <Pressable
-                            onPress={() => openShift({ name: 'swaps' })}
-                            accessibilityRole="button"
-                            accessibilityLabel={[
-                              swap.shiftLabel ?? t('teams.view.shift.heading'),
-                              t('swap.status.pending'),
-                              shiftTimeText,
-                              `${swap.requesterName ?? t('activity.system')} to ${swap.targetName ?? t('swap.colleague.open')}`,
-                            ]
-                              .filter(Boolean)
-                              .join(', ')}
-                            style={styles.swapPressable}
-                          >
-                            <View style={styles.swapHeaderRow}>
-                              <Text variant="title-small" numberOfLines={1} style={styles.swapTitle}>
-                                {swap.shiftLabel ?? t('teams.view.shift.heading')}
-                              </Text>
-                              <Badge label="swap.status.pending" tone="warning" />
-                            </View>
-                            {shiftTimeText ? (
-                              <Text variant="body-small" tone="secondary">
-                                {shiftTimeText}
-                              </Text>
-                            ) : null}
-                            <Text variant="body-small" tone="secondary">
-                              {swap.requesterName ?? t('activity.system')} &rarr;{' '}
-                              {swap.targetName ?? t('swap.colleague.open')}
+                <View style={styles.cardList}>
+                  {pendingSwapsData.items.map((swap) => {
+                    const shiftTimeText = (swap.shiftStartsAt && swap.shiftEndsAt)
+                      ? `${formatShiftDay(swap.shiftStartsAt)} ${formatShiftTimeRange(swap.shiftStartsAt, swap.shiftEndsAt)}`
+                      : '';
+                    return (
+                      <Card key={swap.id} variant="flat" testID={`dashboard-pending-swap-${swap.id}`}>
+                        <Pressable
+                          onPress={() => openShift({ name: 'swaps' })}
+                          accessibilityRole="button"
+                          accessibilityLabel={[
+                            swap.shiftLabel ?? t('teams.view.shift.heading'),
+                            t('swap.status.pending'),
+                            shiftTimeText,
+                            `${swap.requesterName ?? t('activity.system')} to ${swap.targetName ?? t('swap.colleague.open')}`,
+                          ]
+                            .filter(Boolean)
+                            .join(', ')}
+                          style={styles.swapPressable}
+                        >
+                          <View style={styles.swapHeaderRow}>
+                            <Text variant="title-small" numberOfLines={1} style={styles.swapTitle}>
+                              {swap.shiftLabel ?? t('teams.view.shift.heading')}
                             </Text>
-                          </Pressable>
-                        </Card>
-                      );
-                    })}
-                    {pendingSwapsData.count > 3 ? (
-                      <Button
-                        label="dashboard.pendingSwaps.viewAll"
-                        variant="ghost"
-                        onPress={() => openShift({ name: 'swaps' })}
-                        testID="dashboard-view-all-swaps"
-                      />
-                    ) : null}
-                  </View>
-                )}
+                            <Badge label="swap.status.pending" tone="warning" />
+                          </View>
+                          {shiftTimeText ? (
+                            <Text variant="body-small" tone="secondary">
+                              {shiftTimeText}
+                            </Text>
+                          ) : null}
+                          <Text variant="body-small" tone="secondary">
+                            {swap.requesterName ?? t('activity.system')} &rarr;{' '}
+                            {swap.targetName ?? t('swap.colleague.open')}
+                          </Text>
+                        </Pressable>
+                      </Card>
+                    );
+                  })}
+                  {pendingSwapsData.count > 3 ? (
+                    <Button
+                      label="dashboard.pendingSwaps.viewAll"
+                      variant="ghost"
+                      onPress={() => openShift({ name: 'swaps' })}
+                      testID="dashboard-view-all-swaps"
+                    />
+                  ) : null}
+                </View>
               </View>
             ) : null}
 
@@ -322,7 +377,7 @@ export function DashboardScreen() {
                 </Card>
               ) : nextShift === null ? (
                 <Card style={styles.cardPadding}>
-                  <EmptyState kind="empty" titleKey="dashboard.nextShift.empty" />
+                  <EmptyState kind="empty" titleKey="dashboard.nextShift.empty" hideBody={compact} />
                 </Card>
               ) : (
                 <ShiftCard
@@ -338,7 +393,7 @@ export function DashboardScreen() {
               )}
             </View>
 
-            {/* 5. Section: This Week */}
+            {/* 5. Section: Your Week */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Text variant="title-medium" style={styles.sectionTitle}>
@@ -369,7 +424,7 @@ export function DashboardScreen() {
                 </Card>
               ) : thisWeekData.count === 0 ? (
                 <Card style={styles.cardPadding}>
-                  <EmptyState kind="empty" titleKey="dashboard.thisWeek.empty" />
+                  <EmptyState kind="empty" titleKey="dashboard.thisWeek.empty" hideBody={compact} />
                 </Card>
               ) : (
                 <View style={styles.cardList}>
@@ -414,21 +469,28 @@ export function DashboardScreen() {
                 </Card>
               ) : recentActivity.length === 0 ? (
                 <Card style={styles.cardPadding}>
-                  <EmptyState kind="empty" titleKey="dashboard.activity.empty" bodyKey="activity.empty.body" />
+                  <EmptyState
+                    kind="empty"
+                    titleKey="dashboard.activity.empty"
+                    bodyKey="activity.empty.body"
+                    hideBody={compact}
+                  />
                 </Card>
               ) : (
                 <View style={styles.cardList}>
                   {recentActivity.map((event) => (
                     <ActivityRow key={event.id} event={event} />
                   ))}
-                  <Button
-                    label="dashboard.activity.viewAll"
-                    variant="ghost"
-                    onPress={() => openShift({ name: 'activity' })}
-                    testID="dashboard-view-all-activity"
-                  />
                 </View>
               )}
+              <View style={styles.activityViewAll}>
+                <Button
+                  label="dashboard.activity.viewAll"
+                  variant="ghost"
+                  onPress={() => openShift({ name: 'activity' })}
+                  testID="dashboard-view-all-activity"
+                />
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -459,21 +521,35 @@ const styles = StyleSheet.create({
     marginBottom: spacing.medium,
     gap: spacing.extraSmall,
   },
-  titleRow: {
+  greetingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
+    gap: Number(spacing.base),
+  },
+  greetingTitle: {
+    flexShrink: 1,
+  },
+  identityCard: {
+    borderWidth: HAIRLINE,
+    borderColor: colors['color-outline-variant'],
+  },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.small,
   },
-  teamTitle: {
+  identityText: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
+  teamLabel: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  teamsButton: {
+    flexShrink: 0,
   },
   actionRow: {
     flexDirection: 'row',
@@ -482,6 +558,30 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  swapsAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.small,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.large,
+    paddingVertical: spacing.medium,
+    borderRadius: shape.medium,
+    borderWidth: RING,
+    alignSelf: 'stretch',
+  },
+  actionLabel: {
+    flexShrink: 1,
+  },
+  pendingCountBadge: {
+    minWidth: spacing.large,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.small,
+    paddingVertical: spacing.extraSmall,
+    borderRadius: shape.full,
+    backgroundColor: colors['color-warning-container'],
   },
   section: {
     marginBottom: spacing.large,
@@ -509,6 +609,9 @@ const styles = StyleSheet.create({
   },
   swapTitle: {
     flexShrink: 1,
+  },
+  activityViewAll: {
+    marginTop: spacing.small,
   },
   cardPadding: {
     padding: spacing.medium,
