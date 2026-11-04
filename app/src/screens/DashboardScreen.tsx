@@ -541,6 +541,7 @@ const styles = StyleSheet.create({
   identityCard: {
     borderWidth: HAIRLINE,
     borderColor: colors['color-outline-variant'],
+    backgroundColor: colors['color-primary-container'],
   },
   identityRow: {
     flexDirection: 'row',

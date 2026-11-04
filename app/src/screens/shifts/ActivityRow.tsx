@@ -26,6 +26,14 @@ export function activityLine(event: ActivityEventPayload): string {
 export function ActivityRow({ event, onPress }: { event: ActivityEventPayload; onPress?: () => void }) {
   const [focused, setFocused] = useState(false);
   const label = typeof event.data.label === 'string' ? event.data.label : '';
+  const stripColor =
+    event.kind === 'shift.created'
+      ? colors['color-on-success-container']
+      : event.kind === 'shift.updated'
+      ? colors['color-on-primary-container']
+      : event.kind === 'shift.deleted'
+      ? colors['color-on-error-container']
+      : undefined;
   const startsAt = typeof event.data.startsAt === 'string' ? event.data.startsAt : null;
   const endsAt = typeof event.data.endsAt === 'string' ? event.data.endsAt : null;
   const when =
@@ -45,7 +53,13 @@ export function ActivityRow({ event, onPress }: { event: ActivityEventPayload; o
 
   if (onPress === undefined) {
     return (
-      <Card variant="flat" testID={`activity-${event.id}`}>
+      <Card
+        variant="flat"
+        testID={`activity-${event.id}`}
+        style={
+          stripColor ? [{ borderLeftWidth: 6, borderLeftColor: stripColor }] : undefined
+        }
+      >
         <View style={styles.body} accessible accessibilityLabel={accessibleName}>
           {content}
         </View>
@@ -69,6 +83,7 @@ export function ActivityRow({ event, onPress }: { event: ActivityEventPayload; o
           borderColor: focused ? colors['color-primary'] : colors['color-surface-container'],
           borderWidth: RING,
         },
+        stripColor ? { borderLeftWidth: 6, borderLeftColor: stripColor } : null,
         pressed && { opacity: 1 - state.pressed },
       ]}
     >
