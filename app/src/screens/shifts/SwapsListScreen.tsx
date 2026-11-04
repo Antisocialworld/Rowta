@@ -39,7 +39,7 @@ import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { colors, shape, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH, HAIRLINE } from '../../theme/layout';
 
 const END_KEY: MessageKey = 'swap.end';
 
@@ -238,7 +238,6 @@ export function SwapsListScreen() {
         ) : (
           <LiveRegion style={styles.visuallyHidden}>{END_KEY}</LiveRegion>
         )}
-        <Button label="action.back" variant="ghost" onPress={back} />
       </View>
     );
   };
@@ -424,12 +423,10 @@ export function SwapsListScreen() {
         ) : query.isError ? (
           <View style={styles.emptyContainer}>
             <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void query.refetch() }} />
-            <Button label="action.back" variant="ghost" onPress={back} />
           </View>
         ) : swaps.length === 0 ? (
           <View style={styles.emptyContainer}>
             <EmptyState kind="empty" titleKey="swap.empty.title" bodyKey="swap.empty.body" />
-            <Button label="action.back" variant="ghost" onPress={back} />
           </View>
         ) : (
           <FlatList
@@ -445,6 +442,12 @@ export function SwapsListScreen() {
         )}
 
         {announcement !== null ? <LiveRegion>{announcement}</LiveRegion> : null}
+      </View>
+
+      <View style={styles.footer}>
+        <View style={styles.footerContent}>
+          <Button label="action.back" variant="secondary" onPress={back} />
+        </View>
       </View>
 
       <SwapTargetModal
@@ -544,7 +547,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors['color-primary'],
   },
   list: { flex: 1 },
-  listContent: { gap: Number(spacing.base), paddingBottom: Number(spacing.base) },
+  listContent: { gap: Number(spacing.base), paddingBottom: Number(spacing.veryLarge) },
   card: {
     backgroundColor: colors['color-surface-container-low'],
     borderRadius: Number(shape.medium),
@@ -592,6 +595,19 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     gap: Number(spacing.base),
+  },
+  footer: {
+    paddingHorizontal: Number(spacing.base),
+    paddingTop: Number(spacing.small),
+    paddingBottom: Number(spacing.small),
+    backgroundColor: colors['color-surface'],
+    borderTopWidth: HAIRLINE,
+    borderTopColor: colors['color-outline-variant'],
+  },
+  footerContent: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
   },
   modalFooterRow: {
     flexDirection: 'row',

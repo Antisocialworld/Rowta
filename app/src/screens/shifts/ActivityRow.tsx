@@ -3,12 +3,13 @@
 // catalog. One accessible node per event so TalkBack reads it in a single swipe.
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import type { ActivityEventPayload } from '@rowta/shared';
 import { Card, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
 import { colors, shape, spacing, state } from '../../theme/tokens';
-import { RING } from '../../theme/layout';
+import { RING, iconSize } from '../../theme/layout';
 
 const KIND_LABEL: Record<string, MessageKey> = {
   'shift.created': 'activity.kind.created',
@@ -71,7 +72,16 @@ export function ActivityRow({ event, onPress }: { event: ActivityEventPayload; o
         pressed && { opacity: 1 - state.pressed },
       ]}
     >
-      <View style={styles.body}>{content}</View>
+      <View style={styles.row}>
+        <View style={[styles.body, styles.bodyFlex]}>{content}</View>
+        <MaterialIcons
+          name="chevron-right"
+          size={iconSize('title-medium')}
+          color={colors['color-on-surface-variant']}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      </View>
     </Pressable>
   );
 }
@@ -82,5 +92,11 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     gap: spacing.small,
   },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.small,
+  },
   body: { gap: spacing.extraSmall },
+  bodyFlex: { flex: 1 },
 });

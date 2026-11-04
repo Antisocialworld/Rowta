@@ -52,7 +52,7 @@ export function TeamsRouter() {
   let screen = shouldShowDashboard(selectedTeamId, pickingTeam) ? <DashboardScreen /> : <TeamListScreen />;
   if (shiftRoute !== null) {
     if (shiftRoute.name === 'calendar') screen = <CalendarScreen />;
-    else if (shiftRoute.name === 'detail') screen = <ShiftDetailScreen />;
+    else if (shiftRoute.name === 'detail') screen = <ShiftDetailScreen viewOnly={shiftRoute.viewOnly === true} />;
     else if (shiftRoute.name === 'create') screen = <ShiftCreateEditScreen />;
     else if (shiftRoute.name === 'edit') screen = <ShiftCreateEditScreen />;
     else if (shiftRoute.name === 'activity') screen = <ActivityScreen />;

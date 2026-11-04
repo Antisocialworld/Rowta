@@ -6,7 +6,7 @@ import { create } from 'zustand';
 
 export type ShiftRoute =
   | { name: 'calendar' }
-  | { name: 'detail'; shiftId: string }
+  | { name: 'detail'; shiftId: string; viewOnly?: boolean }
   | { name: 'create' }
   | { name: 'edit'; shiftId: string }
   | { name: 'activity' }

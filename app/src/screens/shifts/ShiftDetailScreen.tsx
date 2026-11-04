@@ -9,7 +9,7 @@ import { Button, ConfirmDialog, EmptyState, LiveRegion, Skeleton, Text } from '.
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, authApi, errorMessageKey, shiftsApi, swapsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
-import { canManageShifts } from '../../lib/shift-access';
+import { canManageShifts, isShiftNotFoundError } from '../../lib/shift-access';
 import { evictDeletedShiftFromQueryClient, invalidateAfterShiftDelete } from '../../lib/shift-cache';
 import { formatShiftCreator } from '../../lib/shift-creator';
 import {
@@ -36,7 +36,7 @@ function createIdempotencyKey(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function ShiftDetailScreen() {
+export function ShiftDetailScreen({ viewOnly = false }: { viewOnly?: boolean }) {
   const headingRef = useRef<TextInstance>(null);
   const queryClient = useQueryClient();
   const open = useShiftNav((state) => state.open);
@@ -93,6 +93,7 @@ export function ShiftDetailScreen() {
   }, [pendingSwapQuery.data]);
 
   const manager = canManageShifts(teamQuery.data?.role);
+  const shiftNotFound = shiftQuery.isError && isShiftNotFoundError(shiftQuery.error);
   const shift = shiftQuery.data;
   const currentUserId = meQuery.data?.userId ?? '';
 
@@ -180,7 +181,11 @@ export function ShiftDetailScreen() {
               <Skeleton variant="block" />
             </View>
           ) : shiftQuery.isError ? (
-            <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void shiftQuery.refetch() }} />
+            shiftNotFound ? (
+              <EmptyState kind="empty" titleKey="shift.notFound" hideBody />
+            ) : (
+              <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void shiftQuery.refetch() }} />
+            )
           ) : shift === undefined ? (
             <EmptyState kind="empty" titleKey="shift.empty.title" bodyKey="shift.empty.body" />
           ) : (
@@ -291,7 +296,7 @@ export function ShiftDetailScreen() {
                 testID="shift-view-all-swaps-btn"
               />
 
-              {manager ? (
+              {manager && !viewOnly ? (
                 <View style={styles.actions}>
                   <Button
                     label="action.edit"

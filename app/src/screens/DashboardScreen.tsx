@@ -485,7 +485,7 @@ export function DashboardScreen() {
                 <View style={styles.cardList}>
                   {recentActivity.map((event) => {
                     const shiftId = activityEventShiftId(event);
-                    const onPress = shiftId === null ? undefined : () => openShift({ name: 'detail', shiftId });
+                    const onPress = shiftId === null ? undefined : () => openShift({ name: 'detail', shiftId, viewOnly: true });
                     const pressProps = onPress !== undefined ? { onPress } : {};
                     return <ActivityRow key={event.id} event={event} {...pressProps} />;
                   })}

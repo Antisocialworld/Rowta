@@ -6,3 +6,8 @@
 export function canManageShifts(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'manager';
 }
+
+/** True only for the server's 404 shift.notFound code; transport and generic errors stay generic. */
+export function isShiftNotFoundError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'shift.notFound';
+}

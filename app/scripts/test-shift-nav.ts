@@ -37,6 +37,18 @@ const state2 = shiftNavReducer(state1, { type: 'open', route: detailRoute });
 expect('open second route sets route', state2.route, detailRoute);
 expect('open second route pushes calendar to stack', state2.stack, [calendarRoute]);
 
+// 3b. Activity-opened detail is view-only and Back returns to the activity feed
+const activityRoute: ShiftRoute = { name: 'activity' };
+const viewOnlyDetailRoute: ShiftRoute = { name: 'detail', shiftId: 'shift-456', viewOnly: true };
+const activityState = shiftNavReducer(initialShiftNavState, { type: 'open', route: activityRoute });
+const viewOnlyState = shiftNavReducer(activityState, { type: 'open', route: viewOnlyDetailRoute });
+expect('view-only detail keeps the flag', viewOnlyState.route, viewOnlyDetailRoute);
+const backToActivity = shiftNavReducer(viewOnlyState, { type: 'back' });
+expect('back from view-only detail returns to activity', backToActivity.route, activityRoute);
+const plainDetailState = shiftNavReducer(activityState, { type: 'open', route: detailRoute });
+expect('plain detail has no viewOnly flag', plainDetailState.route, detailRoute);
+expect('reset clears a view-only detail route', shiftNavReducer(viewOnlyState, { type: 'reset' }), initialShiftNavState);
+
 // 4. Open third route
 const editRoute: ShiftRoute = { name: 'edit', shiftId: 'shift-123' };
 const state3 = shiftNavReducer(state2, { type: 'open', route: editRoute });

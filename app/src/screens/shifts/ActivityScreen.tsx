@@ -21,7 +21,7 @@ import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeams } from '../../state/teams';
 import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH, HAIRLINE } from '../../theme/layout';
 import { ActivityRow } from './ActivityRow';
 
 const END_KEY: MessageKey = 'activity.end';
@@ -71,7 +71,6 @@ export function ActivityScreen() {
         ) : (
           <LiveRegion style={styles.visuallyHidden}>{END_KEY}</LiveRegion>
         )}
-        <Button label="action.back" variant="ghost" onPress={back} />
       </View>
     );
   };
@@ -80,7 +79,12 @@ export function ActivityScreen() {
     return (
       <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
         <View style={styles.container}>
-          <EmptyState kind="error" action={{ label: 'action.back', onPress: back }} />
+          <EmptyState kind="error" />
+        </View>
+        <View style={styles.footer}>
+          <View style={styles.footerContent}>
+            <Button label="action.back" variant="secondary" onPress={back} />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -103,12 +107,10 @@ export function ActivityScreen() {
         ) : query.isError ? (
           <View style={styles.emptyContainer}>
             <EmptyState kind="error" action={{ label: 'action.retry', onPress: () => void query.refetch() }} />
-            <Button label="action.back" variant="ghost" onPress={back} />
           </View>
         ) : events.length === 0 ? (
           <View style={styles.emptyContainer}>
             <EmptyState kind="empty" titleKey="activity.empty.title" bodyKey="activity.empty.body" />
-            <Button label="action.back" variant="ghost" onPress={back} />
           </View>
         ) : (
           <FlatList
@@ -118,7 +120,7 @@ export function ActivityScreen() {
             keyExtractor={(event) => event.id}
             renderItem={({ item }) => {
               const shiftId = activityEventShiftId(item);
-              const onPress = shiftId === null ? undefined : () => open({ name: 'detail', shiftId });
+              const onPress = shiftId === null ? undefined : () => open({ name: 'detail', shiftId, viewOnly: true });
               const pressProps = onPress !== undefined ? { onPress } : {};
               return <ActivityRow event={item} {...pressProps} />;
             }}
@@ -128,6 +130,11 @@ export function ActivityScreen() {
           />
         )}
       </View>
+      <View style={styles.footer}>
+        <View style={styles.footerContent}>
+          <Button label="action.back" variant="secondary" onPress={back} />
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -136,9 +143,22 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors['color-surface'] },
   container: { flex: 1, width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center', padding: Number(spacing.base), gap: Number(spacing.base) },
   list: { flex: 1 },
-  listContent: { gap: Number(spacing.base), paddingBottom: Number(spacing.base) },
+  listContent: { gap: Number(spacing.base), paddingBottom: Number(spacing.veryLarge) },
   footerContainer: { gap: Number(spacing.base), marginTop: Number(spacing.base) },
   emptyContainer: { gap: Number(spacing.base) },
+  footer: {
+    paddingHorizontal: Number(spacing.base),
+    paddingTop: Number(spacing.small),
+    paddingBottom: Number(spacing.small),
+    backgroundColor: colors['color-surface'],
+    borderTopWidth: HAIRLINE,
+    borderTopColor: colors['color-outline-variant'],
+  },
+  footerContent: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+  },
   visuallyHidden: {
     position: 'absolute',
     width: 1,
