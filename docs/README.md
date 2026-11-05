@@ -3,7 +3,6 @@
 | Document | Purpose | Written in | State |
 |---|---|---|---|
 | [SETUP.md](SETUP.md) | owner setup: `.env`, secrets, databases, local test targets (§4c), running locally, pre-report checks | scaffold; extended Phase 0, Phase 3 and the 28 Oct overnight run | written (checked against the scripts in this session) |
-| [BUILD-PROGRESS.md](BUILD-PROGRESS.md) | real state of every phase, session log, known problems, not-verified list | every phase | current through Phase 5 (Phase 5 built; server & pure-logic proven by owner test runs 28 Oct 2026; app screens pending review) |
 | [AGENT-PROMPT.md](AGENT-PROMPT.md) | the full-build prompt to paste into the coding agent | scaffold | written |
 | [AGENT-SETUP.md](AGENT-SETUP.md) | rules, skills, activation modes and how to check them | scaffold | written |
 | [SECURITY.md](SECURITY.md) | secret handling, public values, 8 threats, dev-only code (component gallery gate added 28 Oct) | every phase | current through Phase 3 |

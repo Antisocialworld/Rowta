@@ -9,7 +9,6 @@ Roles: the brief's Owner is shown in the app as Admin (stored as `owner`, one pe
 This page is the map. It says what exists, how to run it, how to test it, and — just as important — what is
 proven and what is not. Every phase claim below comes from the gate file named beside it, not from a plan.
 
-- Repository state and the next task: [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md)
 - The specification (what to build, data model, phases): `docs/` is the only documentation folder
 - Database reference (generated from the real database): [docs/DATABASE.md](docs/DATABASE.md)
 - Security notes: [docs/SECURITY.md](docs/SECURITY.md)
