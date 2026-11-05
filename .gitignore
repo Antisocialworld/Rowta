@@ -92,3 +92,8 @@ docs/TAX-NOTES.md
 
 backup-*.sql
 *-out.txt
+
+app/scripts/test-*.ts
+app/scripts/generate-feed-evidence.ts
+docs/gates/evidence-*.txt
+server/tests/
