@@ -149,7 +149,7 @@ export function renderTokensTs(tokens) {
     '// DO NOT EDIT BY HAND. Values are COPIED from the CSS: only var() references are resolved,',
     '// rem spacing is converted to px numbers (16px root) and px strings inside type styles become numbers.',
     '// Colours are 8-digit #rrggbbaa (alpha last; React Native accepts alpha last). Light theme only (Q9 open).',
-    '/* eslint-disable */',
+    // No /* eslint-disable */ here: the output is linted like any other file and must stay clean.
     '',
   ].join('\n');
   return header

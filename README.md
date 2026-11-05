@@ -2,9 +2,14 @@
 
 Shift scheduling for small teams: owners publish shifts, staff swap them, everyone is notified, and the business pays per seat.
 
+Roles: the brief's Owner is shown in the app as Admin (stored as `owner`, one per team); Manager and Staff are unchanged. See docs/decisions/0019-role-label-admin.md.
+
+## Logo
+The Rowta logo was designed by the owner. The concept (a closed book with R O W over T A in cells) was drawn by hand on paper by the owner. The final SVG files were generated from those sketches with AI assistance following the owner's direction, and refined over many rounds of the owner's feedback. The owner approved every proportion, colour and size rule. Source files are in brand-source/.
+
 Repository: https://github.com/Antisocialworld/Rowta (the owner commits and pushes; the build agent never does).
 
-> **Status: not built yet.** The repository holds the specification, the rules and the empty project structure. See [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md) for the real state. Nothing below is claimed as working until its phase gate has evidence in `docs/gates/`.
+> **Status: in progress.** Phases 0–3 and 11 are gated with evidence. Phase 4 built; server proven; app screens not yet verified (see docs/gates/phase-4.md). Phase 5 built; server proven (34 files / 298 tests); app screens pending review (see docs/gates/phase-5.md). Steps that need a real Android device or a human screen-reader pass are marked NOT PROVEN in their gate files. See [DOCUMENTATION.md](DOCUMENTATION.md) for the map. Nothing below is claimed as working until its phase gate has evidence in `docs/gates/`.
 
 | | |
 |---|---|
@@ -48,7 +53,7 @@ shared/                  Zod schemas used by BOTH app and server
 web/                     public web surface (src/, public/brand/)
 docs/                    all documentation (decisions/, gates/, a11y/, ui-matrix/)
 load-tests/              k6 scripts and the written report
-scripts/                 setup-env.mjs (environment helper); build-app-tokens.mjs is added in Phase 1
+scripts/                 setup-env.mjs (environment helper), test-database and DB-inspection scripts
 design-system/           the owner's design system (convertTokens.js, token JSON, material3 additions, verifyTokens.js, design-variables.css); colours are never changed
 docs/AGENT-PROMPT.md     the full-build prompt for the coding agent
 .env.example             every environment variable NAME, no secrets (committed)
@@ -66,7 +71,7 @@ node scripts/setup-env.mjs          # creates .env and generates the LOCAL secre
 node scripts/setup-env.mjs --check  # shows what is still empty
 ```
 
-The commands to start the databases, the server, the worker and the app are added in `docs/SETUP.md` once Phase 0 exists. The full owner setup guide is [docs/SETUP.md](docs/SETUP.md).
+The commands to start the databases, the server, the worker and the app are in the owner setup guide, [docs/SETUP.md](docs/SETUP.md). The short version and the per-phase status are in [DOCUMENTATION.md](DOCUMENTATION.md).
 
 ## Environment variables
 
@@ -111,7 +116,7 @@ Full text and rule IDs: the files in [.agents/rules/](.agents/rules/). How they 
 
 ## Documentation
 
-Index and status: [docs/README.md](docs/README.md). Start with [docs/SETUP.md](docs/SETUP.md) (owner setup) and [docs/BUILD-PROGRESS.md](docs/BUILD-PROGRESS.md) (real state).
+Index and status: [docs/README.md](docs/README.md). Start with [docs/SETUP.md](docs/SETUP.md) (owner setup).
 
 ## App-store billing note
 

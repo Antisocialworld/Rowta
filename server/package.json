@@ -5,17 +5,45 @@
   "type": "module",
   "description": "Rowta API, worker and cron. Prisma here is the query client only: the schema of record is server/prisma/sql/*.sql (PRD 7, 9.1).",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "worker": "tsx src/worker/index.ts",
+    "worker:dev": "tsx watch src/worker/index.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
     "db:pull:db0": "node ../scripts/prisma-pull.mjs db0",
     "db:pull:db1": "node ../scripts/prisma-pull.mjs db1",
     "db:pull": "node ../scripts/prisma-pull.mjs",
     "generate": "prisma generate --config prisma/db0/prisma.config.ts && prisma generate --config prisma/db1/prisma.config.ts"
   },
   "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@node-rs/argon2": "2.2.2",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
-    "pg": "8.23.1"
+    "bullmq": "6.3.17",
+    "hono": "4.13.13",
+    "ioredis": "6.0.0",
+    "jose": "6.2.12",
+    "node-cron": "4.6.0",
+    "nodemailer": "10.1.7",
+    "pg": "8.23.1",
+    "pino": "10.4.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "prisma": "7.10.1"
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.5",
+    "@types/nodemailer": "8.0.2",
+    "eslint": "10.13.0",
+    "pino-pretty": "13.2.0",
+    "prisma": "7.10.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "5.0.5"
   }
 }

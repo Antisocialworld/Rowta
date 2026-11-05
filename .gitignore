@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# server test-target example (fake values only); server/.env.test itself stays ignored
+!.env.test.example
 # owner's one-shot name-fix script (contains .env handling; never committed)
 fix-env-name.mjs
 *.pem
@@ -47,6 +49,10 @@ docker-data/
 k6-results/
 load-tests/.local/
 load-tests/results/*.json
+# the agent's overnight run notes (local only, never committed)
+OVERNIGHT-REPORT.md
+OVERNIGHT-REPORT-2.md
+OVERNIGHT-REPORT-3.md
 
 # ---- Prisma: generated clients only (regenerate with `npm run generate --workspace @rowta/server`) ----
 # The schema of record is server/prisma/sql/*.sql; prisma/schema.prisma is pulled from the live database.
@@ -55,4 +61,39 @@ server/prisma/generated/
 # ---- Keep the lockfile (rule S12) ----
 !package-lock.json
 rowta-old-backup/
+backups/
 rowta-scaffold*
+
+# ---- Agent context and non-functional notes ----
+# These are planning/context only. Nothing in /app /server /shared /web /scripts reads them
+# (verified by grep across all code files: the only references are code COMMENTS citing them).
+# README.md, LICENSE, docs/SECURITY.md and every docs/legal/*.md are deliberately NOT listed here —
+# docs/legal/*.md are read at build/test time by web/build.mjs, web/src/pages.mjs,
+# web/src/landing.mjs and web/tests/test-content-safety.mjs.
+# NOTE: .gitignore has no effect on files that are ALREADY TRACKED. The owner must run
+# `git rm --cached <path>` for each entry below to actually stop tracking it.
+#
+# Agent context folders (no other agent-tool folder exists today: no .claude, .cursor,
+# .windsurf, .gemini, .antigravity, .github/copilot-instructions, docs-for-agents).
+.agents/
+# Top-level agent context file (owner decision, 22 Oct 2026 — supersedes the 21 Oct decision to
+# keep it tracked).
+AGENTS.md
+#
+# Agent-facing markdown in /docs (explicit paths; no blanket *.md, no negations).
+docs/AGENT-PROMPT.md
+docs/AGENT-SETUP.md
+docs/BUILD-PROGRESS.md
+docs/LEARNING-LOG.md
+docs/TAX-NOTES.md
+# Deliberately kept tracked (owner decision, 21 Oct 2026): docs/gates/*, docs/decisions/*,
+# docs/a11y/*, docs/stores/*, docs/BRANDING.md, docs/DATABASE.md, docs/DEPLOY.md, docs/SETUP.md,
+# README.md, LICENSE, docs/SECURITY.md, docs/legal/*.
+
+backup-*.sql
+*-out.txt
+
+app/scripts/test-*.ts
+app/scripts/generate-feed-evidence.ts
+docs/gates/evidence-*.txt
+server/tests/

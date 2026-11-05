@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Rowta",
+    "slug": "rowta",
+    "scheme": "rowta",
+    "platforms": [
+      "android",
+      "web"
+    ],
+    "icon": "./assets/app-icon-1024.png",
+    "android": {
+      "package": "app.rowta",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon-foreground.png",
+        "backgroundColor": "#292da3"
+      }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "backgroundColor": "#292da3"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png"
+        }
+      ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1b563d28-b3d3-49fe-85f9-8abab9f9735c"
+      }
+    },
+    "owner": "antisocialworld"
+  }
+}

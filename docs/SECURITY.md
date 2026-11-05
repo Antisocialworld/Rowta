@@ -23,20 +23,66 @@ State: skeleton. Each section is filled with evidence as its phase is completed.
 | Item | Guard | Status |
 |---|---|---|
 | Payment simulator (`PAYMENT_SIMULATOR_ENABLED`) | startup check | not built |
+| Component gallery (`app/src/screens/GalleryScreen.tsx`) | rendered only when `devToolsVisible(__DEV__)` (pure helper `app/src/lib/dev-tools.ts`); React Native sets `__DEV__` false in release builds. Both render sites gate on it (the team-list button and `Root.tsx`), and Root falls through to the signed-in router as a second gate so a stray `gallery` screen state can never expose it (defence in depth) | **ACTIVE** (2026-10-28): owner decision 28 Oct 2026; proven by `npm exec --workspace @rowta/app -- tsx scripts/test-dev-tools.ts` (2/2), app typecheck + lint gates; evidence `docs/gates/evidence-dev-tools.txt` |
+| Phase 1 session stub (`app/src/state/session.ts`) | was: throws at import when `__DEV__ === false` (React Native release builds set it false — the app-side equivalent of this rule's `NODE_ENV=production`); proven by `npm exec --workspace @rowta/app -- tsx scripts/test-session-guard.ts` (2/2 at the Phase 2 gate) | **REMOVED** (2026-10-21): the real session store (`app/src/state/auth-session.ts` — expo-secure-store tokens, single-flight refresh, server decides — S5) replaced it and nothing imported the stub any more (`git grep` showed only its own test and docs). No release-build guard is needed for it any more because no stub exists — the P7 obligation ends with the dev-only code it guarded; the payment simulator row above keeps P7 live for the app. Evidence: `docs/gates/phase-2.md` §9c (removal note), `docs/BUILD-PROGRESS.md` session log. |
 
 ## 4. The 8 threats
 
 | # | Threat | How it is handled | Evidence |
 |---|---|---|---|
-| 1 | Stolen access token | | pending |
-| 2 | Stolen or replayed refresh token | | pending |
-| 3 | Cross-team data access (IDOR) | | pending |
-| 4 | Staff calling Manager or Owner endpoints | | pending |
-| 5 | Forged or replayed payment webhook | | pending |
-| 6 | Duplicate charge from a retried request | | pending |
-| 7 | Brute force and account enumeration | | pending |
-| 8 | Secrets extracted from the app bundle | | pending |
+| 1 | Stolen access token | HS512 access token, 5 minutes (`ACCESS_TOKEN_TTL_SECONDS = 300`; owner decision 25 Oct 2026), verified on every authenticated route; no revocation list — the 5-minute window is the blast radius, and killing a session early is done by revoking the refresh family (threat 2), which the attacker's access token cannot outlive by more than its remaining minutes. Forged, expired, `alg:none`, tampered, garbage, wrong-scheme and missing tokens all get the SAME generic 401 body. | `server/tests/auth-flows.test.ts` "access tokens (A4)" — seven forged/broken variants byte-identical after requestId blanking; `auth-security.test.ts` (token TTL and PHC row checks) |
+| 2 | Stolen or replayed refresh token | Rotating one-time `selector.verifier` (Argon2id verifier, 30-day TTL). A guarded `UPDATE … used_at IS NULL` performs the rotation; a replay revokes the WHOLE family and forces a re-login (ADR 0007). `logout` revokes the presented family; `logout-all` revokes every token and deletes every device row. Only the hash is stored. | `server/tests/auth-sessions.test.ts` — rotate once, replay → 401 and the new child is dead too; cross-user logout revokes nothing; logout idempotent `{"data":{}}`; `auth-security.test.ts` (verifier is PHC, never the plaintext) |
+| 3 | Cross-team data access (IDOR) | | pending (Phase 3) |
+| 4 | Staff calling Manager or Owner endpoints | | pending (Phase 3) |
+| 5 | Forged or replayed payment webhook | | pending (Phase 7) |
+| 6 | Duplicate charge from a retried request | | pending (Phase 7) |
+| 7 | Brute force and account enumeration | Redis-backed limits on every auth route (per-IP, per-email and per-IP+email budgets; skill `rowta-rate-limiting-recipes`), a 5-attempt code cap that blocks even the CORRECT code afterwards, a 60-second resend cooldown that never restarts, and uniform byte-identical responses for known vs unknown addresses on sign-up, sign-in, forgot and magic request (A5/A6/A7/A9). Sign-in failure is always "Invalid email or password." Unknown emails still pay one real Argon2id (timing, §5). Fail-closed (generic 503) when Redis is down on sensitive routes; fail-open only on the low-risk logout limit. | `server/tests/auth-limits-validation.test.ts` — registry walk (13 routes, every route has limits), exactly 30 → 429 with Retry-After, shared counter across two app instances, X-Forwarded-For ignored without a trusted proxy, C/O fail modes; `auth-flows.test.ts` — byte-identical sign-in failures, attempts cap; `auth-reset-magic.test.ts` — forgot/magic uniformity |
+| 8 | Secrets extracted from the app bundle | | pending (app packaging) |
 
 ## 5. Timing measurement (rule A7)
 
-Pending Phase 2.
+Measured on this machine (Windows, Docker PostgreSQL/Redis/Mailpit, in-process against the real
+service functions). The pair that matters on every dummy-verify route is the two FAILURE paths:
+**unknown email** (lookup misses, one Argon2id verify against the process dummy hash) vs **known row
++ wrong secret** (lookup hits, the attempts guard runs, one Argon2id verify against the stored hash).
+Method: 60 runs per side, the two sides ALTERNATED in one loop, the first 5 runs of each side
+discarded (n=55 measured per side, ≥ 50 required), medians printed, and the max/min ratio asserted
+**≤ 1.25** with a ≥ 5 ms floor asserted on BOTH paths (without a real Argon2id verify a path would
+finish in ~1–3 ms — a lone database lookup). The correct-secret sign-in is measured separately
+because it does strictly more (refresh-verifier hash, row writes, HS512 JWT) and is not the path an
+attacker's probe exercises.
+
+Final numbers (`npx vitest run tests/auth-security.test.ts --silent=false` from `server/`; after the
+ADR 0010 escalation run of 20 Oct 2026):
+
+```
+[A7 sign-in unknown-vs-wrong] A(unknown) 38.1ms vs B(wrong) 38.8ms, ratio 1.02 (n=55 each after discarding 5, alternating)
+[A7 sign-in correct-password] median 84.6ms (n=55; longer by design: issues refresh verifier + JWT)
+[A7 verify-code unknown-vs-wrong] A(unknown) 49.3ms vs B(wrong) 48.5ms, ratio 1.02 (n=55 each after discarding 5, alternating)
+[A7 reset-code unknown-vs-wrong] A(unknown) 48.3ms vs B(wrong) 52.2ms, ratio 1.08 (n=55 each after discarding 5, alternating)
+```
+
+History of this measurement (honest record): the Phase 2 version compared unknown vs known+CORRECT
+(49.4 ms vs 124.5 ms, n=50) — the wrong pair, because the correct path's extra token-issuance work
+is not what an attacker pays. The first rework to failure-path pairs measured verify-code at ratio
+1.27 and reset-code at 1.36: the known path runs the A9 attempts-guard conditional UPDATE (one or
+two extra database round-trips ≈ 14–16 ms) that the unknown path had no row to run. ADR 0010 first
+mirrored that guard on the unknown branches against a random id — zero rows matched, no write —
+which brought all three pairs inside the band at gate time (1.17/1.17). Later the same day the band
+was crossed from inside: a decomposition showed the zero-row mirror equalised the round-trip but not
+the matched write (~11–14 ms vs ~3.5 ms; reset-code also pays an extra findFirst ≈ 3.5 ms), and the
+Argon2id baseline had shrunk from ~52 ms to ~40 ms, growing the same gap to a ~1.24 ratio — full
+suite runs then failed reset-code at 1.28–1.35. The owner's pre-authorized escalation ran ("escalate
+to seeded decoy-row writes only if still >1.25, never weaken silently"): the unknown branches now
+run their guard against SEEDED decoy rows — one per guard table plus the foreign-key user in
+`server/src/auth/timing-decoy.ts` — paying the identical write cost. The decoy rows hold no personal
+data, their emails carry no `@` (rejected by the shared `emailField`, asserted in the suite), the
+attempts counter cycles 0–4 inside the same statement, and the random-id mirror remains the fallback
+for when the seed cannot run (no `countries` row ⇒ no real `users`/`pending_signups` row can exist
+either ⇒ no known path exists to compare against).
+
+The ≥ 5 ms floor assertion fails the suite if a dummy verify is ever removed; the ≤ 1.25 ratio
+assertion fails it if either path's cost drifts apart. Residual risks are recorded in ADR 0010
+(network/scheduler jitter inside the band, rate limits as the second line of defence; reset-code's
+1.08 residual is the known path's findFirst — a fixed ~3.5 ms, far inside the band). Re-run the
+numbers any time with `npx vitest run tests/auth-security.test.ts --silent=false` (from `server/`).
