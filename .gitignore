@@ -97,3 +97,10 @@ app/scripts/test-*.ts
 app/scripts/generate-feed-evidence.ts
 docs/gates/evidence-*.txt
 server/tests/
+
+web/tests/
+scripts/test-app-tokens.mjs
+scripts/test-ui-tokens-gate.mjs
+server/scripts/test-isolation-check.ts
+docs/lighthouse-web-*.json
+docs/ui-matrix/*.png
