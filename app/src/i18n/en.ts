@@ -229,6 +229,8 @@ export const en = {
   'teams.deleted.button': 'Deleted teams ({count})',
   'teams.deleted.description': 'You can restore a team within 30 days of deletion.',
   'teams.deleted.empty': 'No deleted teams to restore.',
+  'field.deletedTeamsSearch': 'Search deleted teams',
+  'teams.deleted.search.empty': 'No matching deleted teams',
   'teams.deletedAt': 'Deleted {date}',
   'teams.daysLeftToRestore': '{count} days left to restore',
   'teams.restore.action': 'Restore',

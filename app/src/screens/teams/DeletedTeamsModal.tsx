@@ -1,9 +1,13 @@
 // DeletedTeamsModal — modal sheet listing soft-deleted teams eligible for 30-day restore (rules U1, U7, X1, X3, X4, X6, X14; ADR 0018, ADR 0021).
 // Built on SheetModal: inherits centering padding, maxHeight 85%, ScrollView with flexShrink: 1, and pinned footer.
 import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { EmptyState } from '../../components/EmptyState';
+import { Input } from '../../components/Input';
+import { PinnedFooter } from '../../components/PinnedFooter';
+import { PinnedHeader } from '../../components/PinnedHeader';
 import { Skeleton } from '../../components/Skeleton';
 import { Text } from '../../components/Text';
 import { SheetModal } from '../../components/SheetModal';
@@ -11,6 +15,7 @@ import { t } from '../../i18n/en';
 import { formatDisplayDate } from '../../lib/shift-time';
 import { calculateDaysLeftToRestore } from '../../state/teams';
 import { deletedTeamsViewState } from '../../lib/deleted-teams-logic';
+import { filterDeletedTeamsByName } from './deleted-teams-filter';
 import type { DeletedTeamItem } from '../../lib/api';
 import { spacing } from '../../theme/tokens';
 
@@ -44,15 +49,13 @@ export function DeletedTeamsModal({
     isError,
     count: teams.length,
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredTeams = filterDeletedTeamsByName(teams, searchQuery);
 
   const footer = (
-    <Button
-      label="action.close"
-      variant="ghost"
-      fullWidth={false}
-      onPress={onClose}
-      testID={`${testID}-close`}
-    />
+    <View style={styles.footerWrapper}>
+      <PinnedFooter label="action.close" onPress={onClose} variant="ghost" testID={`${testID}-close`} />
+    </View>
   );
 
   return (
@@ -65,6 +68,16 @@ export function DeletedTeamsModal({
       testID={testID}
       cardTestID="deleted-teams-section"
       headingTestID="deleted-teams-heading"
+      header={
+        <PinnedHeader>
+          <Input
+            label="field.deletedTeamsSearch"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            testID="deleted-teams-search"
+          />
+        </PinnedHeader>
+      }
       footer={footer}
     >
       {viewState === 'loading' ? (
@@ -88,42 +101,50 @@ export function DeletedTeamsModal({
           />
         </View>
       ) : (
-        <View style={styles.list}>
-          {teams.map((dTeam) => {
-            const daysLeft = calculateDaysLeftToRestore(dTeam.restoreUntil);
-            const dateFormatted = formatDisplayDate(dTeam.deletedAt);
-            const isBusy = restoreBusyId === dTeam.id;
-            return (
-              <Card
-                key={dTeam.id}
-                variant="flat"
-                testID={`deleted-team-card-${dTeam.id}`}
-              >
-                <View style={styles.teamRow}>
-                  <View style={styles.teamInfo}>
-                    <Text variant="title-medium" style={styles.teamName}>
-                      {dTeam.name}
-                    </Text>
-                    <Text variant="body-small" tone="secondary">
-                      {t('teams.deletedAt', { date: dateFormatted })}
-                    </Text>
-                    <Text variant="body-small" tone="secondary">
-                      {t('teams.daysLeftToRestore', { count: daysLeft })}
-                    </Text>
-                  </View>
-                  <Button
-                    label="teams.restore.action"
-                    variant="secondary"
-                    fullWidth={false}
-                    busy={isBusy}
-                    onPress={() => void onRestore(dTeam.id)}
-                    testID={`team-restore-${dTeam.id}`}
-                  />
-                </View>
-              </Card>
-            );
-          })}
-        </View>
+        <>
+          {filteredTeams.length === 0 ? (
+            <View style={styles.statusContainer}>
+              <EmptyState kind="empty" titleKey="teams.deleted.search.empty" bodyKey="teams.deleted.empty" />
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {filteredTeams.map((dTeam) => {
+                  const daysLeft = calculateDaysLeftToRestore(dTeam.restoreUntil);
+                  const dateFormatted = formatDisplayDate(dTeam.deletedAt);
+                  const isBusy = restoreBusyId === dTeam.id;
+                  return (
+                    <Card
+                      key={dTeam.id}
+                      variant="flat"
+                      testID={`deleted-team-card-${dTeam.id}`}
+                    >
+                      <View style={styles.teamRow}>
+                        <View style={styles.teamInfo}>
+                          <Text variant="title-medium" style={styles.teamName}>
+                            {dTeam.name}
+                          </Text>
+                          <Text variant="body-small" tone="secondary">
+                            {t('teams.deletedAt', { date: dateFormatted })}
+                          </Text>
+                          <Text variant="body-small" tone="secondary">
+                            {t('teams.daysLeftToRestore', { count: daysLeft })}
+                          </Text>
+                        </View>
+                        <Button
+                          label="teams.restore.action"
+                          variant="secondary"
+                          fullWidth={false}
+                          busy={isBusy}
+                          onPress={() => void onRestore(dTeam.id)}
+                          testID={`team-restore-${dTeam.id}`}
+                        />
+                      </View>
+                    </Card>
+                  );
+                })}
+              </View>
+            )}
+        </>
       )}
     </SheetModal>
   );
@@ -151,5 +172,8 @@ const styles = StyleSheet.create({
   teamName: {
     flex: 1,
     flexShrink: 1,
+  },
+  footerWrapper: {
+    flex: 1,
   },
 });

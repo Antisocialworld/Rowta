@@ -20,7 +20,7 @@ const SCAN_DIR = path.join(ROOT, 'app', 'src');
 const EXCLUDE_FILE = /(\.test\.|__tests__|\.d\.ts$)/;
 const EXCLUDE_PATHS = /[\\/]i18n[\\/]/;
 
-const KIT_PRESSABLE_TAGS = new Set(['Button', 'Chip', 'ShiftCard', 'LinkButton', 'Pressable', 'TouchableOpacity', 'TouchableHighlight', 'TouchableWithoutFeedback']);
+const KIT_PRESSABLE_TAGS = new Set(['Button', 'Chip', 'ShiftCard', 'LinkButton', 'PinnedFooter', 'Pressable', 'TouchableOpacity', 'TouchableHighlight', 'TouchableWithoutFeedback']);
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);

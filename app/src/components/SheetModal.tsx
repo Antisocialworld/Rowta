@@ -27,6 +27,7 @@ export type SheetModalProps = {
   readonly onClose: () => void;
   readonly headingKey: MessageKey;
   readonly descriptionKey?: MessageKey;
+  readonly header?: ReactNode;
   readonly children: ReactNode;
   readonly footer?: ReactNode;
   readonly anchor?: 'center' | 'top';
@@ -41,6 +42,7 @@ export function SheetModal({
   onClose,
   headingKey,
   descriptionKey,
+  header,
   children,
   footer,
   anchor = 'center',
@@ -119,6 +121,8 @@ export function SheetModal({
             ) : null}
           </View>
 
+          {header ? <View style={styles.headerBar}>{header}</View> : null}
+
           <ScrollView
             style={styles.bodyScroll}
             contentContainerStyle={styles.scrollContent}
@@ -165,6 +169,9 @@ const styles = StyleSheet.create({
   header: {
     gap: Number(spacing.extraSmall),
     alignSelf: 'stretch',
+  },
+  headerBar: {
+    flexShrink: 0,
   },
   bodyScroll: {
     flexShrink: 1,

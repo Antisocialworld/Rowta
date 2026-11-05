@@ -20,4 +20,6 @@ export { PasswordRulesChecklist, type PasswordRulesChecklistProps } from './Pass
 export { DateTimePickerModal, type DateTimePickerModalProps } from './DateTimePickerModal';
 export { SwapTargetModal, type SwapTargetModalProps } from './SwapTargetModal';
 export { SheetModal, type SheetModalProps } from './SheetModal';
+export { PinnedFooter, type PinnedFooterProps } from './PinnedFooter';
+export { PinnedHeader, type PinnedHeaderProps } from './PinnedHeader';
 

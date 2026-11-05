@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Button, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
+import { Button, EmptyState, LiveRegion, PinnedFooter, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
@@ -21,7 +21,7 @@ import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeams } from '../../state/teams';
 import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH, HAIRLINE } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 import { ActivityRow } from './ActivityRow';
 
 const END_KEY: MessageKey = 'activity.end';
@@ -81,14 +81,10 @@ export function ActivityScreen() {
         <View style={styles.container}>
           <EmptyState kind="error" />
         </View>
-        <View style={styles.footer}>
-          <View style={styles.footerContent}>
-            <Button label="action.back" variant="secondary" onPress={back} />
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
+      <PinnedFooter label="action.back" onPress={back} variant="secondary" />
+    </SafeAreaView>
+  );
+}
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -130,11 +126,7 @@ export function ActivityScreen() {
           />
         )}
       </View>
-      <View style={styles.footer}>
-        <View style={styles.footerContent}>
-          <Button label="action.back" variant="secondary" onPress={back} />
-        </View>
-      </View>
+      <PinnedFooter label="action.back" onPress={back} variant="secondary" />
     </SafeAreaView>
   );
 }
@@ -146,19 +138,6 @@ const styles = StyleSheet.create({
   listContent: { gap: Number(spacing.base), paddingBottom: Number(spacing.veryLarge) },
   footerContainer: { gap: Number(spacing.base), marginTop: Number(spacing.base) },
   emptyContainer: { gap: Number(spacing.base) },
-  footer: {
-    paddingHorizontal: Number(spacing.base),
-    paddingTop: Number(spacing.small),
-    paddingBottom: Number(spacing.small),
-    backgroundColor: colors['color-surface'],
-    borderTopWidth: HAIRLINE,
-    borderTopColor: colors['color-outline-variant'],
-  },
-  footerContent: {
-    width: '100%',
-    maxWidth: CONTENT_MAX_WIDTH,
-    alignSelf: 'center',
-  },
   visuallyHidden: {
     position: 'absolute',
     width: 1,

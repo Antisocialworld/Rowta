@@ -7,7 +7,7 @@ import { ScrollView, StyleSheet, View, type TextInstance, type ViewInstance } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import type { ShiftView } from '@rowta/shared';
-import { Button, EmptyState, ShiftCard, Skeleton, Text } from '../../components';
+import { Button, EmptyState, PinnedFooter, PinnedHeader, ShiftCard, Skeleton, Text } from '../../components';
 import { t } from '../../i18n/en';
 import { shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
@@ -65,11 +65,29 @@ export function CalendarScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.container}>
+        <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
+          {t('teams.view.calendar.heading')}
+        </Text>
+        {teamQuery.data !== undefined ? <Text variant="title-medium">{teamQuery.data.name}</Text> : null}
+        <PinnedHeader>
+          <View style={styles.topRow}>
+            {manager ? (
+              <View style={styles.topCell}>
+                <Button label="action.newShift" icon="add" onPress={() => open({ name: 'create' })} testID="shift-create-entry" />
+              </View>
+            ) : null}
+            <View style={styles.topCell}>
+              <Button
+                ref={searchTriggerRef}
+                label="action.openSearch"
+                icon="search"
+                variant="secondary"
+                onPress={() => openSearchModal(searchTriggerRef)}
+              />
+            </View>
+          </View>
+        </PinnedHeader>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-            {t('teams.view.calendar.heading')}
-          </Text>
-          {teamQuery.data !== undefined ? <Text variant="title-medium">{teamQuery.data.name}</Text> : null}
           {calendarQuery.isLoading ? (
             <View style={styles.list}>
               <Skeleton variant="block" />
@@ -91,19 +109,9 @@ export function CalendarScreen() {
               ))}
             </View>
           )}
-          {manager ? (
-            <Button label="action.newShift" icon="add" onPress={() => open({ name: 'create' })} testID="shift-create-entry" />
-          ) : null}
-          <Button
-            ref={searchTriggerRef}
-            label="action.openSearch"
-            icon="search"
-            variant="secondary"
-            onPress={() => openSearchModal(searchTriggerRef)}
-          />
-          <Button label="action.back" variant="ghost" onPress={back} />
         </ScrollView>
       </View>
+      <PinnedFooter label="action.back" onPress={back} />
     </SafeAreaView>
   );
 }
@@ -119,6 +127,8 @@ const styles = StyleSheet.create({
     gap: Number(spacing.base),
   },
   scroll: { flex: 1, width: '100%' },
-  content: { gap: Number(spacing.base), paddingBottom: Number(spacing.base) },
+  content: { gap: Number(spacing.base), paddingBottom: Number(spacing.base + spacing.veryLarge) },
   list: { gap: Number(spacing.base) },
+  topRow: { flexDirection: 'row', gap: Number(spacing.base) },
+  topCell: { flex: 1 },
 });
