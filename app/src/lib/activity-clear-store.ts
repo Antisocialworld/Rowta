@@ -32,6 +32,15 @@ export function activityClearKey(userId: string, teamId: string): string {
   return `${PREFIX}${userId}.${teamId}`;
 }
 
+/** Picks the newest event's createdAt from a newest-first events list.
+ *  Returns null for an empty list. */
+export function newestCreatedAt(events: { createdAt: string }[]): string | null {
+  if (events.length === 0) return null;
+  const first = events[0];
+  if (first === undefined) return null;
+  return first.createdAt;
+}
+
 /** Creates a clear-all store over the given backend. Reads/writes never throw. */
 export function createActivityClearStore(backend: ActivityClearBackend) {
   return {

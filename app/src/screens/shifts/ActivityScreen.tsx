@@ -17,6 +17,8 @@ import {
   createPagingGate,
   mergeActivityPages,
 } from '../../lib/shift-feed';
+import { shiftQueryKeys } from '../../lib/shift-cache';
+import { newestCreatedAt } from '../../lib/activity-clear-store';
 import { useActivityClearedUntil } from '../../lib/useActivityClearedUntil';
 import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
@@ -43,7 +45,7 @@ export function ActivityScreen() {
   const [confirmVisible, setConfirmVisible] = useState(false);
 
   const query = useInfiniteQuery({
-    queryKey: ['shifts', selectedTeamId, 'activity', clearedUntil],
+    queryKey: shiftQueryKeys.activity(selectedTeamId ?? '', clearedUntil ?? undefined),
     queryFn: ({ pageParam }) =>
       shiftsApi.listActivity(selectedTeamId as string, pageParam, undefined, clearedUntil ?? undefined),
     initialPageParam: undefined as string | undefined,
@@ -65,8 +67,7 @@ export function ActivityScreen() {
 
   const handleConfirmClear = async (): Promise<void> => {
     if (currentUserId === '' || selectedTeamId === null) return;
-    const newest = events[0];
-    const clearedUntilValue = newest?.createdAt ?? new Date().toISOString();
+    const clearedUntilValue = newestCreatedAt(events) ?? new Date().toISOString();
     await setClearedUntil(clearedUntilValue);
     setConfirmVisible(false);
   };

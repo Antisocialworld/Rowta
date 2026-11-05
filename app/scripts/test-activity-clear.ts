@@ -5,7 +5,7 @@
 //   * newestCreatedAt(events): picks createdAt of the newest (first) event.
 // Pure logic: no React, no server, no database, no Expo.
 // Run from the repo root:  node app/scripts/test-activity-clear.ts
-import { activityClearKey, createActivityClearStore, memoryBackend } from '../src/lib/activity-clear-store';
+import { activityClearKey, createActivityClearStore, memoryBackend, newestCreatedAt } from '../src/lib/activity-clear-store';
 
 let failures = 0;
 function check(ok: boolean, label: string): void {
@@ -75,15 +75,8 @@ async function main(): Promise<void> {
   }
 
   // ---------------------------------------------------------------------------------------------
-  // 5. newestCreatedAt: pure picker (replicated here for the test; the real one lives in the screen)
+  // 5. newestCreatedAt: pure picker imported from app/src/lib/activity-clear-store.ts
   // ---------------------------------------------------------------------------------------------
-  function newestCreatedAt(events: { createdAt: string }[]): string | null {
-    if (events.length === 0) return null;
-    const first = events[0];
-    if (first === undefined) return null;
-    return first.createdAt;
-  }
-
   check(newestCreatedAt([]) === null, 'newestCreatedAt returns null for empty events');
   check(
     newestCreatedAt([{ createdAt: '2026-01-01T00:00:00.000Z' }]) === '2026-01-01T00:00:00.000Z',
