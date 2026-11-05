@@ -11,29 +11,49 @@ import { formatShiftDay, formatShiftTimeRange } from '../../lib/shift-time';
 import { colors, shape, spacing, state } from '../../theme/tokens';
 import { RING, iconSize } from '../../theme/layout';
 
-const KIND_LABEL: Record<string, MessageKey> = {
-  'shift.created': 'activity.kind.created',
-  'shift.updated': 'activity.kind.updated',
-  'shift.deleted': 'activity.kind.deleted',
+const KIND_INFO: Record<string, { verbKey: MessageKey; tone: 'success' | 'primary' | 'error' | 'warning' | 'other' }> = {
+  'shift.created': { verbKey: 'activity.kind.created', tone: 'success' },
+  'shift.updated': { verbKey: 'activity.kind.updated', tone: 'primary' },
+  'shift.deleted': { verbKey: 'activity.kind.deleted', tone: 'error' },
+  'swap.requested': { verbKey: 'activity.kind.swapRequested', tone: 'warning' },
+  'swap.approved': { verbKey: 'activity.kind.swapApproved', tone: 'success' },
+  'swap.rejected': { verbKey: 'activity.kind.swapRejected', tone: 'error' },
+  'swap.cancelled': { verbKey: 'activity.kind.swapCancelled', tone: 'error' },
+  'team.deleted': { verbKey: 'activity.kind.teamDeleted', tone: 'error' },
+  'team.transferred': { verbKey: 'activity.kind.teamTransferred', tone: 'primary' },
+  'team.restored': { verbKey: 'activity.kind.teamRestored', tone: 'success' },
 };
+
+const TONE_STRIP: Record<string, string | undefined> = {
+  success: colors['color-on-success-container'],
+  primary: colors['color-on-primary-container'],
+  error: colors['color-on-error-container'],
+  warning: colors['color-on-warning-container'],
+  other: undefined,
+};
+
+export function activityKindInfo(kind: string): { verbKey: MessageKey; tone: string } {
+  const info = KIND_INFO[kind];
+  if (info === undefined) return { verbKey: 'activity.kind.other', tone: 'other' };
+  return { verbKey: info.verbKey, tone: info.tone };
+}
 
 export function activityLine(event: ActivityEventPayload): string {
   const actor = event.actor?.displayName ?? t('activity.system');
-  const kind = t(KIND_LABEL[event.kind] ?? 'activity.kind.other');
+  const kind = t(activityKindInfo(event.kind).verbKey);
   return `${actor} ${kind}`;
 }
 
 export function ActivityRow({ event, onPress }: { event: ActivityEventPayload; onPress?: () => void }) {
   const [focused, setFocused] = useState(false);
+  const kindInfo = activityKindInfo(event.kind);
   const label = typeof event.data.label === 'string' ? event.data.label : '';
-  const stripColor =
-    event.kind === 'shift.created'
-      ? colors['color-on-success-container']
-      : event.kind === 'shift.updated'
-      ? colors['color-on-primary-container']
-      : event.kind === 'shift.deleted'
-      ? colors['color-on-error-container']
-      : undefined;
+  const stripColor = TONE_STRIP[kindInfo.tone];
+  const showLabel =
+    (event.kind === 'swap.requested' ||
+      event.kind === 'swap.approved' ||
+      event.kind === 'swap.rejected') &&
+    label.length > 0;
   const startsAt = typeof event.data.startsAt === 'string' ? event.data.startsAt : null;
   const endsAt = typeof event.data.endsAt === 'string' ? event.data.endsAt : null;
   const when =
@@ -44,7 +64,7 @@ export function ActivityRow({ event, onPress }: { event: ActivityEventPayload; o
   const content = (
     <>
       <Text variant="title-small">{activityLine(event)}</Text>
-      {label.length > 0 ? <Text variant="body-medium">{label}</Text> : null}
+      {showLabel ? <Text variant="body-medium">{label}</Text> : null}
       <Text variant="body-small" tone="secondary">
         {when}
       </Text>

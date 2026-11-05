@@ -64,6 +64,7 @@ export const activityQuerySchema = z
   .object({
     cursor: z.string().min(1).max(512).optional(),
     limit: z.coerce.number().int().min(1).max(ACTIVITY_PAGE_MAX).default(ACTIVITY_PAGE_DEFAULT),
+    since: isoDateTime.optional(),
   })
   .strict();
 export type ActivityQuery = z.infer<typeof activityQuerySchema>;

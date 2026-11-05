@@ -6,10 +6,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { Button, EmptyState, LiveRegion, PinnedFooter, Skeleton, Text } from '../../components';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { Button, ConfirmDialog, EmptyState, LiveRegion, PinnedFooter, PinnedHeader, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
-import { shiftsApi } from '../../lib/api';
+import { shiftsApi, authApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import {
   activityEventShiftId,
@@ -17,6 +17,7 @@ import {
   createPagingGate,
   mergeActivityPages,
 } from '../../lib/shift-feed';
+import { useActivityClearedUntil } from '../../lib/useActivityClearedUntil';
 import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeams } from '../../state/teams';
@@ -32,12 +33,22 @@ export function ActivityScreen() {
   const open = useShiftNav((state) => state.open);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId);
+  const meQuery = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => authApi.me(),
+    enabled: selectedTeamId !== null,
+  });
+  const currentUserId = meQuery.data?.userId ?? '';
+  const { clearedUntil, setClearedUntil, isLoaded } = useActivityClearedUntil(currentUserId, selectedTeamId);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+
   const query = useInfiniteQuery({
-    queryKey: ['shifts', selectedTeamId, 'activity'],
-    queryFn: ({ pageParam }) => shiftsApi.listActivity(selectedTeamId as string, pageParam),
+    queryKey: ['shifts', selectedTeamId, 'activity', clearedUntil],
+    queryFn: ({ pageParam }) =>
+      shiftsApi.listActivity(selectedTeamId as string, pageParam, undefined, clearedUntil ?? undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    enabled: selectedTeamId !== null,
+    enabled: selectedTeamId !== null && isLoaded,
   });
   const fetchRef = useRef(query.fetchNextPage);
   fetchRef.current = query.fetchNextPage;
@@ -47,6 +58,18 @@ export function ActivityScreen() {
   useEffect(() => {
     focusOn(headingRef.current);
   }, []);
+
+  const handleClearAll = (): void => {
+    setConfirmVisible(true);
+  };
+
+  const handleConfirmClear = async (): Promise<void> => {
+    if (currentUserId === '' || selectedTeamId === null) return;
+    const newest = events[0];
+    const clearedUntilValue = newest?.createdAt ?? new Date().toISOString();
+    await setClearedUntil(clearedUntilValue);
+    setConfirmVisible(false);
+  };
 
   const requestMore = (): void => {
     if (
@@ -95,6 +118,16 @@ export function ActivityScreen() {
         {teamQuery.data !== undefined ? (
           <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
         ) : null}
+        {events.length > 0 ? (
+          <PinnedHeader>
+            <Button
+              label="activity.clearAll.button"
+              variant="secondary"
+              onPress={handleClearAll}
+              testID="activity-clear-all"
+            />
+          </PinnedHeader>
+        ) : null}
         {query.isLoading ? (
           <View style={styles.list}>
             <Skeleton variant="block" />
@@ -127,6 +160,20 @@ export function ActivityScreen() {
         )}
       </View>
       <PinnedFooter label="action.back" onPress={back} variant="secondary" />
+      <ConfirmDialog
+        visible={confirmVisible}
+        titleKey="activity.clearAll.title"
+        messageKey="activity.clearAll.body"
+        confirmLabel="activity.clearAll.button"
+        cancelLabel="action.cancel"
+        destructive
+        busy={false}
+        onConfirm={() => {
+          void handleConfirmClear();
+        }}
+        onCancel={() => setConfirmVisible(false)}
+        testID="activity-clear-dialog"
+      />
     </SafeAreaView>
   );
 }

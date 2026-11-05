@@ -18,6 +18,7 @@ import {
   type ShiftView,
   type UpdateShiftInput,
 } from '@rowta/shared';
+import { Prisma } from '../../prisma/generated/db0/client.ts';
 import {
   forTeam,
   globalDb,
@@ -556,6 +557,11 @@ export async function listActivity(
   //   'managers'   -> owner or manager only
   //   'involved'   -> owner or manager, or the actor themselves
   //   anything else -> managers-only (fail closed)
+  //
+  // `since` (optional, ISO-8601 ms): return only events strictly after it.
+  // Postgres created_at has microsecond precision; the API returns milliseconds, so compare with
+  // date_trunc('milliseconds', created_at) > since so the newest cleared event never reappears.
+  const since = query.since === undefined ? null : query.since;
 
   const rows: ActivityRow[] = cursor
     ? await client.$queryRaw<ActivityRow[]>`
@@ -568,7 +574,8 @@ export async function listActivity(
           OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
           OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
         )
-          AND (created_at, id) < (${cursor.t}::timestamptz, ${cursor.id}::uuid)
+        ${since !== null ? Prisma.sql`AND date_trunc('milliseconds', created_at) > ${since}::timestamptz` : Prisma.empty}
+        AND (created_at, id) < (${cursor.t}::timestamptz, ${cursor.id}::uuid)
         ORDER BY created_at DESC, id DESC
         LIMIT ${fetchLimit}
       `
@@ -582,6 +589,7 @@ export async function listActivity(
           OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
           OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
         )
+        ${since !== null ? Prisma.sql`AND date_trunc('milliseconds', created_at) > ${since}::timestamptz` : Prisma.empty}
         ORDER BY created_at DESC, id DESC
         LIMIT ${fetchLimit}
       `;

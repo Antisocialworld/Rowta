@@ -800,10 +800,12 @@ export const shiftsApi = {
     teamId: string,
     cursor?: string,
     limit?: number,
+    since?: string,
   ): Promise<ActivityPagePayload> {
     const params = new URLSearchParams();
     if (cursor !== undefined) params.set('cursor', cursor);
     if (limit !== undefined) params.set('limit', String(limit));
+    if (since !== undefined) params.set('since', since);
     const suffix = params.toString().length === 0 ? '' : `?${params.toString()}`;
     const out = await send({
       method: 'GET',

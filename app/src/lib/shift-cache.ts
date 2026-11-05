@@ -8,7 +8,12 @@ export const shiftQueryKeys = {
   calendar: (teamId: string, from: string, to: string) => ['shifts', teamId, from, to] as const,
   detail: (teamId: string, shiftId: string) => ['shifts', teamId, 'detail', shiftId] as const,
   search: (teamId: string, query: string) => ['shifts', teamId, 'search', query] as const,
-  activity: (teamId: string) => ['shifts', teamId, 'activity'] as const,
+  activity: (teamId: string, since?: string) => {
+    if (since) {
+      return ['shifts', teamId, 'activity', since] as const;
+    }
+    return ['shifts', teamId, 'activity'] as const;
+  },
   swapsRoot: () => ['swaps'] as const,
   teamSwaps: (teamId: string) => ['swaps', teamId] as const,
   shiftSwaps: (teamId: string, shiftId: string) => ['swaps', teamId, 'shift', shiftId] as const,

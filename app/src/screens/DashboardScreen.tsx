@@ -43,6 +43,7 @@ import {
 } from '../lib/dashboard-shifts';
 import { AccountMenu } from '../components/AccountMenu';
 import { activityEventShiftId } from '../lib/shift-feed';
+import { useActivityClearedUntil } from '../lib/useActivityClearedUntil';
 import { useTeams, useTeamsList } from '../state/teams';
 import { useShiftNav } from '../state/shift-nav';
 import { ActivityRow } from './shifts/ActivityRow';
@@ -77,6 +78,13 @@ export function DashboardScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const currentUserId = meQuery.data?.userId ?? '';
+  const currentUserName = meQuery.data?.displayName ?? '';
+  const { clearedUntil: dashClearedUntil, isLoaded: dashIsLoaded } = useActivityClearedUntil(
+    currentUserId,
+    selectedTeamId,
+  );
+
   const teamsQuery = useTeamsList();
   const selectedTeam = teamsQuery.data?.teams.find((t) => t.id === selectedTeamId);
   const role = selectedTeam?.role ?? 'staff';
@@ -99,17 +107,16 @@ export function DashboardScreen() {
 
   // 3. Recent activity query (latest 3 events for everyone)
   const activityQuery = useQuery({
-    queryKey: ['shifts', selectedTeamId, 'activity', { limit: 3 }],
-    queryFn: () => shiftsApi.listActivity(selectedTeamId as string, undefined, 3),
-    enabled: selectedTeamId !== null,
+    queryKey: ['shifts', selectedTeamId, 'activity', 'recent', dashClearedUntil ?? null],
+    queryFn: () =>
+      shiftsApi.listActivity(selectedTeamId as string, undefined, 3, dashClearedUntil ?? undefined),
+    enabled: selectedTeamId !== null && dashIsLoaded,
   });
 
   useEffect(() => {
     focusOn(headingRef.current);
   }, []);
 
-  const currentUserId = meQuery.data?.userId ?? '';
-  const currentUserName = meQuery.data?.displayName ?? '';
   const shifts = calendarQuery.data?.shifts ?? [];
 
   // Derive "Your next shift" and "Your week" using pure helpers
