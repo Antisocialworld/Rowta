@@ -31,6 +31,7 @@ import { fingerprint } from '../security/fingerprint.ts';
 import { can, type Role } from '../security/policy.ts';
 import { HttpError } from '../middleware/error.ts';
 import { cancelPendingSwapsForShift } from '../swaps/service.ts';
+import { activityAudienceFilter } from './audience.ts';
 import { enqueueNotification } from '../notifications/outbox.ts';
 import {
   decideShiftNotifications,
@@ -568,12 +569,7 @@ export async function listActivity(
         SELECT id::text, kind, actor_user_id::text, subject_id::text, data, created_at
         FROM activity_events
         WHERE team_id = ${teamId}::uuid
-        AND (
-          audience = 'team'
-          OR (audience = 'managers' AND ${role} IN ('owner', 'manager'))
-          OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
-          OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
-        )
+        ${activityAudienceFilter(userId, role)}
         ${since !== null ? Prisma.sql`AND date_trunc('milliseconds', created_at) > ${since}::timestamptz` : Prisma.empty}
         AND (created_at, id) < (${cursor.t}::timestamptz, ${cursor.id}::uuid)
         ORDER BY created_at DESC, id DESC
@@ -583,12 +579,7 @@ export async function listActivity(
         SELECT id::text, kind, actor_user_id::text, subject_id::text, data, created_at
         FROM activity_events
         WHERE team_id = ${teamId}::uuid
-        AND (
-          audience = 'team'
-          OR (audience = 'managers' AND ${role} IN ('owner', 'manager'))
-          OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
-          OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
-        )
+        ${activityAudienceFilter(userId, role)}
         ${since !== null ? Prisma.sql`AND date_trunc('milliseconds', created_at) > ${since}::timestamptz` : Prisma.empty}
         ORDER BY created_at DESC, id DESC
         LIMIT ${fetchLimit}
@@ -717,12 +708,7 @@ export async function searchTeam(
     SELECT id::text, kind, actor_user_id::text, subject_id::text, data, created_at
     FROM activity_events
     WHERE team_id = ${teamId}::uuid
-    AND (
-      audience = 'team'
-      OR (audience = 'managers' AND ${role} IN ('owner', 'manager'))
-      OR (audience = 'involved' AND (${role} IN ('owner', 'manager') OR actor_user_id = ${userId}::uuid))
-      OR (audience NOT IN ('team', 'managers', 'involved') AND ${role} IN ('owner', 'manager'))
-    )
+    ${activityAudienceFilter(userId, role)}
     AND (
       search @@ plainto_tsquery('simple', ${q})
       OR coalesce(data ->> 'label', '') ILIKE ${likeContains}
