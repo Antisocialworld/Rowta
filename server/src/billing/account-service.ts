@@ -8,7 +8,7 @@ import { globalDb } from '../db/clients.ts';
 import { HttpError } from '../middleware/error.ts';
 import { resolvePaymentProvider } from './provider.ts';
 import { toProviderAmount } from './money.ts';
-import { prorateTerm, intervalMultiplier, type Interval } from './proration.ts';
+import { prorateTerm } from './proration.ts';
 import { type AccountAction } from './account-schema.ts';
 import { loadOwnerAccount, loadPlanEntitlements } from './entitlements.ts';
 import { notifyCoveredTeamAdmins } from './admin-notices.ts';
@@ -20,10 +20,6 @@ export interface QuoteResult {
   readonly description: string;
   readonly interval: string;
   readonly effectiveFrom: 'now' | 'next_renewal';
-}
-
-function toProrationInterval(interval: string): Interval {
-  return interval === 'yearly' ? 'year' : 'month';
 }
 
 function roundToNaira(kobo: number): number {
@@ -40,7 +36,6 @@ export async function quote(
   }
 
   const interval = input.interval ?? account.plan;
-  const multiplier = intervalMultiplier(toProrationInterval(interval));
 
   // Subscribe works for any account state (read_only, past_due, cancelled, trial ended):
   // load entitlements by the chosen interval, not by account status.
@@ -71,7 +66,7 @@ export async function quote(
 
   switch (input.action) {
     case 'subscribe': {
-      amountMinor = roundToNaira(entitlements.basePriceMinor * multiplier);
+      amountMinor = roundToNaira(entitlements.basePriceMinor);
       description = `Subscribe ${interval} — ₦${(amountMinor / 100).toFixed(2)}`;
       effectiveFrom = 'now';
       break;
@@ -80,7 +75,7 @@ export async function quote(
       if (!input.teamId) {
         throw new HttpError(422, 'billing.team_required', 'Team ID is required for adding a team.');
       }
-      const price = prorateTerm(entitlements.extraTeamPriceMinor * multiplier, remainingDays, periodDays) ?? entitlements.extraTeamPriceMinor * multiplier;
+      const price = prorateTerm(entitlements.extraTeamPriceMinor, remainingDays, periodDays) ?? entitlements.extraTeamPriceMinor;
       amountMinor = roundToNaira(price);
       if (amountMinor > 0 && amountMinor < entitlements.minAddonChargeMinor) {
         amountMinor = entitlements.minAddonChargeMinor;
@@ -96,7 +91,7 @@ export async function quote(
       const people = input.people ?? 0;
       const extra = Math.max(0, people - includedPeople);
       const price = extra > 0
-        ? prorateTerm(extra * entitlements.extraPersonPriceMinor * multiplier, remainingDays, periodDays) ?? extra * entitlements.extraPersonPriceMinor * multiplier
+        ? prorateTerm(extra * entitlements.extraPersonPriceMinor, remainingDays, periodDays) ?? extra * entitlements.extraPersonPriceMinor
         : 0;
       amountMinor = roundToNaira(price);
       if (extra > 0 && amountMinor < entitlements.minAddonChargeMinor) {
@@ -107,9 +102,12 @@ export async function quote(
       break;
     }
     case 'switch_interval': {
-      const currentMultiplier = account.plan === 'yearly' ? 12 : 1;
-      const currentPrice = entitlements.basePriceMinor * currentMultiplier;
-      const newPrice = entitlements.basePriceMinor * multiplier;
+      const targetEntitlements = await loadPlanEntitlements(interval);
+      if (!targetEntitlements) {
+        throw new HttpError(422, 'billing.no_entitlements', 'Plan entitlements not configured.');
+      }
+      const currentPrice = entitlements.basePriceMinor;
+      const newPrice = targetEntitlements.basePriceMinor;
       if (newPrice === currentPrice) {
         throw new HttpError(422, 'billing.same_interval', 'Interval is already the current one.');
       }

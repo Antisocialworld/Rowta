@@ -3,11 +3,10 @@
 // NOT registered or enabled until C7 — written and tested here only.
 // Reuse: enqueueNotification, forTeam/globalDb, HttpError, resolvePaymentProvider, proration.
 // Money is integer kobo; BigInt in DB; no floats. NAIRA ONLY.
-import type { Job } from 'bullmq';
+import { UnrecoverableError, type Job } from 'bullmq';
 import { globalDb, forTeam, type ShardClient, type JsonInput } from '../db/clients.ts';
 import { logger } from '../lib/logger.ts';
 import { resolvePaymentProvider } from './provider.ts';
-import { intervalMultiplier, type Interval } from './proration.ts';
 import { notifyCoveredTeamAdmins } from './admin-notices.ts';
 
 const log = logger.child({ module: 'billing-account-renewal' });
@@ -73,25 +72,34 @@ export async function processAccountRenewalJob(
     return { processed: false };
   }
 
-  const multiplier = intervalMultiplier(account.plan as Interval);
-  const baseCharge = Number(entitlements.base_price_minor) * multiplier;
+  const baseCharge = Number(entitlements.base_price_minor);
 
   // Count extra teams and extra people across all teams owned by this user.
   const registries = await db0.owner_team_registry.findMany({
     where: { owner_user_id: ownerUserId, is_extra: true },
   });
-  const extraTeamCharge = registries.length * Number(entitlements.extra_team_price_minor) * multiplier;
+  const extraTeamCharge = registries.length * Number(entitlements.extra_team_price_minor);
 
   let extraPeopleCharge = 0;
   for (const reg of registries) {
     const client = forTeam(reg.team_id);
     const team = await client.teams.findUnique({ where: { id: reg.team_id } });
     const extraPeople = Math.max(0, (team?.extra_people ?? 0) - Number(entitlements.people_per_team));
-    extraPeopleCharge += extraPeople * Number(entitlements.extra_person_price_minor) * multiplier;
+    extraPeopleCharge += extraPeople * Number(entitlements.extra_person_price_minor);
   }
 
   const totalCharge = baseCharge + extraTeamCharge + extraPeopleCharge;
   const amountMinor = Math.ceil(totalCharge / 100) * 100; // whole naira
+
+  // Resolve renewal team_id: owner's primary team (oldest registered team).
+  const primaryReg = await db0.owner_team_registry.findFirst({
+    where: { owner_user_id: ownerUserId },
+    orderBy: { created_at: 'asc' },
+  });
+  if (!primaryReg) {
+    log.error({ ownerUserId }, 'account renewal: owner has no team to attach the renewal payment to');
+    throw new UnrecoverableError('account renewal: owner has no team to attach the renewal payment to');
+  }
 
   // Idempotency key per (account, period_end).
   const idempotencyKey = `account_renewal:${ownerUserId}:${periodEnd}`;
@@ -108,7 +116,7 @@ export async function processAccountRenewalJob(
     where: { tx_ref: `account_renewal:${ownerUserId}:${periodEnd}` },
     update: { status: 'pending', amount_minor: BigInt(amountMinor), currency: account.currency, completed_at: null },
     create: {
-      team_id: registries[0]?.team_id ?? '', // [VERIFY] associate with primary team
+      team_id: primaryReg.team_id, // Primary team associated with this account-level renewal.
       tx_ref: `account_renewal:${ownerUserId}:${periodEnd}`,
       purpose: 'renewal',
       amount_minor: BigInt(amountMinor),
