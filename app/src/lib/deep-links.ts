@@ -8,21 +8,30 @@
 //   rowta://magic/<token> and rowta://invite/<token>   the custom-scheme FALLBACKS (PRD 121),
 //                                        plus rowta://magic#<token> as a dev mirror of the fragment form
 //
-// Strictness: query strings, empty/oversized tokens (> tokenField's 2048), bare pages (/magic with
-// no token) and every other URL return null — an unexpected shape is never half-parsed (A13 hygiene;
-// nothing here logs the URL, so a token can never reach a log line, S1).
-export type DeepLink = { kind: 'magic'; token: string } | { kind: 'invite'; token: string };
+// Strictness: query strings (except billing/complete where external redirects attach them), empty/oversized
+// tokens (> tokenField's 2048), bare pages (/magic with no token) and every other URL return null — an
+// unexpected shape is never half-parsed (A13 hygiene; nothing here logs the URL, so a token can never reach a log line, S1).
+export type DeepLink =
+  | { kind: 'magic'; token: string }
+  | { kind: 'invite'; token: string }
+  | { kind: 'billing_complete' };
 
 const WEB_FRAGMENT = /^https?:\/\/[^/?#]+\/(magic)#([^/?#]{1,2048})$/i;
 const WEB_PATH = /^https?:\/\/[^/?#]+\/(magic|invite)\/([^/?#]{1,2048})$/i;
 const SCHEME_FRAGMENT = /^rowta:\/\/(magic|invite)#([^/?#]{1,2048})$/i;
 const SCHEME_PATH = /^rowta:\/\/(magic|invite)\/([^/?#]{1,2048})$/i;
 
+const WEB_BILLING_COMPLETE = /^https?:\/\/[^/?#]+\/billing\/complete(?:\/)?(?:[?#].*)?$/i;
+const SCHEME_BILLING_COMPLETE = /^rowta:\/\/billing\/complete(?:\/)?(?:[?#].*)?$/i;
+
 const SHAPES = [WEB_FRAGMENT, WEB_PATH, SCHEME_FRAGMENT, SCHEME_PATH];
 
 export function parseDeepLink(url: string): DeepLink | null {
   const value = url.trim();
   if (value === '') return null;
+  if (WEB_BILLING_COMPLETE.test(value) || SCHEME_BILLING_COMPLETE.test(value)) {
+    return { kind: 'billing_complete' };
+  }
   for (const shape of SHAPES) {
     const match = shape.exec(value);
     if (match === null) continue;

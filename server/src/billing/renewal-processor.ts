@@ -189,6 +189,8 @@ export async function processRenewalJob(job: Job<RenewalJobData>): Promise<{ pro
 
   // Charge holder's saved authorisation via provider.
   const provider = resolvePaymentProvider();
+  const holderUser = holderId ? await db0.users.findUnique({ where: { id: holderId }, select: { email: true } }) : null;
+  const customerEmail = holderUser?.email ?? '';
   let authRef: string | undefined;
   try {
     const chargeResult = await provider.chargeAuthorisation({
@@ -196,6 +198,7 @@ export async function processRenewalJob(job: Job<RenewalJobData>): Promise<{ pro
       amountMinor,
       currency: sub.currency,
       txRef: `renewal:${subscriptionId}:${periodEnd}`,
+      customerEmail,
     });
     authRef = chargeResult.authorizationRef;
   } catch (err) {

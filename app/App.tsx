@@ -20,6 +20,9 @@ import { useAuthFlow } from './src/state/auth-context';
 import { useAuthSession } from './src/state/auth-session';
 import { AUTH_ENTRY, useAuthViewStore } from './src/state/auth-view';
 import { useTeams } from './src/state/teams';
+import { useTeamsView } from './src/state/teams-view';
+import { useShiftNav } from './src/state/shift-nav';
+import { billingApi } from './src/api/billing';
 import { setTeamNotFoundHandler } from './src/lib/team-lifecycle';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -38,13 +41,18 @@ function handleDeepLink(url: string): void {
   if (target.kind === 'magic') {
     useAuthFlow.getState().setFlow({ magicToken: target.token });
     useAuthViewStore.getState().enter(AUTH_ENTRY.magicToken);
-  } else {
+  } else if (target.kind === 'invite') {
     useAuthFlow.getState().setFlow({ inviteToken: target.token });
     if (useAuthSession.getState().status === 'signedIn') {
       void useTeams.getState().consumeInviteToken(target.token);
     } else {
       useAuthViewStore.getState().enter(AUTH_ENTRY.invite);
     }
+  } else if (target.kind === 'billing_complete') {
+    useShiftNav.getState().reset();
+    useTeamsView.getState().go('billing');
+    void queryClient.invalidateQueries({ queryKey: ['billing', 'account'] });
+    void billingApi.accountStatus().catch(() => undefined);
   }
   // Web only, and ONLY after the token above is in memory (parse first, strip second; owner
   // request 28 Oct 2026): remove it from the address bar. Native behaviour never changes.

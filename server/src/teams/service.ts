@@ -1079,7 +1079,7 @@ export async function transferTeam(
     // T17 #1: transfer_still_paying notice — only when the payer is not the new Admin.
     // db0 lookups are done before the shard transaction (db0 is not available inside it).
     const teamRegistry = await loadTeamRegistry(teamId);
-    const teamNameRow = await globalDb().teams.findUnique({
+    const teamNameRow = await shardClient.teams.findUnique({
       where: { id: teamId },
       select: { name: true },
     });

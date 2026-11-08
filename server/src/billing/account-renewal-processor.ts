@@ -132,12 +132,16 @@ export async function processAccountRenewalJob(
   }
 
   const provider = resolvePaymentProvider();
+  const ownerUser = await db0.users.findUnique({ where: { id: ownerUserId }, select: { email: true } });
+  const customerEmail = ownerUser?.email ?? '';
+
   try {
     await provider.chargeAuthorisation({
       authorizationRef,
       amountMinor,
       currency: account.currency,
       txRef: `account_renewal:${ownerUserId}:${periodEnd}`,
+      customerEmail,
     });
   } catch (err) {
     log.warn({ ownerUserId, err }, 'account renewal: charge failed; past_due + grace');

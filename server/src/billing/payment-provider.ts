@@ -13,6 +13,7 @@ export interface VerifyResult {
   readonly status: 'pending' | 'succeeded' | 'failed' | 'expired';
   readonly amountMinor: number;   // provider-reported amount, in minor units
   readonly currency: string;      // provider-reported currency
+  readonly txRef?: string;        // provider transaction reference
   readonly authorizationRef?: string; // provider payment authorisation reference (simulator returns one; real provider [VERIFY])
 }
 
@@ -36,6 +37,7 @@ export interface PaymentProvider {
     amountMinor: number;
     currency: string;
     txRef: string;
+    customerEmail?: string;
   }): Promise<ChargeResult>;
   /** Base checkout URL for a txRef, used to return to the app on idempotent replay. */
   checkoutUrlFor(txRef: string): Promise<string>;

@@ -1,6 +1,6 @@
 -- 079-app-role-accounts.sql
--- Role grants for billing/account tables added by 075-077 (db0 + db1, idempotent).
--- Apply on DB0 and DB1, after 030-app-role.sql and the numbered migration that creates
+-- Role grants for billing/account tables added by 075-077 (db0 only, idempotent).
+-- Apply on DB0 only, after 030-app-role.sql and the numbered migration that creates
 -- each table. The name and password come from the environment (DB_APP_USER).
 \getenv app_user DB_APP_USER
 \if :{?app_user}

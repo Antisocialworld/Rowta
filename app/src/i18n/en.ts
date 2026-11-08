@@ -575,6 +575,8 @@ export const en = {
   'billing.restricted.payNow': 'Pay now',
   'billing.error.payerCannotLeave': 'This person pays for this team. Ask them to move billing first.',
   'billing.error.payerCannotLeaveSelf': 'You pay for this team. Move billing first.',
+  'billing.error.checkoutMoved': 'This checkout has moved. Use account billing.',
+  'billing.error.switchNotAvailableYet': 'You can switch to monthly when your yearly plan ends.',
   'billing.seatLimitReached': 'This team is full. Ask your owner to add people.',
   'billing.readOnlyBanner': 'Billing issue — contact your owner. You can still view shifts.',
   'billing.dashboardBanner': 'Your trial ends in {days} days. Subscribe to keep access.',
@@ -582,6 +584,9 @@ export const en = {
   'teams.settings.coveredBy': 'Covered by {owner}',
   'teams.settings.moveBilling': 'Move billing',
   'billing.payToActivate': 'Pay to activate',
+  'billing.complete.title': 'Billing update',
+  'billing.complete.message': 'If you paid, Rowta will update in a moment.',
+  'billing.complete.openApp': 'Open in the app',
 } as const;
 
 export type MessageKey = keyof typeof en;

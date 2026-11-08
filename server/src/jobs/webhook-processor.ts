@@ -88,6 +88,24 @@ export async function processWebhookJob(job: Job<WebhookJobData>): Promise<{ pro
     return { processed: false };
   }
 
+  // 4b. Verified tx_ref must match stored intent tx_ref before crediting.
+  if (providerVerify.txRef && providerVerify.txRef !== intent.tx_ref) {
+    log.error({
+      intentId: intent.id,
+      amountMinor: intent.amount_minor.toString(),
+      currency: intent.currency,
+    }, 'tx_ref mismatch');
+    await db0.payment_intents.update({
+      where: { tx_ref: txRef },
+      data: { status: 'failed', completed_at: new Date() },
+    });
+    await db0.webhook_events.updateMany({
+      where: { tx_ref: txRef, status: 'received' },
+      data: { status: 'failed', processed_at: new Date() },
+    });
+    return { processed: false };
+  }
+
   // 5. Convert the provider amount to our storage unit (kobo) and compare with
   //    intent.amount_minor. Provider units are 'major' (naira) for NGN, so every
   //    charge is whole naira; a non-exact conversion or decimals means reject.
@@ -111,8 +129,12 @@ export async function processWebhookJob(job: Job<WebhookJobData>): Promise<{ pro
     });
     return { processed: false };
   }
-  if (BigInt(expectedMinor) !== intent.amount_minor) {
-    log.warn({ txRef, providerAmount, expectedMinor, stored: intent.amount_minor.toString() }, 'amount mismatch');
+  if (BigInt(expectedMinor) < intent.amount_minor) {
+    log.error({
+      intentId: intent.id,
+      amountMinor: intent.amount_minor.toString(),
+      currency: intent.currency,
+    }, 'amount mismatch: underpayment received');
     await db0.payment_intents.update({
       where: { tx_ref: txRef },
       data: { status: 'failed', completed_at: new Date() },
@@ -123,8 +145,12 @@ export async function processWebhookJob(job: Job<WebhookJobData>): Promise<{ pro
     });
     return { processed: false };
   }
-  if (verifiedCurrency !== intent.currency) {
-    log.warn({ txRef, verifiedCurrency, expected: intent.currency }, 'currency mismatch');
+  if (verifiedCurrency !== intent.currency || verifiedCurrency !== 'NGN') {
+    log.error({
+      intentId: intent.id,
+      amountMinor: intent.amount_minor.toString(),
+      currency: intent.currency,
+    }, 'currency mismatch');
     await db0.payment_intents.update({
       where: { tx_ref: txRef },
       data: { status: 'failed', completed_at: new Date() },

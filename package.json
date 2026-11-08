@@ -19,6 +19,7 @@
     "db:tables": "node scripts/db-tables.mjs",
     "db:clean-test": "node scripts/db-clean-test-data.mjs",
     "sweep:expired-moves": "npm exec --workspace @rowta/server -- tsx ../scripts/sweep-expired-moves.mjs",
+    "backfill:owner-accounts": "npm exec --workspace @rowta/server -- tsx ../scripts/backfill-owner-accounts.mjs",
     "web:build": "node web/build.mjs",
     "web:serve": "node web/serve.mjs",
     "web:dev": "npm run web:build && npm run web:serve",

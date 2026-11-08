@@ -94,6 +94,7 @@ export class SimulatorProvider implements PaymentProvider {
       status: body.status as VerifyResult['status'],
       amountMinor: body.amountMinor,
       currency: body.currency,
+      txRef,
       authorizationRef: body.authorizationRef,
     };
   }
@@ -110,6 +111,7 @@ export class SimulatorProvider implements PaymentProvider {
     amountMinor: number;
     currency: string;
     txRef: string;
+    customerEmail?: string;
   }): Promise<ChargeResult> {
     fakeCheckouts.set(params.txRef, { status: 'succeeded', amountMinor: params.amountMinor, currency: params.currency });
 

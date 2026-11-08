@@ -182,6 +182,8 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'billing.cannot_resume': 'billing.error.cannotResume',
   'billing.payer_cannot_leave': 'billing.error.payerCannotLeave',
   'billing.payer_cannot_leave_self': 'billing.error.payerCannotLeaveSelf',
+  'billing.checkout_moved': 'billing.error.checkoutMoved',
+  'billing.switch_not_available_yet': 'billing.error.switchNotAvailableYet',
   'rate.limited': 'auth.rateLimited',
   'validation.failed': 'generic.error',
   'request.malformed': 'generic.error',

@@ -83,9 +83,9 @@ export async function quote(
       const price = prorateTerm(entitlements.extraTeamPriceMinor * multiplier, remainingDays, periodDays) ?? entitlements.extraTeamPriceMinor * multiplier;
       amountMinor = roundToNaira(price);
       if (amountMinor > 0 && amountMinor < entitlements.minAddonChargeMinor) {
-        amountMinor = 0;
-        effectiveFrom = 'next_renewal';
+        amountMinor = entitlements.minAddonChargeMinor;
       }
+      effectiveFrom = 'now';
       description = `Add extra team — ₦${(amountMinor / 100).toFixed(2)}`;
       break;
     }
@@ -99,10 +99,10 @@ export async function quote(
         ? prorateTerm(extra * entitlements.extraPersonPriceMinor * multiplier, remainingDays, periodDays) ?? extra * entitlements.extraPersonPriceMinor * multiplier
         : 0;
       amountMinor = roundToNaira(price);
-      if (amountMinor > 0 && amountMinor < entitlements.minAddonChargeMinor) {
-        amountMinor = 0;
-        effectiveFrom = 'next_renewal';
+      if (extra > 0 && amountMinor < entitlements.minAddonChargeMinor) {
+        amountMinor = entitlements.minAddonChargeMinor;
       }
+      effectiveFrom = extra > 0 ? 'now' : 'next_renewal';
       description = `Add ${extra} extra person(s) — ₦${(amountMinor / 100).toFixed(2)}`;
       break;
     }
@@ -113,7 +113,15 @@ export async function quote(
       if (newPrice === currentPrice) {
         throw new HttpError(422, 'billing.same_interval', 'Interval is already the current one.');
       }
-      const price = prorateTerm(Math.abs(newPrice - currentPrice), remainingDays, periodDays) ?? Math.abs(newPrice - currentPrice);
+      const diff = newPrice - currentPrice;
+      if (diff < 0) {
+        throw new HttpError(
+          422,
+          'billing.switch_not_available_yet',
+          'You can switch to monthly when your yearly plan ends.',
+        );
+      }
+      const price = prorateTerm(diff, remainingDays, periodDays) ?? diff;
       amountMinor = roundToNaira(price);
       effectiveFrom = 'next_renewal';
       description = `Switch to ${interval} — ₦${(amountMinor / 100).toFixed(2)}`;

@@ -8,7 +8,7 @@ import { globalDb, forTeam } from '../db/clients.ts';
 import { HttpError } from '../middleware/error.ts';
 import { can, type Role } from '../security/policy.ts';
 import { type PlanId } from './schema.ts';
-import { daysRemaining, periodPrice, prorationFor, type PricingTable, PLAN_LIMITS } from './proration.ts';
+import { daysRemaining, prorationFor, type PricingTable, PLAN_LIMITS } from './proration.ts';
 import { resolvePaymentProvider } from './provider.ts';
 
 /** camelCase plan price used by the billing code (mapped from the plan_prices row at the database boundary). */
@@ -80,103 +80,14 @@ export async function countBillableSeats(teamId: string): Promise<number> {
   return res[0]?.count ?? 0;
 }
 
-/** Start checkout: first purchase locks currency from the payer's country. */
+/** Start checkout: legacy per-team checkout disabled; owner decided: use account billing. */
 export async function startCheckout(
-  userId: string,
-  teamId: string,
-  input: { plan: PlanId; seats: number; interval: 'month' | 'year' },
-  idempotencyKey: string,
+  _userId: string,
+  _teamId: string,
+  _input: { plan: PlanId; seats: number; interval: 'month' | 'year' },
+  _idempotencyKey: string,
 ): Promise<{ checkoutUrl: string; txRef: string; amountMinor: number; currency: string }> {
-  const shardClient = forTeam(teamId);
-  const db0 = globalDb();
-
-  // Only the team's owner (role 'owner') can start a checkout. Non-members get 404.
-  const membership = await shardClient.memberships.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-  });
-  if (!membership || membership.removed_at !== null || membership.role !== 'owner') {
-    throw new HttpError(404, 'team.notFound', 'Team not found.');
-  }
-
-  // Existing subscription? Reject (one subscription per team).
-  const existing = await shardClient.subscriptions.findUnique({ where: { team_id: teamId } });
-  if (existing) {
-    throw new HttpError(409, 'billing.subscription_exists', 'A subscription already exists for this team.');
-  }
-
-  // Seat cap check.
-  if (input.seats > 5 && input.plan === 'starter') {
-    throw new HttpError(422, 'billing.starter_cap', 'Starter supports at most 5 seats.');
-  }
-  if (input.seats > 200) {
-    throw new HttpError(422, 'billing.seat_ceiling', 'Seat ceiling of 200 exceeded.');
-  }
-
-  // Payer's country currency (first purchase locks it).
-  // Country code -> countries.currency (ISO 4217) -> currencies row.
-  const payer = await db0.users.findUnique({ where: { id: userId } });
-  if (!payer) throw new HttpError(404, 'user.not_found', 'User not found.');
-  const countryRow = await db0.countries.findUnique({ where: { code: payer.country } });
-  if (!countryRow) throw new HttpError(422, 'billing.country_not_found', 'Payer country not found.');
-  const currencyRow = await db0.currencies.findUnique({ where: { code: countryRow.currency } });
-  if (!currencyRow) throw new HttpError(422, 'billing.currency_not_found', 'Payer currency not found.');
-
-  // Map to camelCase types at the database boundary.
-  const currency = toCurrencyRow(currencyRow);
-
-  // All plan prices for this currency.
-  const prices = await db0.plan_prices.findMany({ where: { currency: currencyRow.code } });
-  const priceInputs = prices.map(toPlanPriceInput);
-  if (!isCurrencySold(currency, priceInputs)) {
-    throw new HttpError(422, 'billing.currency_not_sold', 'This currency is not sold.');
-  }
-
-  const table = buildPricingTable(priceInputs);
-  if (!table) throw new HttpError(422, 'billing.currency_not_sold', 'This currency is not sold.');
-
-  const price = periodPrice(input.plan, input.seats, table[input.plan].price, table[input.plan].limits, input.interval);
-  if (price === null) {
-    throw new HttpError(422, 'billing.invalid_plan_seats', 'Invalid plan or seat count.');
-  }
-
-  const provider = resolvePaymentProvider();
-
-  // Idempotency: check for existing key.
-  const existingKey = await db0.payment_intents.findFirst({ where: { team_id: teamId, idempotency_key: idempotencyKey } });
-  if (existingKey) {
-    return { checkoutUrl: await provider.checkoutUrlFor(existingKey.tx_ref), txRef: existingKey.tx_ref, amountMinor: Number(existingKey.amount_minor), currency: existingKey.currency };
-  }
-
-    const checkout = await provider.createCheckout({
-      amountMinor: price,
-      currency: currency.code,
-      txRef: `tx-${randomUUID()}`,
-      customerEmail: payer.email,
-    });
-
-  const intent = await db0.payment_intents.create({
-    data: {
-      team_id: teamId,
-      tx_ref: checkout.txRef,
-      purpose: 'first_purchase',
-      amount_minor: BigInt(price),
-      currency: currencyRow.code,
-      status: 'pending',
-      idempotency_key: idempotencyKey,
-      created_by: userId,
-      plan: input.plan,
-      seats: input.seats,
-      interval: input.interval,
-      kind: 'first_purchase',
-    },
-  });
-
-  return {
-    checkoutUrl: checkout.checkoutUrl,
-    txRef: intent.tx_ref,
-    amountMinor: Number(intent.amount_minor),
-    currency: intent.currency,
-  };
+  throw new HttpError(410, 'billing.checkout_moved', 'This checkout has moved. Use account billing.');
 }
 
 /** Change plan: upgrade → pay chargeToday now (via intent, applied by webhook job); downgrade → schedule at period end. */

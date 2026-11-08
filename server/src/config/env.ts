@@ -132,7 +132,7 @@ export const ENV_NAMES: readonly string[] = Object.keys(EnvObject.shape).sort();
 const EnvSchema = EnvObject.superRefine((env, ctx) => {
   // Feature-gated groups: optional in general, required when their feature is live.
   if (env.PAYMENT_MODE === 'live') {
-    for (const name of ['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY', 'FLW_ENCRYPTION_KEY', 'FLW_WEBHOOK_SECRET_HASH'] as const) {
+    for (const name of ['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY', 'FLW_WEBHOOK_SECRET_HASH'] as const) {
       if (env[name] === '') {
         ctx.addIssue({ code: 'custom', message: `is required when PAYMENT_MODE is "live"`, path: [name] });
       }
@@ -142,7 +142,7 @@ const EnvSchema = EnvObject.superRefine((env, ctx) => {
   // The simulator is gated by rule P7 (refuses to start in production), so real keys are the
   // only production path.
   if (env.NODE_ENV === 'production' && env.PAYMENT_SIMULATOR_ENABLED !== true) {
-    for (const name of ['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY', 'FLW_ENCRYPTION_KEY', 'FLW_WEBHOOK_SECRET_HASH'] as const) {
+    for (const name of ['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY', 'FLW_WEBHOOK_SECRET_HASH'] as const) {
       if (env[name] === '') {
         ctx.addIssue({ code: 'custom', message: `is required when NODE_ENV is production and PAYMENT_SIMULATOR_ENABLED is not true`, path: [name] });
       }

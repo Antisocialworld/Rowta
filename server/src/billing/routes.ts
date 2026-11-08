@@ -5,7 +5,6 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import {
-  startCheckoutSchema,
   changePlanSchema,
   changeSeatsSchema,
   cancelSchema,
@@ -74,21 +73,13 @@ function param(c: Context, name: string): string {
 export function createBillingRouter(): Hono {
   const router = new Hono();
 
-  // 1. Start checkout (first purchase locks currency; Idempotency-Key required)
+  // 1. Start checkout (legacy per-team checkout disabled; owner decided: use account billing)
   registerPost(
     router,
     '/teams/:teamId/billing/checkout',
     { limits: ['settings.write'], auth: true },
-    async (c) => {
-      const userId = getUserId(c);
-      const teamId = param(c, 'teamId');
-      const body = parseWith(startCheckoutSchema, c.get('parsedBody'));
-      const idempotencyKey = c.req.header('idempotency-key');
-      if (!idempotencyKey || idempotencyKey.trim().length === 0) {
-        throw new HttpError(400, 'idempotency.missing', 'Idempotency-Key header is required.');
-      }
-      const result = await service.startCheckout(userId, teamId, body, idempotencyKey);
-      return c.json(ok(result), 201);
+    async () => {
+      throw new HttpError(410, 'billing.checkout_moved', 'This checkout has moved. Use account billing.');
     },
   );
 

@@ -1,4 +1,5 @@
 -- 080-backfill-owner-accounts.sql
+-- Note: Reads db0 teams only and includes all deleted teams (including those outside the restore window); for existing data use the backfill-owner-accounts script instead.
 -- Forward-only backfill: owner_accounts + owner_team_registry for existing teams (db0, idempotent).
 -- Apply to DB0 only, after 075-077. Safe to run twice and on empty databases (INSERT ... ON CONFLICT DO NOTHING).
 -- Creates one owner_accounts row per existing team creator (status 'trialing', 14-day trial, trial_used=true)
