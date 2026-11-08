@@ -1,18 +1,46 @@
 // Push registration — registers the Expo push token with the Rowta server once per
 // signed-in session (PRD 7.1, 8.7). Pure decision helpers are exported for testing.
 // Never logs or prints a push token (S1, S9).
+// expo-notifications is NOT imported at the top level: on Android Expo Go its native
+// modules are unavailable and the app crashes at startup ("Cannot find native module
+// 'ExpoTopicSubscriptionModule'"). getNotifications() first checks isExpoGoAndroid()
+// and returns null without requiring anything, so the module is never required there.
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import type { IosAuthorizationStatus } from 'expo-notifications';
 import { devicesApi } from './api';
 import { useShiftNav } from '../state/shift-nav';
+
+type NotificationsModule = typeof import('expo-notifications');
+
+declare const require: (id: string) => unknown;
+
+/** True only when running on Android inside Expo Go, where expo-notifications'
+ *  native modules are unavailable and push registration/listeners must be skipped. */
+export function isExpoGoAndroid(): boolean {
+  return Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient';
+}
+
+function getNotifications(): NotificationsModule | null {
+  if (isExpoGoAndroid()) return null;
+  try {
+    return require('expo-notifications') as NotificationsModule;
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------------------------
 // Pure decision helpers (exported for testing)
 // ---------------------------------------------------------------------------------------------
 
 /** True only when iOS notification permission has not yet been asked. */
-export function shouldAskPermission(iosStatus: Notifications.IosAuthorizationStatus | null | undefined): boolean {
-  return iosStatus === Notifications.IosAuthorizationStatus.NOT_DETERMINED;
+export function shouldAskPermission(
+  iosStatus: IosAuthorizationStatus | null | undefined,
+): boolean {
+  const module = getNotifications();
+  if (!module) return false;
+  return iosStatus === module.IosAuthorizationStatus.NOT_DETERMINED;
 }
 
 /** True only when permission was granted. */
@@ -51,6 +79,8 @@ function newIdempotencyKey(): string {
  */
 export async function registerPushDevice(): Promise<void> {
   try {
+    const Notifications = getNotifications();
+    if (!Notifications) return;
     const permission = await Notifications.getPermissionsAsync();
     if (shouldAskPermission(permission.ios?.status ?? null)) {
       const result = await Notifications.requestPermissionsAsync();
@@ -80,29 +110,59 @@ export async function registerPushDevice(): Promise<void> {
 
 /** Show banner and list, no sound, no badge while the app is open. */
 export function setupNotificationHandler(): void {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
-  });
+  const Notifications = getNotifications();
+  if (!Notifications) return;
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {
+    // Swallow — handler setup must never crash the app.
+  }
+}
+
+/** Clear the notification handler (used on unmount). */
+export function clearNotificationHandler(): void {
+  const Notifications = getNotifications();
+  if (!Notifications) return;
+  try {
+    Notifications.setNotificationHandler(null);
+  } catch {
+    // Swallow.
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
 // Notification tap listener
 // ---------------------------------------------------------------------------------------------
 
-/** Handle a tap on a notification. Only shift payloads open the shift detail screen. */
-export function setupTapListener(): Notifications.EventSubscription {
-  return Notifications.addNotificationResponseReceivedListener((response) => {
-    const data = response.notification.request.content.data;
-    if (isShiftTap(data)) {
-      useShiftNav.getState().open({ name: 'detail', shiftId: data.shiftId });
-    }
-    // Every other payload is ignored.
-  });
+/** Handle a tap on a notification. Only shift payloads open the shift detail screen.
+ *  Returns a dummy no-op subscription when expo-notifications is unavailable so the
+ *  caller can always call subscription.remove() safely.
+ */
+type TapSubscription = ReturnType<NotificationsModule['addNotificationResponseReceivedListener']>;
+
+export function setupTapListener(): TapSubscription {
+  const Notifications = getNotifications();
+  if (!Notifications) {
+    return { remove: () => undefined } as TapSubscription;
+  }
+  try {
+    return Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data;
+      if (isShiftTap(data)) {
+        useShiftNav.getState().open({ name: 'detail', shiftId: data.shiftId });
+      }
+      // Every other payload is ignored.
+    });
+  } catch {
+    return { remove: () => undefined } as TapSubscription;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -114,6 +174,8 @@ export function setupTapListener(): Notifications.EventSubscription {
  */
 export async function handleColdStartNotification(): Promise<void> {
   try {
+    const Notifications = getNotifications();
+    if (!Notifications) return;
     const response = Notifications.getLastNotificationResponse();
     if (!response) return;
     const data = response.notification.request.content.data;
