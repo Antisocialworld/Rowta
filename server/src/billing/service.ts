@@ -309,7 +309,7 @@ export async function getStatus(
   userId: string,
   teamId: string,
 ): Promise<{
-  subscription: { plan: string; seats: number; status: string; interval: string; currency: string; billing_user_id: string | null } | null;
+  accountStatus: string | null;
   coverageStatus: string;
   ownerDisplayName: string | null;
 }> {
@@ -338,20 +338,16 @@ export async function getStatus(
     ownerDisplayName = owner?.display_name ?? null;
   }
 
-  // Subscription (legacy per-team row; basic fields only, no amounts).
-  const sub = await shardClient.subscriptions.findUnique({ where: { team_id: teamId } });
+  // Account status from owner_accounts covering this team.
+  let accountStatus: string | null = null;
+  const reg = await db0.owner_team_registry.findUnique({ where: { team_id: teamId } });
+  if (reg?.owner_user_id) {
+    const account = await db0.owner_accounts.findUnique({ where: { user_id: reg.owner_user_id } });
+    accountStatus = account?.status ?? null;
+  }
 
   return {
-    subscription: sub
-      ? {
-          plan: sub.plan,
-          seats: sub.seats,
-          status: sub.status,
-          interval: sub.interval,
-          currency: sub.currency,
-          billing_user_id: sub.billing_user_id,
-        }
-      : null,
+    accountStatus,
     coverageStatus: team.coverage_status ?? 'covered',
     ownerDisplayName,
   };
