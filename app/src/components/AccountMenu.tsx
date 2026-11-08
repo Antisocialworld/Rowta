@@ -6,8 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from './Button';
 import { SheetModal } from './SheetModal';
 import { Text } from './Text';
-import { t } from '../i18n/en';
+import { t, type MessageKey } from '../i18n/en';
 import { authApi } from '../lib/api';
+import { billingApi } from '../api/billing';
 import { useAuthSession } from '../state/auth-session';
 import { MIN_TOUCH_TARGET } from '../theme/layout';
 import { spacing } from '../theme/tokens';
@@ -27,7 +28,34 @@ export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
     staleTime: 5 * 60 * 1000,
   });
 
+  const accountQuery = useQuery({
+    queryKey: ['billing', 'account'],
+    queryFn: () => billingApi.accountStatus(),
+    enabled: meQuery.data !== null,
+    staleTime: 0, // billing is never cached
+    refetchOnWindowFocus: false,
+  });
+
   const userName = meQuery.data?.displayName ?? '';
+  const account = accountQuery.data?.account ?? null;
+  const hasAccount = account !== null;
+
+  const statusKey: Record<string, MessageKey> = {
+    active: 'billing.account.status.active',
+    trialing: 'billing.account.status.trialing',
+    past_due: 'billing.account.status.past_due',
+    read_only: 'billing.account.status.read_only',
+    cancelled: 'billing.account.status.cancelled',
+  };
+
+  const statusLabel = account
+    ? t(statusKey[account.status] ?? 'billing.account.status.active')
+    : '';
+  let statusLine = statusLabel;
+  if (account?.status === 'trialing' && account.trialEndsAt) {
+    const days = Math.max(0, Math.ceil((new Date(account.trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+    statusLine = `${statusLabel} · ${days} days left`;
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -54,6 +82,14 @@ export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
               {t('teams.user.signedInAs', { name: userName })}
             </Text>
           ) : null}
+
+          {hasAccount && account ? (
+            <View style={styles.accountRow}>
+              <Text variant="body-medium">{t('billing.account.title')}</Text>
+              <Text variant="body-small" tone="secondary">{statusLine}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.actions}>
             <Button
               label="action.signOut"
@@ -88,9 +124,14 @@ const styles = StyleSheet.create({
   sheetContent: {
     gap: Number(spacing.base),
   },
+  accountRow: {
+    gap: Number(spacing.extraSmall),
+    marginBottom: Number(spacing.small),
+    paddingBottom: Number(spacing.small),
+    borderBottomWidth: 1,
+  },
   actions: {
     gap: Number(spacing.small),
     marginTop: Number(spacing.small),
   },
 });
-

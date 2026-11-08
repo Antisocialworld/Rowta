@@ -8,10 +8,11 @@
 // Destructive operations decommission the team and return immediately to Your teams (U1).
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Switch, View, type TextInstance } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
-import { ApiError, errorMessageKey, teamsApi } from '../../lib/api';
+import { ApiError, authApi, errorMessageKey, teamsApi } from '../../lib/api';
+import { billingApi } from '../../api/billing';
 import { focusOn } from '../../lib/a11y';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
@@ -25,6 +26,7 @@ export function TeamSettingsScreen() {
   const headingRef = useRef<TextInstance>(null);
   const queryClient = useQueryClient();
   const back = useTeamsView((state) => state.back);
+  const teamsViewGo = useTeamsView((state) => state.go);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const teamQuery = useTeam(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
   const membersQuery = useTeamMembers(selectedTeamId, { refetchInterval: 15_000, refetchIntervalInBackground: false });
@@ -34,9 +36,26 @@ export function TeamSettingsScreen() {
   const [transferModalVisible, setTransferModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
+  const meQuery = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => authApi.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const currentUserId = meQuery.data?.userId ?? '';
+
   const team = teamQuery.data;
   const members = membersQuery.data?.members;
   const isOwner = team?.role === 'owner';
+
+  const accountQuery = useQuery({
+    queryKey: ['billing', 'account'],
+    queryFn: () => billingApi.accountStatus(),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
+
+  const acct = accountQuery.data?.account ?? null;
+  const isPayingOwner = acct?.userId === currentUserId;
 
   useEffect(() => {
     focusOn(headingRef.current);
@@ -101,6 +120,23 @@ export function TeamSettingsScreen() {
         {t('teams.view.settings.heading')}
       </Text>
           {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
+
+          {isOwner && accountQuery.data && (
+            <>
+              {isPayingOwner ? (
+                <Button
+                  label="teams.settings.moveBilling"
+                  variant="secondary"
+                  onPress={() => void teamsViewGo('move-billing')}
+                  testID="settings-move-billing"
+                />
+              ) : (
+                <Text variant="body-small" tone="secondary" testID="settings-covered-by">
+                  {t('teams.settings.coveredBy', { owner: acct?.userId ? 'the account owner' : 'the owner' })}
+                </Text>
+              )}
+            </>
+          )}
 
           {teamQuery.isLoading ? (
             <Skeleton variant="text" />

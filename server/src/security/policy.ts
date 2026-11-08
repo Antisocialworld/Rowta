@@ -47,6 +47,8 @@ export interface PolicyResource {
   readonly shiftAssigneeId?: string;
   readonly invitedBy?: string;
   readonly deletedBy?: string;
+  readonly billingUserId?: string; // legacy per-team billing holder (deprecated at C7)
+  readonly accountOwnerId?: string; // account-level billing owner (C7)
 }
 
 export interface PolicyContext {
@@ -169,12 +171,16 @@ export const PERMISSION_MATRIX: Readonly<Record<PolicyAction, ActionRule>> = {
     allowedRoles: ['manager', 'staff'],
   },
 
-  // 8. View or change billing: Owner=yes, Manager=NO, Staff=NO
+  // 8. View or change billing: view is status-only for the team Admin (no amounts);
+  //    manage is account-owner only (C7). Admin sees plan status/seats, no payment data.
   view_billing: {
     allowedRoles: ['owner'],
   },
   manage_billing: {
     allowedRoles: ['owner'],
+    checkResource: (ctx) => {
+      return ctx.resource?.accountOwnerId === ctx.user.id;
+    },
   },
 
   // 9. Delete or restore the team: Owner=yes, Manager=NO, Staff=NO

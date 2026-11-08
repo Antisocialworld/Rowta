@@ -144,6 +144,9 @@ export function TransferOwnershipModal({
                 <Text variant="body-medium" tone="secondary">
                   {t('teams.transfer.confirmMessage', { name: selectedMember.displayName })}
                 </Text>
+                <Text variant="body-small" tone="secondary">
+                  {t('teams.transfer.keepPaying')}
+                </Text>
               </Card>
             ) : null}
 

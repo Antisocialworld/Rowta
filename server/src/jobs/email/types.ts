@@ -15,7 +15,20 @@ export type EmailJobData =
       inviterName: string | null;
       role: string;
       token: string;
-    };
+    }
+  // T17 billing move notices.
+  | { kind: 'transferStillPaying'; email: string; team: string; name: string; from: string }
+  | { kind: 'moveRequested'; email: string; team: string; from: string; date: string }
+  | { kind: 'moveAccepted'; email: string; team: string; name: string }
+  | { kind: 'moveDeclined'; email: string; team: string; name: string }
+  | { kind: 'moveCancelled'; email: string; team: string; from: string }
+  | { kind: 'moveExpired'; email: string; team: string; name: string; date: string }
+  | { kind: 'movePaymentNeeded'; email: string; team: string; name: string }
+  | { kind: 'moveTrialStarted'; email: string; team: string; date: string }
+  // A2 Admin notices when payer's plan changes.
+  | { kind: 'billingPlanCancelled'; email: string; date: string }
+  | { kind: 'billingPlanKept'; email: string }
+  | { kind: 'billingPlanEnded'; email: string };
 
 export type EmailJobKind = EmailJobData['kind'];
 

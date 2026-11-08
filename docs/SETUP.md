@@ -33,7 +33,6 @@ npm run gen:secret
 | `FLW_PUBLIC_KEY`, `FLW_SECRET_KEY`, `FLW_ENCRYPTION_KEY`, `FLW_WEBHOOK_SECRET_HASH` | your Flutterwave dashboard, TEST mode keys only | real test-mode checkout (Phase 7). Without them the development-only simulator proves the flow. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `MAIL_FROM` (+ optional `SMTP_USER`, `SMTP_PASSWORD`) | your email provider (see §2b) | real email delivery. There is no local mail catcher — the server sends through your provider's real SMTP. |
 | `EXPO_ACCESS_TOKEN` | your Expo account | authenticated push sends (optional) |
-| `SENTRY_DSN_SERVER`, `EXPO_PUBLIC_SENTRY_DSN` | Sentry project | error reporting (optional) |
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | EAS project | Android development build (Phase 12) |
 
 Use a test Flutterwave account, not live keys. If a key is ever exposed, rotate it in the provider dashboard first.

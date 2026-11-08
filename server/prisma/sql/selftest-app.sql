@@ -25,6 +25,13 @@ SELECT pg_temp.must_fail('ledger TRUNCATE', $$TRUNCATE ledger_entries$$);
 SELECT pg_temp.must_fail('DROP TABLE', $$DROP TABLE ledger_entries$$);
 SELECT pg_temp.must_fail('DROP the ledger trigger', $$DROP TRIGGER ledger_no_row_change ON ledger_entries$$);
 SELECT pg_temp.must_fail('ALTER TABLE', $$ALTER TABLE ledger_entries DISABLE TRIGGER ALL$$);
+-- Billing handovers: app can create and resolve (UPDATE its own rows)
+SELECT pg_temp.must_pass('subscription for handover test', $$INSERT INTO subscriptions (id, team_id, plan, seats, currency, period_start, period_end, billing_user_id, interval) VALUES ('88888888-8888-8888-8888-888888888888', '11111111-1111-1111-1111-111111111111', 'starter', 3, 'USD', now(), now() + interval '30 days', 'aaaaaaaa-0000-0000-0000-000000000001', 'month')$$);
+SELECT pg_temp.must_pass('billing_handovers insert', $$INSERT INTO billing_handovers (id, subscription_id, team_id, from_user_id, to_user_id, status, expires_at) VALUES ('66666666-6666-6666-6666-666666666666', '88888888-8888-8888-8888-888888888888', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', 'requested', now() + interval '7 days')$$);
+SELECT pg_temp.must_pass('billing_handovers update (resolve)', $$UPDATE billing_handovers SET status = 'accepted', resolved_at = now() WHERE id = '66666666-6666-6666-6666-666666666666'$$);
+SELECT pg_temp.must_pass('cancel_at_period_end update', $$UPDATE subscriptions SET cancel_at_period_end = true WHERE id = '88888888-8888-8888-8888-888888888888'$$);
+-- FIX-A: payment_intents target columns writable by app role
+SELECT pg_temp.must_pass('payment_intents target insert', $$INSERT INTO payment_intents (id, team_id, tx_ref, purpose, amount_minor, currency, created_by, plan, seats, interval, kind) VALUES ('99999999-9999-9999-9999-999999999999', '11111111-1111-1111-1111-111111111111', 'tx-target', 'first_purchase', 100, 'USD', 'aaaaaaaa-0000-0000-0000-000000000001', 'starter', 3, 'month', 'first_purchase')$$);
 SELECT pg_temp.must_fail('CREATE TABLE', $$CREATE TABLE evil (id int)$$);
 SELECT pg_temp.must_pass('normal team update', $$UPDATE teams SET name = 'Renamed' WHERE id = '11111111-1111-1111-1111-111111111111'$$);
 ROLLBACK;

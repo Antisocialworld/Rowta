@@ -16,12 +16,21 @@ import { closeAllQueues, createRedisConnection, getQueue, QUEUE_NAMES, QUEUE_PRE
 import { startCron } from '../cron/registry.ts';
 import { processEmailJob } from '../jobs/email/processor.ts';
 import type { EmailJobData } from '../jobs/email/types.ts';
+import { processWebhookJob } from '../jobs/webhook-processor.ts';
+import { processGraceReminder } from '../billing/renewal-processor.ts';
+import {
+  processAccountRenewalJob,
+  processAccountGraceReminder,
+  processAccountYearlyReminder,
+  processAccountTrialEnd,
+} from '../billing/account-renewal-processor.ts';
 import { runPurgeIdempotency, runPurgeTokens } from '../jobs/purge/processor.ts';
 import { runRepairUserTeamIndex } from '../jobs/repair/user-team-index.ts';
 import { processPushJob, registerSweeperRepeatableJob } from '../notifications/outbox.ts';
 import { registerExpireInvitesScheduler, runExpireInvites } from '../cron/expire-invites.ts';
 import { registerPushReceiptsScheduler, runCheckPushReceipts } from '../cron/push-receipts.ts';
 import { startWorkerLiveness } from './liveness.ts';
+import { sweepExpiredMoves } from '../jobs/sweep-expired-moves.ts';
 
 const log = logger.child({ process: 'worker' });
 
@@ -67,6 +76,9 @@ async function processPurge(job: Job): Promise<unknown> {
   if (job.name === 'expire-invites') {
     return runExpireInvites();
   }
+  if (job.name === 'sweep-expired-moves') {
+    return sweepExpiredMoves();
+  }
   return acknowledgeOnly(job);
 }
 
@@ -82,12 +94,38 @@ const PROCESSORS: Record<QueueName, (job: Job) => Promise<unknown>> = {
     }
     return processPushJob(job);
   },
-  webhook: acknowledgeOnly,
+  webhook: (job) => {
+    if (job.name === 'process-webhook') {
+      return processWebhookJob(job as Job<{ txRef: string; eventType: string; providerAmount?: number; providerCurrency?: string }>);
+    }
+    return acknowledgeOnly(job);
+  },
   // The email processor GENERATES the 6-digit code / link token itself and stores its Argon2id
   // hash, so no secret ever sits in a job payload (J3, C2). It also decides send vs no-send
   // (A6): the request path only enqueues.
   email: (job) => processEmailJob(job as Job<EmailJobData>),
-  renewal: acknowledgeOnly,
+  renewal: (job) => {
+    // Old per-team renewal disabled at C7 (account-level renewal replaces it).
+    if (job.name === 'process-renewal') {
+      return acknowledgeOnly(job);
+    }
+    if (job.name === 'process-grace-reminder') {
+      return processGraceReminder(job as Job<{ teamId: string }>);
+    }
+    if (job.name === 'process-account-renewal') {
+      return processAccountRenewalJob(job as Job<{ ownerUserId: string; periodEnd: string }>);
+    }
+    if (job.name === 'process-account-grace-reminder') {
+      return processAccountGraceReminder(job as Job<{ ownerUserId: string }>);
+    }
+    if (job.name === 'process-account-yearly-reminder') {
+      return processAccountYearlyReminder(job as Job<{ ownerUserId: string; periodEnd: string }>);
+    }
+    if (job.name === 'process-account-trial-end') {
+      return processAccountTrialEnd(job as Job<{ ownerUserId: string }>);
+    }
+    return acknowledgeOnly(job);
+  },
   purge: processPurge,
 };
 

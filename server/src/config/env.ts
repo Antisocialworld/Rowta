@@ -115,13 +115,8 @@ const EnvObject = z.object({
   // ---- Push notifications ----------------------------------------------------------------------
   EXPO_ACCESS_TOKEN: z.string().optional().default(''),
 
-  // ---- Error reporting -------------------------------------------------------------------------
-  SENTRY_DSN_SERVER: z.string().optional().default(''),
-  SENTRY_ENVIRONMENT: nonEmpty.default('development'),
-
   // ---- Values compiled into the app (PUBLIC by design; never a secret) -------------------------
   EXPO_PUBLIC_API_URL: nonEmpty,
-  EXPO_PUBLIC_SENTRY_DSN: z.string().optional().default(''),
   EXPO_PUBLIC_EAS_PROJECT_ID: z.string().optional().default(''),
 
   // ---- Web surface (web/build.mjs reads these from process.env; declared here for parity only) ----
@@ -140,6 +135,16 @@ const EnvSchema = EnvObject.superRefine((env, ctx) => {
     for (const name of ['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY', 'FLW_ENCRYPTION_KEY', 'FLW_WEBHOOK_SECRET_HASH'] as const) {
       if (env[name] === '') {
         ctx.addIssue({ code: 'custom', message: `is required when PAYMENT_MODE is "live"`, path: [name] });
+      }
+    }
+  }
+  // The Flutterwave keys are required in production unless the dev-only simulator is enabled.
+  // The simulator is gated by rule P7 (refuses to start in production), so real keys are the
+  // only production path.
+  if (env.NODE_ENV === 'production' && env.PAYMENT_SIMULATOR_ENABLED !== true) {
+    for (const name of ['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY', 'FLW_ENCRYPTION_KEY', 'FLW_WEBHOOK_SECRET_HASH'] as const) {
+      if (env[name] === '') {
+        ctx.addIssue({ code: 'custom', message: `is required when NODE_ENV is production and PAYMENT_SIMULATOR_ENABLED is not true`, path: [name] });
       }
     }
   }

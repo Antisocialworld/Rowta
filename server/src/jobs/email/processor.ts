@@ -22,9 +22,20 @@ import {
   inviteUrl,
   magicLinkEmail,
   magicLinkUrl,
+  moveAcceptedEmail,
+  moveCancelledEmail,
+  moveDeclinedEmail,
+  moveExpiredEmail,
+  movePaymentNeededEmail,
+  moveRequestedEmail,
+  moveTrialStartedEmail,
+  planCancelledEmail,
+  planEndedEmail,
+  planKeptEmail,
   resetCodeEmail,
   signupCodeEmail,
   signupNoticeEmail,
+  transferStillPayingEmail,
   welcomeEmail,
   webHomeUrl,
 } from '../../mail/templates.ts';
@@ -47,6 +58,28 @@ export async function processEmailJob(job: Job<EmailJobData>): Promise<EmailJobR
       return sendMagicLink(data.email);
     case 'teamInvite':
       return sendTeamInvite(data);
+    case 'transferStillPaying':
+      return sendTransferStillPaying(data);
+    case 'moveRequested':
+      return sendMoveRequested(data);
+    case 'moveAccepted':
+      return sendMoveAccepted(data);
+    case 'moveDeclined':
+      return sendMoveDeclined(data);
+    case 'moveCancelled':
+      return sendMoveCancelled(data);
+    case 'moveExpired':
+      return sendMoveExpired(data);
+    case 'movePaymentNeeded':
+      return sendMovePaymentNeeded(data);
+    case 'moveTrialStarted':
+      return sendMoveTrialStarted(data);
+    case 'billingPlanCancelled':
+      return sendBillingPlanCancelled(data);
+    case 'billingPlanKept':
+      return sendBillingPlanKept(data);
+    case 'billingPlanEnded':
+      return sendBillingPlanEnded(data);
     default: {
       const unknown: never = data;
       throw new Error(`unknown email job kind: ${JSON.stringify(unknown)}`);
@@ -216,6 +249,102 @@ async function sendMagicLink(email: string): Promise<EmailJobResult> {
     name: user.display_name,
     magicLink: magicLinkUrl(formatToken(parts)),
   });
-  await sendEmail({ kind: 'magicLink', to: email, ...message });
+    await sendEmail({ kind: 'magicLink', to: email, ...message });
   return { kind: 'magicLink', sent: true };
+}
+
+async function sendTransferStillPaying(
+  data: Extract<EmailJobData, { kind: 'transferStillPaying' }>,
+): Promise<EmailJobResult> {
+  const message = transferStillPayingEmail({
+    name: data.name,
+    team: data.team,
+    from: data.from,
+  });
+  await sendEmail({ kind: 'transferStillPaying', to: data.email, ...message });
+  return { kind: 'transferStillPaying', sent: true };
+}
+
+async function sendMoveRequested(
+  data: Extract<EmailJobData, { kind: 'moveRequested' }>,
+): Promise<EmailJobResult> {
+  const message = moveRequestedEmail({
+    team: data.team,
+    from: data.from,
+    date: data.date,
+  });
+  await sendEmail({ kind: 'moveRequested', to: data.email, ...message });
+  return { kind: 'moveRequested', sent: true };
+}
+
+async function sendMoveAccepted(
+  data: Extract<EmailJobData, { kind: 'moveAccepted' }>,
+): Promise<EmailJobResult> {
+  const message = moveAcceptedEmail({ name: data.name, team: data.team });
+  await sendEmail({ kind: 'moveAccepted', to: data.email, ...message });
+  return { kind: 'moveAccepted', sent: true };
+}
+
+async function sendMoveDeclined(
+  data: Extract<EmailJobData, { kind: 'moveDeclined' }>,
+): Promise<EmailJobResult> {
+  const message = moveDeclinedEmail({ name: data.name, team: data.team });
+  await sendEmail({ kind: 'moveDeclined', to: data.email, ...message });
+  return { kind: 'moveDeclined', sent: true };
+}
+
+async function sendMoveCancelled(
+  data: Extract<EmailJobData, { kind: 'moveCancelled' }>,
+): Promise<EmailJobResult> {
+  const message = moveCancelledEmail({ team: data.team, from: data.from });
+  await sendEmail({ kind: 'moveCancelled', to: data.email, ...message });
+  return { kind: 'moveCancelled', sent: true };
+}
+
+async function sendMoveExpired(
+  data: Extract<EmailJobData, { kind: 'moveExpired' }>,
+): Promise<EmailJobResult> {
+  const message = moveExpiredEmail({ name: data.name, team: data.team, date: data.date });
+  await sendEmail({ kind: 'moveExpired', to: data.email, ...message });
+  return { kind: 'moveExpired', sent: true };
+}
+
+async function sendMovePaymentNeeded(
+  data: Extract<EmailJobData, { kind: 'movePaymentNeeded' }>,
+): Promise<EmailJobResult> {
+  const message = movePaymentNeededEmail({ name: data.name, team: data.team });
+  await sendEmail({ kind: 'movePaymentNeeded', to: data.email, ...message });
+  return { kind: 'movePaymentNeeded', sent: true };
+}
+
+async function sendMoveTrialStarted(
+  data: Extract<EmailJobData, { kind: 'moveTrialStarted' }>,
+): Promise<EmailJobResult> {
+  const message = moveTrialStartedEmail({ team: data.team, date: data.date });
+  await sendEmail({ kind: 'moveTrialStarted', to: data.email, ...message });
+  return { kind: 'moveTrialStarted', sent: true };
+}
+
+async function sendBillingPlanCancelled(
+  data: Extract<EmailJobData, { kind: 'billingPlanCancelled' }>,
+): Promise<EmailJobResult> {
+  const message = planCancelledEmail({ date: data.date });
+  await sendEmail({ kind: 'billingPlanCancelled', to: data.email, ...message });
+  return { kind: 'billingPlanCancelled', sent: true };
+}
+
+async function sendBillingPlanKept(
+  data: Extract<EmailJobData, { kind: 'billingPlanKept' }>,
+): Promise<EmailJobResult> {
+  const message = planKeptEmail();
+  await sendEmail({ kind: 'billingPlanKept', to: data.email, ...message });
+  return { kind: 'billingPlanKept', sent: true };
+}
+
+async function sendBillingPlanEnded(
+  data: Extract<EmailJobData, { kind: 'billingPlanEnded' }>,
+): Promise<EmailJobResult> {
+  const message = planEndedEmail();
+  await sendEmail({ kind: 'billingPlanEnded', to: data.email, ...message });
+  return { kind: 'billingPlanEnded', sent: true };
 }

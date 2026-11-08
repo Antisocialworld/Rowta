@@ -23,9 +23,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import type { ShiftView } from '@rowta/shared';
-import { Badge, Button, Card, EmptyState, ShiftCard, Skeleton, Text } from '../components';
+import { Badge, Button, BillingBanner, Card, EmptyState, ShiftCard, Skeleton, Text } from '../components';
 import { t, type MessageKey } from '../i18n/en';
 import { authApi, shiftsApi, swapsApi } from '../lib/api';
+import { billingApi } from '../api/billing';
 import { focusOn } from '../lib/a11y';
 import { greetingKeyForHour } from '../lib/dashboard-greeting';
 import { formatShiftDay, formatShiftTimeRange } from '../lib/shift-time';
@@ -45,6 +46,7 @@ import { AccountMenu } from '../components/AccountMenu';
 import { activityEventShiftId } from '../lib/shift-feed';
 import { useActivityClearedUntil } from '../lib/useActivityClearedUntil';
 import { useTeams, useTeamsList } from '../state/teams';
+import { useTeamsView } from '../state/teams-view';
 import { useShiftNav } from '../state/shift-nav';
 import { ActivityRow } from './shifts/ActivityRow';
 import { colors, shape, spacing, state } from '../theme/tokens';
@@ -67,6 +69,7 @@ export function DashboardScreen() {
   const headingRef = useRef<TextInstance>(null);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
   const setPickingTeam = useTeams((state) => state.setPickingTeam);
+  const teamsViewGo = useTeamsView((state) => state.go);
   const openShift = useShiftNav((state) => state.open);
   const { width } = useWindowDimensions();
   const compact = isCompactWidth(width);
@@ -80,6 +83,22 @@ export function DashboardScreen() {
 
   const currentUserId = meQuery.data?.userId ?? '';
   const currentUserName = meQuery.data?.displayName ?? '';
+
+  // Billing banner: trial ending within 3 days, or payment late / read-only.
+  const accountQuery = useQuery({
+    queryKey: ['billing', 'account'],
+    queryFn: () => billingApi.accountStatus(),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
+
+  const acct = accountQuery.data?.account ?? null;
+  const trialDaysLeft =
+    acct?.status === 'trialing' && acct.trialEndsAt
+      ? Math.max(0, Math.ceil((new Date(acct.trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+      : 0;
+  const showTrialBanner = acct?.status === 'trialing' && trialDaysLeft <= 3 && trialDaysLeft > 0;
+  const showPaymentBanner = acct?.status === 'past_due' || acct?.status === 'read_only';
   const { clearedUntil: dashClearedUntil, isLoaded: dashIsLoaded } = useActivityClearedUntil(
     currentUserId,
     selectedTeamId,
@@ -241,6 +260,14 @@ export function DashboardScreen() {
                 </Text>
               ) : null}
             </View>
+
+            {(showTrialBanner || showPaymentBanner) && (
+              <BillingBanner
+                kind={showTrialBanner ? 'trial_ending' : 'payment_late'}
+                days={trialDaysLeft}
+                onGoToBilling={() => void teamsViewGo('billing')}
+              />
+            )}
 
             {/* 2. Quick Navigation Shortcuts */}
             <View style={styles.actionRow}>

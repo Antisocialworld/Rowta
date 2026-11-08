@@ -19,6 +19,11 @@ import { shardFor, type Shard } from './shard.ts';
 // need a specific model narrow by shard; the health check only needs $queryRaw, which both share.
 export type AnyPrismaClient = GeneratedDb0 | GeneratedDb1;
 
+// Shard-scoped models (teams, memberships, shifts, subscriptions...) are IDENTICAL in both shard schemas,
+// so team-scoped code is typed against ONE client type. Calling .update() on the union
+// GeneratedDb0 | GeneratedDb1 made TypeScript compare two huge generated types and fail (TS2349/TS2321).
+export type ShardClient = GeneratedDb0;
+
 const clients = new Map<Shard, AnyPrismaClient>();
 
 function buildClient(shard: Shard): AnyPrismaClient {
@@ -42,8 +47,8 @@ export function globalDb(): GeneratedDb0 {
 }
 
 /** Route a query to the team's shard. Every team-scoped call in the app goes through this. */
-export function forTeam(teamId: string): AnyPrismaClient {
-  return writeDb(shardFor(teamId));
+export function forTeam(teamId: string): ShardClient {
+  return writeDb(shardFor(teamId)) as ShardClient;
 }
 
 /**

@@ -58,8 +58,6 @@ const OPTIONAL_EMPTY = {
   FLW_ENCRYPTION_KEY: 'only if the current Flutterwave API needs it',
   FLW_WEBHOOK_SECRET_HASH: 'Phase 7; the dev simulator works without it',
   EXPO_ACCESS_TOKEN: 'optional',
-  SENTRY_DSN_SERVER: 'optional',
-  EXPO_PUBLIC_SENTRY_DSN: 'optional',
   EXPO_PUBLIC_EAS_PROJECT_ID: 'Phase 12 (EAS build)',
   WEB_APP_URL: 'dev-only optional; set it to the local Expo web origin to show the web-app button',
 };

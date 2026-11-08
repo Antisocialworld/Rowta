@@ -22,6 +22,7 @@ import { SwapsListScreen } from './shifts/SwapsListScreen';
 import { useTeamsView } from '../state/teams-view';
 import { shouldShowDashboard, useTeams } from '../state/teams';
 import { useShiftNav } from '../state/shift-nav';
+import { BillingScreen, QuoteScreen, MoveBillingScreen } from './billing';
 
 export function TeamsRouter() {
   const view = useTeamsView((state) => state.view);
@@ -61,6 +62,12 @@ export function TeamsRouter() {
     screen = <MembersScreen />;
   } else if (view === 'teamSettings') {
     screen = <TeamSettingsScreen />;
+  } else if (view === 'billing') {
+    screen = <BillingScreen />;
+  } else if (view === 'quote') {
+    screen = <QuoteScreen />;
+  } else if (view === 'move-billing') {
+    screen = <MoveBillingScreen />;
   }
 
   return (

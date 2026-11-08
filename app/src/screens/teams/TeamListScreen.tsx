@@ -7,10 +7,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, teamsApi } from '../../lib/api';
+import { billingApi } from '../../api/billing';
 import { focusOn } from '../../lib/a11y';
 import { devToolsVisible } from '../../lib/dev-tools';
 import { canInviteMembers, canManageTeamSettings, teamRoleKey } from '../../lib/team-role';
@@ -19,6 +20,7 @@ import { useAuthSession } from '../../state/auth-session';
 import { resolveSelectedTeamId, useDeletedTeams, useTeams, useTeamsList } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { useInviteModal } from '../../state/invite-modal';
+import { useBilling } from '../../state/billing';
 import { AccountMenu } from '../../components/AccountMenu';
 import { colors, shape, spacing, state } from '../../theme/tokens';
 import { MIN_TOUCH_TARGET, RING, iconSize } from '../../theme/layout';
@@ -40,7 +42,7 @@ function TeamRow({
   panelOpen,
   onSelect,
 }: {
-  team: { id: string; name: string; role: string };
+  team: { id: string; name: string; role: string; coverageStatus?: string };
   selected: boolean;
   panelOpen: boolean;
   onSelect: () => void;
@@ -111,6 +113,7 @@ export function TeamListScreen() {
   const queryClient = useQueryClient();
   const openGallery = useAuthSession((state) => state.openGallery);
   const go = useTeamsView((state) => state.go);
+  const setQuoteParams = useBilling((state) => state.setQuoteParams);
   const openInviteModal = useInviteModal((state) => state.open);
   const teamsQuery = useTeamsList({ refetchInterval: 15_000, refetchIntervalInBackground: false });
   const message = useTeamsView((state) => state.message);
@@ -135,6 +138,15 @@ export function TeamListScreen() {
 
   const deletedTeamsQuery = useDeletedTeams();
   const deletedTeams = deletedTeamsQuery.data?.teams;
+
+  // G2-2/G4-2(d): Get current user ID and payer info for read-only messages
+  const accountQuery = useQuery({
+    queryKey: ['billing', 'account'],
+    queryFn: () => billingApi.accountStatus(),
+    staleTime: 0,
+    refetchInterval: false,
+  });
+  const currentUserId = accountQuery.data?.account?.userId ?? null;
 
   useEffect(() => {
     if (deletedModalOpen && deletedTeams !== undefined && shouldCloseDeletedTeamsModal(deletedTeams.length)) {
@@ -247,6 +259,12 @@ export function TeamListScreen() {
     setPanelOpen(true);
   };
 
+  const handlePayActivate = (teamId: string): void => {
+    setSelectedTeamId(teamId);
+    setQuoteParams({ action: 'add_team', interval: undefined, teamId, people: undefined });
+    go('quote');
+  };
+
   const backFooter =
     pickingTeam && selectedTeamId !== null ? (
       <Button
@@ -315,6 +333,49 @@ export function TeamListScreen() {
                       </Text>
                     ) : null}
                     <View style={styles.panelActions}>
+                      {team.coverageStatus === 'pending_payment' ? (
+                        currentUserId !== null && team.payerUserId !== null && currentUserId === team.payerUserId ? (
+                          <Button
+                            label="billing.payToActivate"
+                            variant="secondary"
+                            fullWidth={false}
+                            onPress={() => handlePayActivate(team.id)}
+                            testID={`team-pay-activate-${team.id}`}
+                          />
+                        ) : (
+                          <View style={styles.readOnlyMessage}>
+                            <Text variant="body-small" tone="secondary">
+                              {t('billing.restricted.readOnlyUntilPayerGeneric')}
+                            </Text>
+                          </View>
+                        )
+                      ) : null}
+                      {team.readOnlyReason === 'plan_ended' ? (
+                        currentUserId !== null && team.payerUserId !== null && currentUserId === team.payerUserId ? (
+                          <>
+                            <Text variant="body-small" tone="secondary">
+                              {t('billing.restricted.payerPlanEnded')}
+                            </Text>
+                            <Button
+                              label="billing.account.subscribeAgain"
+                              variant="primary"
+                              fullWidth={false}
+                              onPress={() => {
+                                setSelectedTeamId(team.id);
+                                setQuoteParams({ action: 'subscribe', interval: 'monthly', teamId: undefined, people: undefined });
+                                go('quote');
+                              }}
+                              testID={`team-subscribe-again-${team.id}`}
+                            />
+                          </>
+                        ) : (
+                          <View style={styles.readOnlyMessage}>
+                            <Text variant="body-small" tone="secondary">
+                              {t('billing.restricted.readOnlyUntilPayerSubscribes')}
+                            </Text>
+                          </View>
+                        )
+                      ) : null}
                       <Button
                         label="action.manageMembers"
                         variant="secondary"
@@ -440,4 +501,8 @@ const styles = StyleSheet.create({
     paddingVertical: Number(spacing.extraSmall),
   },
   panelActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Number(spacing.small) },
+  readOnlyMessage: {
+    paddingHorizontal: Number(spacing.small),
+    paddingVertical: Number(spacing.small),
+  },
 });

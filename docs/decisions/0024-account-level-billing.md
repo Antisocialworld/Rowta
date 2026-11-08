@@ -20,7 +20,8 @@ extra_people) and refreshed by applyCoverage() on billing events.
 
 **A2 — Plan data is data-driven.** plan_entitlements table (db0) stores prices and limits: monthly 650000 kobo /
 2 free teams; yearly 7800000 kobo / 3 free teams; extra team 200000 kobo/month; extra person 20000 kobo/month;
-caps: 20 teams/account, 50 people/team; trial: 14 days, 1 team, 10 people, one trial per user (DB unique);
+15 people per team included on paid plans (10 on trial); caps: 20 teams/account, 50 people/team;
+trial: 14 days, 1 team, 10 people, one trial per user (DB unique);
 minimum add-on charge 50000 kobo; charges rounded to whole naira.
 
 **A3 — Trial is automatic.** The first team created by a user with no account starts a 14-day trial automatically.
@@ -61,5 +62,45 @@ ADR 0023 is superseded where it conflicts:
 
 - PRD section 5 (pricing), section 8.6 (billing)
 - ADR 0002 (Prisma two-database), ADR 0018 (team delete and transfer)
-- server/prisma/sql/075-082 (new SQL), server/src/billing/entitlements.ts, account-service.ts, move-service.ts,
+- server/prisma/sql/075-085 (new SQL), server/src/billing/entitlements.ts, account-service.ts, move-service.ts,
   account-renewal-processor.ts
+
+---
+
+## Addendum — Move billing decisions (7 Nov 2026)
+
+**M1 — Receiver with no billing account gets automatic 14-day trial on accept.** The receiver does not need a billing
+account to receive a move request. On accept, if they have no `owner_accounts` row, one is created as a normal 14-day
+trial (monthly, trialing, trial_used = true). One trial per user is enforced by `owner_accounts_one_trial_idx`.
+
+**M2 — No refund or credit to the old payer for the period already paid.** The old payer keeps paying until the move is
+accepted; nothing is refunded.
+
+**M3 — From move accept, the previous payer is never billed for that team.** On accept, any open `'pending'`
+`payment_intents` from the previous payer for that team are marked `'expired'`. The legacy per-team renewal processor
+skips teams whose `owner_team_registry.owner_user_id` differs from `subscriptions.billing_user_id`. Renewals use the
+current account's `provider_authorization_ref`; a moved team never renews through the previous payer's authorisation.
+
+**M4 — Accepting always completes the move.** If the receiver's plan does not cover the team yet, the team becomes
+`pending_payment` (read-only for everyone) until the receiver pays via add_team/subscribe. The move itself is not blocked.
+
+**M5 — No "also hand billing" switch on the transfer screen.** `transfer_ownership` changes only the Admin role; it does
+not touch billing. A `transfer_still_paying` notice (email + push) is sent to the payer only when the payer is not the
+new Admin.
+
+**M6 — `payment_intents` markers removed for account-level moves.** `requestMove` and `acceptMove` no longer insert
+`payment_intents` rows with `purpose`/`kind` = `'account_move'` (which violated the CHECK constraints). Idempotency is
+via move state only: `requestMove` returns the existing open move for the same caller→receiver pair; `acceptMove`
+returns `{accepted: true}` if already accepted to this receiver.
+
+**M7 — RequestMove authorisation.** Caller must be an active team member AND the team's current payer
+(`owner_team_registry.owner_user_id === caller`), with registry status not `cancelled`/`read_only`, otherwise
+`403 billing.not_payer`. Receiver must be the current Admin and not the caller. Receiver must have a working user
+account (not deleted/disabled) but needs no billing account.
+
+**M8 — 8 move notice categories.** `billing.transfer_still_paying`, `billing.move_requested`, `billing.move_accepted`,
+`billing.move_declined`, `billing.move_cancelled`, `billing.move_expired`, `billing.move_payment_needed`,
+`billing.move_trial_started`. Templates in `server/src/mail/templates.ts`; push content in
+`server/src/notifications/outbox.ts`; enqueue calls in `server/src/billing/move-service.ts` and
+`server/src/teams/service.ts`.
+

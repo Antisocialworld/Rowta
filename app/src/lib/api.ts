@@ -174,6 +174,14 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'idempotency.missing': 'idempotency.missing',
   'idempotency.fingerprint_mismatch': 'idempotency.fingerprint_mismatch',
   'idempotency.in_flight': 'idempotency.in_flight',
+  'billing.not_payer': 'billing.error.notPayer',
+  'billing.receiver_team_cap': 'billing.error.teamCap',
+  'billing.receiver_invalid': 'billing.error.receiverInvalid',
+  'billing.team_restricted': 'billing.error.teamRestricted',
+  'billing.account_inactive': 'billing.error.accountInactive',
+  'billing.cannot_resume': 'billing.error.cannotResume',
+  'billing.payer_cannot_leave': 'billing.error.payerCannotLeave',
+  'billing.payer_cannot_leave_self': 'billing.error.payerCannotLeaveSelf',
   'rate.limited': 'auth.rateLimited',
   'validation.failed': 'generic.error',
   'request.malformed': 'generic.error',
@@ -272,12 +280,22 @@ type RequestInput = {
 
 type RequestOutput = { data: unknown; meta?: unknown };
 
-async function send(input: RequestInput): Promise<RequestOutput> {
-  const { method, path, body, dataSchema, metaSchema, auth = false, timeoutMs = DEFAULT_TIMEOUT_MS } = input;
+export async function send(input: RequestInput): Promise<RequestOutput> {
+  const {
+    method,
+    path,
+    body,
+    dataSchema,
+    metaSchema,
+    auth = false,
+    headers: inputHeaders = {},
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    retried = false,
+  } = input;
 
   const headers: Record<string, string> = {
     accept: 'application/json',
-    ...(input.headers ?? {}),
+    ...inputHeaders,
   };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (auth) {
@@ -303,7 +321,7 @@ async function send(input: RequestInput): Promise<RequestOutput> {
     if (
       response.status === 401 &&
       auth &&
-      input.retried !== true &&
+      retried !== true &&
       runtime.onUnauthorized !== undefined &&
       (await runtime.onUnauthorized())
     ) {

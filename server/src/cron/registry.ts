@@ -69,6 +69,69 @@ export const CRON_REGISTRY: readonly CronEntry[] = [
     queue: 'purge',
     jobName: 'repair-user-team-index',
   },
+  {
+    name: 'renewals-due',
+    // PRD 8.11: 0 * * * * (hourly), converted to 6-field node-cron format (second 0).
+    schedule: '0 0 * * * *',
+    lockKey: 'cron:lock:renewals-due',
+    ttlSeconds: 600,
+    queue: 'renewal',
+    jobName: 'process-renewal',
+  },
+  {
+    name: 'grace-reminders',
+    // PRD 8.11: 0 9 * * * (daily at 09:00 UTC), converted to 6-field node-cron format (second 0).
+    schedule: '0 0 9 * * *',
+    lockKey: 'cron:lock:grace-reminders',
+    ttlSeconds: 600,
+    queue: 'renewal',
+    jobName: 'process-grace-reminder',
+  },
+  {
+    name: 'account-renewals',
+    // PRD 8.11: 0 * * * * (hourly), account-level renewal check.
+    schedule: '0 0 * * * *',
+    lockKey: 'cron:lock:account-renewals',
+    ttlSeconds: 600,
+    queue: 'renewal',
+    jobName: 'process-account-renewal',
+  },
+  {
+    name: 'account-grace-reminders',
+    // Account-level grace reminders (daily at 09:00 UTC).
+    schedule: '0 0 9 * * *',
+    lockKey: 'cron:lock:account-grace-reminders',
+    ttlSeconds: 600,
+    queue: 'renewal',
+    jobName: 'process-account-grace-reminder',
+  },
+  {
+    name: 'account-yearly-reminders',
+    // Yearly renewal reminders (daily at 09:00 UTC).
+    schedule: '0 0 9 * * *',
+    lockKey: 'cron:lock:account-yearly-reminders',
+    ttlSeconds: 600,
+    queue: 'renewal',
+    jobName: 'process-account-yearly-reminder',
+  },
+  {
+    name: 'account-trial-end',
+    // Trial end processing (daily at 09:00 UTC).
+    schedule: '0 0 9 * * *',
+    lockKey: 'cron:lock:account-trial-end',
+    ttlSeconds: 600,
+    queue: 'renewal',
+    jobName: 'process-account-trial-end',
+  },
+  {
+    name: 'sweep-expired-moves',
+    // Sweep expired move billing requests (hourly).
+    schedule: '0 0 * * * *',
+    lockKey: 'cron:lock:sweep-expired-moves',
+    ttlSeconds: 600,
+    queue: 'purge',
+    jobName: 'sweep-expired-moves',
+  },
 ] as const;
 
 export interface CronHandle {

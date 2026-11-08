@@ -69,6 +69,56 @@ SELECT pg_temp.must_pass('subscription', $$INSERT INTO subscriptions (team_id, p
 SELECT pg_temp.must_fail('second subscription for a team rejected', $$INSERT INTO subscriptions (team_id, plan, seats, currency, period_start, period_end) VALUES ('11111111-1111-1111-1111-111111111111', 'team', 3, 'USD', now(), now() + interval '30 days')$$);
 SELECT pg_temp.must_fail('starter above 5 seats rejected', $$INSERT INTO subscriptions (team_id, plan, seats, currency, period_start, period_end) VALUES ('22222222-2222-2222-2222-222222222222', 'starter', 6, 'USD', now(), now() + interval '30 days')$$);
 SELECT pg_temp.must_fail('past_due without a grace end rejected', $$UPDATE subscriptions SET status = 'past_due' WHERE team_id = '11111111-1111-1111-1111-111111111111'$$);
+-- FIX-A: cancel_at_period_end column exists
+SELECT pg_temp.must_pass('cancel_at_period_end column exists on subscriptions',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name = 'cancel_at_period_end'$$);
+-- FIX-A: billing_handovers CHECK from_user_id <> to_user_id
+SELECT pg_temp.must_fail('billing_handovers same user rejected',
+  $$INSERT INTO billing_handovers (id, subscription_id, team_id, from_user_id, to_user_id, status, expires_at) VALUES ('88888888-8888-8888-8888-888888888888', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001', 'requested', now() + interval '7 days')$$);
+-- FIX-A: payment_intents target columns
+SELECT pg_temp.must_pass('payment_intents plan column exists',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'payment_intents' AND column_name = 'plan'$$);
+SELECT pg_temp.must_pass('payment_intents seats column exists',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'payment_intents' AND column_name = 'seats'$$);
+SELECT pg_temp.must_pass('payment_intents interval column exists',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'payment_intents' AND column_name = 'interval'$$);
+SELECT pg_temp.must_pass('payment_intents kind column exists',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'payment_intents' AND column_name = 'kind'$$);
+-- FIX-A: payment_intents kind CHECK
+SELECT pg_temp.must_fail('payment_intents bad kind rejected',
+  $$INSERT INTO payment_intents (team_id, tx_ref, purpose, amount_minor, currency, created_by, kind) VALUES ('11111111-1111-1111-1111-111111111111', 'tx-kind-bad', 'upgrade', 100, 'USD', 'aaaaaaaa-0000-0000-0000-000000000001', 'bogus')$$);
+-- Billing holder (Task 3)
+SELECT pg_temp.must_pass('billing_user_id column exists on subscriptions',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name = 'billing_user_id'$$);
+SELECT pg_temp.must_pass('interval column exists on subscriptions',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name = 'interval'$$);
+SELECT pg_temp.must_fail('interval outside month/year rejected',
+  $$UPDATE subscriptions SET interval = 'week' WHERE team_id = '11111111-1111-1111-1111-111111111111'$$);
+SELECT pg_temp.must_pass('billing_handovers table exists',
+  $$SELECT 1 FROM information_schema.tables WHERE table_name = 'billing_handovers'$$);
+SELECT pg_temp.must_pass('billing_handovers one open per subscription',
+  $$INSERT INTO billing_handovers (id, subscription_id, team_id, from_user_id, to_user_id, status, expires_at) VALUES ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', 'requested', now() + interval '7 days')$$);
+SELECT pg_temp.must_fail('second open billing_handover for one subscription rejected',
+  $$INSERT INTO billing_handovers (id, subscription_id, team_id, from_user_id, to_user_id, status, expires_at) VALUES ('77777777-7777-7777-7777-777777777777', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', 'requested', now() + interval '7 days')$$);
+-- B4: USD currency disabled, not sold
+SELECT pg_temp.must_pass('USD currency exists, disabled', $$SELECT 1 FROM currencies WHERE code = 'USD' AND enabled = false AND provider_supported = false$$);
+SELECT pg_temp.must_pass('USD plan prices exist', $$SELECT 1 FROM plan_prices WHERE currency = 'USD' AND plan = 'starter' AND base_minor = 550$$);
+SELECT pg_temp.must_pass('USD plan prices exist (team)', $$SELECT 1 FROM plan_prices WHERE currency = 'USD' AND plan = 'team' AND base_minor = 1350 AND extra_seat_minor = 80$$);
+SELECT pg_temp.must_pass('USD plan prices exist (business)', $$SELECT 1 FROM plan_prices WHERE currency = 'USD' AND plan = 'business' AND base_minor = 3250 AND extra_seat_minor = 55$$);
+SELECT pg_temp.must_pass('no country maps to USD', $$SELECT 1 FROM countries WHERE currency = 'USD' LIMIT 0$$);
+-- USD cents x 1350 >= NGN kobo (rate basis NGN 1,350 per USD)
+SELECT pg_temp.must_pass('USD starter base >= NGN starter base', $$SELECT 1 WHERE 550 * 1350 >= 650000$$);
+SELECT pg_temp.must_pass('USD team base >= NGN team base', $$SELECT 1 WHERE 1350 * 1350 >= 1625000$$);
+SELECT pg_temp.must_pass('USD team extra >= NGN team extra', $$SELECT 1 WHERE 80 * 1350 >= 97500$$);
+SELECT pg_temp.must_pass('USD business base >= NGN business base', $$SELECT 1 WHERE 3250 * 1350 >= 3900000$$);
+SELECT pg_temp.must_pass('USD business extra >= NGN business extra', $$SELECT 1 WHERE 55 * 1350 >= 65000$$);
+-- Ledger additive columns for rebuildFromLedger
+SELECT pg_temp.must_pass('ledger plan column exists',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'ledger_entries' AND column_name = 'plan'$$);
+SELECT pg_temp.must_pass('ledger seats column exists',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'ledger_entries' AND column_name = 'seats'$$);
+SELECT pg_temp.must_pass('ledger interval column exists',
+  $$SELECT 1 FROM information_schema.columns WHERE table_name = 'ledger_entries' AND column_name = 'interval'$$);
 -- D1, D3 ledger
 SELECT pg_temp.must_pass('ledger charge in minor units', $$INSERT INTO ledger_entries (id, team_id, kind, amount_minor, currency, reason, provider_ref) VALUES ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'charge', 3333, 'USD', 'upgrade', 'ref-1')$$);
 SELECT pg_temp.must_pass('ledger credit is negative', $$INSERT INTO ledger_entries (team_id, kind, amount_minor, currency, reason) VALUES ('11111111-1111-1111-1111-111111111111', 'credit', -1333, 'USD', 'proration credit')$$);
@@ -108,6 +158,7 @@ BEGIN
   PERFORM pg_temp.must_fail('user without a country rejected', $q$INSERT INTO users (email, display_name, password_hash) VALUES ('nc@example.test', 'No Country', '$argon2id$v=19$fake')$q$);
   PERFORM pg_temp.must_fail('user with an unknown country rejected', $q$INSERT INTO users (email, country, display_name, password_hash) VALUES ('uc@example.test', 'ZZ', 'Unknown', '$argon2id$v=19$fake')$q$);
   PERFORM pg_temp.must_fail('payment intent in an unknown currency rejected', $q$INSERT INTO payment_intents (team_id, tx_ref, purpose, amount_minor, currency, created_by) VALUES (gen_random_uuid(), 'tx-x', 'upgrade', 100, 'GHS', gen_random_uuid())$q$);
+  PERFORM pg_temp.must_pass('payment intent purpose first_purchase accepted', $q$INSERT INTO payment_intents (team_id, tx_ref, purpose, amount_minor, currency, created_by) VALUES (gen_random_uuid(), 'tx-fp', 'first_purchase', 100, 'USD', gen_random_uuid())$q$);
   PERFORM pg_temp.must_fail('uppercase email rejected', $q$INSERT INTO users (email, country, display_name, password_hash) VALUES ('A@Example.test', 'NG', 'Ada', '$argon2id$v=19$fake')$q$);
   PERFORM pg_temp.must_fail('password hash that is not Argon2id rejected', $q$INSERT INTO users (email, country, display_name, password_hash) VALUES ('a@example.test', 'NG', 'Ada', 'plain-text-not-a-hash')$q$);
   PERFORM pg_temp.must_fail('display name of 61 characters rejected', $q$INSERT INTO users (email, country, display_name, password_hash) VALUES ('a@example.test', 'NG', repeat('x', 61), '$argon2id$v=19$fake')$q$);

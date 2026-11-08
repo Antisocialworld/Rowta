@@ -11,13 +11,16 @@
 import { create } from 'zustand';
 import type { MessageKey } from '../i18n/en';
 
-export type TeamsView = 'list' | 'members' | 'teamSettings';
+export type TeamsView = 'list' | 'members' | 'teamSettings' | 'billing' | 'quote' | 'move-billing';
 
 /** Per-view chrome and focus (PRD 6.1: title, heading, focus target; U7, U8). */
 export const TEAMS_VIEWS = {
   list: { title: 'teams.view.list.title', heading: 'teams.view.list.heading', focus: 'heading' },
   members: { title: 'teams.view.members.title', heading: 'teams.view.members.heading', focus: 'heading' },
   teamSettings: { title: 'teams.view.settings.title', heading: 'teams.view.settings.heading', focus: 'heading' },
+  billing: { title: 'billing.account.title', heading: 'billing.account.title', focus: 'heading' },
+  quote: { title: 'billing.quote.title', heading: 'billing.quote.title', focus: 'heading' },
+  'move-billing': { title: 'billing.move.title', heading: 'billing.move.title', focus: 'heading' },
 } as const satisfies Record<TeamsView, { title: MessageKey; heading: MessageKey; focus: 'input' | 'heading' }>;
 
 export type TeamsMachineState = { view: TeamsView; stack: readonly TeamsView[]; message?: MessageKey };

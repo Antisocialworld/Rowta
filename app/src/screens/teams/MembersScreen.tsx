@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type TeamRole } from '@rowta/shared';
-import { Badge, Button, Card, ConfirmDialog, EmptyState, LiveRegion, PinnedFooter, Skeleton, Text } from '../../components';
+import { Badge, Button, BillingBanner, Card, ConfirmDialog, EmptyState, LiveRegion, PinnedFooter, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, authApi, errorMessageKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
@@ -132,6 +132,9 @@ export function MembersScreen() {
         {t('teams.view.members.heading')}
       </Text>
       {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
+      {team?.coverageStatus === 'read_only' && (
+        <BillingBanner kind="read_only" />
+      )}
       <View style={styles.entryRow}>
             <Button
               label="action.openShifts"

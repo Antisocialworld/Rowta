@@ -11,6 +11,7 @@ import {
 import { registerGet, registerPost } from '../http/routes.ts';
 import { HttpError, ok } from '../middleware/error.ts';
 import * as service from './service.ts';
+import { requireBillingNotRestricted } from '../billing/restricted-guard.ts';
 
 type ZodIssue = z.ZodError['issues'][number];
 
@@ -87,6 +88,7 @@ export function createShiftsRouter(): Hono {
   registerPost(router, '/teams/:teamId/shifts', { limits: ['shift.write'], auth: true }, async (c) => {
     const userId = getUserId(c);
     const teamId = param(c, 'teamId');
+    await requireBillingNotRestricted(teamId);
     const body = parseWith(createShiftSchema, c.get('parsedBody'));
     const idempotencyKey = c.req.header('idempotency-key');
     const shift = await service.createShift(userId, teamId, body, idempotencyKey);
@@ -116,6 +118,7 @@ export function createShiftsRouter(): Hono {
     const userId = getUserId(c);
     const teamId = param(c, 'teamId');
     const shiftId = param(c, 'shiftId');
+    await requireBillingNotRestricted(teamId);
     const body = parseWith(updateShiftSchema, c.get('parsedBody'));
     const shift = await service.updateShift(userId, teamId, shiftId, body);
     return c.json(ok(shift));

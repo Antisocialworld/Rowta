@@ -32,6 +32,11 @@ import { can, type Role } from '../security/policy.ts';
 import { createTokenParts, formatToken } from '../security/tokens.ts';
 import { enqueueEmail } from '../jobs/email/enqueue.ts';
 import { HttpError } from '../middleware/error.ts';
+import { cancelOpenHandoverSafe } from '../billing/holder.ts';
+import { accountWriteState, loadOwnerAccount, loadPlanEntitlements, loadTeamRegistry, reserveTeamSlot, releaseTeamSlot, entitlementsFor } from '../billing/entitlements.ts';
+import type { EmailJobData } from '../jobs/email/types.ts';
+import { enqueueNotification } from '../notifications/outbox.ts';
+import { requireBillingNotRestricted } from '../billing/restricted-guard.ts';
 
 /** Assert teamId is present and non-empty; Rule S7: every query is scoped by teamId. */
 function assertTeamId(teamId: string): void {
@@ -87,7 +92,7 @@ export async function createTeam(
   userId: string,
   input: CreateTeamInput,
   idempotencyKey?: string,
-): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean }> {
+): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean; coverageStatus?: string; pendingPayment?: boolean }> {
   if (!idempotencyKey || idempotencyKey.trim().length === 0) {
     throw new HttpError(400, 'idempotency.missing', 'Idempotency-Key header is required for team creation.');
   }
@@ -114,7 +119,7 @@ export async function createTeam(
       throw new HttpError(409, 'idempotency.in_flight', 'A request with this idempotency key is already in progress.');
     }
     if (existingKey.state === 'done' && existingKey.response) {
-      return existingKey.response as { id: string; name: string; role: Role; managersCanRevokeInvites: boolean };
+      return existingKey.response as { id: string; name: string; role: Role; managersCanRevokeInvites: boolean; coverageStatus?: string; pendingPayment?: boolean };
     }
   }
 
@@ -132,6 +137,46 @@ export async function createTeam(
   const shard = shardFor(teamId);
 
   try {
+    // ---- NEW: Account-level capacity gate (C7) ----
+    // Load or create the owner's account (first team starts a 14-day trial).
+    let account = await loadOwnerAccount(userId);
+    if (!account) {
+      // Start a 14-day trial automatically for the first team.
+      await db0.owner_accounts.create({
+        data: {
+          user_id: userId,
+          plan: 'monthly',
+          status: 'trialing',
+          trial_started_at: new Date(),
+          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          trial_used: true,
+          period_start: new Date(),
+          period_end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          currency: 'NGN',
+        },
+      });
+      account = await loadOwnerAccount(userId);
+      if (!account) {
+        throw new HttpError(500, 'billing.account_create_failed', 'Failed to create owner account.');
+      }
+    }
+    if (account.status !== 'active' && account.status !== 'trialing') {
+      throw new HttpError(422, 'billing.account_not_active', 'Owner account must be active or trialing to create a team.');
+    }
+
+    // Determine whether this team lands beyond the free allowance (pending_payment until charged).
+    // reserveTeamSlot holds the account row lock and is authoritative; this is a lightweight hint.
+    const ent = account.status === 'active' || account.status === 'trialing' ? await loadPlanEntitlements(account.plan) : null;
+    const teamsUsed = await db0.owner_team_registry.count({ where: { owner_user_id: userId } });
+    const freeAllowance = ent
+      ? (account.status === 'trialing' ? ent.trialTeams : ent.freeTeams)
+      : 0;
+    const pendingPayment = ent ? teamsUsed >= freeAllowance : false;
+
+    // Reserve a capacity slot under a row lock on the owner's account.
+    await reserveTeamSlot(userId, teamId);
+    // ---- END NEW ----
+
     // 1. One shard transaction: create team + owner membership
     await shardTransaction(shard, async (tx) => {
       await tx.teams.create({
@@ -140,6 +185,7 @@ export async function createTeam(
           name: input.name,
           managers_can_revoke_invites: true,
           created_by: userId,
+          coverage_status: pendingPayment ? 'pending_payment' : 'covered',
         },
       });
       await tx.memberships.create({
@@ -171,6 +217,7 @@ export async function createTeam(
       name: input.name,
       role: 'owner' as Role,
       managersCanRevokeInvites: true,
+      pendingPayment,
     };
 
     // 3. Mark idempotency key done
@@ -185,6 +232,10 @@ export async function createTeam(
 
     return result;
   } catch (err) {
+    // ---- NEW: Release the reserved slot on shard write failure ----
+    await releaseTeamSlot(teamId).catch(() => undefined);
+    // ---- END NEW ----
+
     // Delete in_flight record so retry can succeed
     await db0.idempotency_keys
       .delete({
@@ -198,7 +249,7 @@ export async function createTeam(
 /** List teams for the authenticated user (S8: role read from memberships on each request). */
 export async function listTeams(
   userId: string,
-): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean; createdBy?: { userId: string; displayName: string } | null }[]> {
+): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean; coverageStatus?: string; createdBy?: { userId: string; displayName: string } | null; payerUserId?: string; readOnlyReason?: 'payer_unpaid' | 'plan_ended' }[]> {
   const db0 = globalDb();
   const indexRows = await db0.user_team_index.findMany({
     where: { user_id: userId },
@@ -220,9 +271,11 @@ export async function listTeams(
     }
   }
 
+  const allTeamIds = indexRows.map((r) => r.team_id);
+
   // 2. Per shard, run ONE memberships.findMany and ONE teams.findMany, shards in parallel
   type MembershipRow = { team_id: string; role: string; removed_at: Date | null };
-  type TeamRow = { id: string; name: string; managers_can_revoke_invites: boolean; deleted_at: Date | null; created_by: string | null };
+  type TeamRow = { id: string; name: string; managers_can_revoke_invites: boolean; deleted_at: Date | null; created_by: string | null; coverage_status: string };
 
   const membershipMap = new Map<string, MembershipRow>();
   const teamMap = new Map<string, TeamRow>();
@@ -253,7 +306,41 @@ export async function listTeams(
     }),
   );
 
-  // 3. Filter valid teams and collect distinct created_by IDs
+  // 3. Load payer (owner_team_registry.owner_user_id) for all teams in one query.
+  const payerMap = new Map<string, string>();
+  if (allTeamIds.length > 0) {
+    const registries = await db0.owner_team_registry.findMany({
+      where: { team_id: { in: allTeamIds } },
+      select: { team_id: true, owner_user_id: true },
+    });
+    for (const r of registries) {
+      payerMap.set(r.team_id, r.owner_user_id);
+    }
+  }
+
+  // 4. Load owner accounts for all payer IDs to compute readOnlyReason.
+  const ownerAccountMap = new Map<string, {
+    status: string;
+    cancel_at_period_end: boolean | null;
+    period_end: Date | null;
+    trial_ends_at: Date | null;
+  }>();
+  const payerUserIds = [...new Set(payerMap.values())];
+  if (payerUserIds.length > 0) {
+    const accounts = await db0.owner_accounts.findMany({
+      where: { user_id: { in: payerUserIds } },
+    });
+    for (const a of accounts) {
+      ownerAccountMap.set(a.user_id, {
+        status: a.status,
+        cancel_at_period_end: a.cancel_at_period_end,
+        period_end: a.period_end,
+        trial_ends_at: a.trial_ends_at,
+      });
+    }
+  }
+
+  // 3 (was). Filter valid teams and collect distinct created_by IDs
   const creatorIds = new Set<string>();
   for (const row of indexRows) {
     const membership = membershipMap.get(row.team_id);
@@ -280,7 +367,7 @@ export async function listTeams(
   }
 
   // 5. Rebuild the result in the exact same order as indexRows
-  const teams: { id: string; name: string; role: Role; managersCanRevokeInvites: boolean; createdBy?: { userId: string; displayName: string } | null }[] = [];
+  const teams: { id: string; name: string; role: Role; managersCanRevokeInvites: boolean; coverageStatus?: string; createdBy?: { userId: string; displayName: string } | null; payerUserId?: string; readOnlyReason?: 'payer_unpaid' | 'plan_ended' }[] = [];
 
   for (const row of indexRows) {
     const membership = membershipMap.get(row.team_id);
@@ -297,12 +384,35 @@ export async function listTeams(
       }
     }
 
+    const coverageStatus = team.coverage_status ?? 'covered';
+    const payerId = payerMap.get(team.id);
+    let readOnlyReason: 'payer_unpaid' | 'plan_ended' | undefined;
+    if (coverageStatus === 'pending_payment') {
+      readOnlyReason = 'payer_unpaid';
+    } else if (payerId) {
+      const ownerAccount = ownerAccountMap.get(payerId);
+      if (ownerAccount) {
+        const state = accountWriteState({
+          status: ownerAccount.status,
+          cancel_at_period_end: ownerAccount.cancel_at_period_end,
+          period_end: ownerAccount.period_end,
+          trialEndsAt: ownerAccount.trial_ends_at,
+        });
+        if (state.blocked) {
+          readOnlyReason = state.reason;
+        }
+      }
+    }
+
     teams.push({
       id: team.id,
       name: team.name,
       role: membership.role as Role,
       managersCanRevokeInvites: team.managers_can_revoke_invites,
+      coverageStatus,
       createdBy,
+      payerUserId: payerMap.get(team.id),
+      readOnlyReason,
     });
   }
 
@@ -313,7 +423,7 @@ export async function listTeams(
 export async function getTeam(
   userId: string,
   teamId: string,
-): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean; createdBy?: { userId: string; displayName: string } | null }> {
+): Promise<{ id: string; name: string; role: Role; managersCanRevokeInvites: boolean; coverageStatus?: string; createdBy?: { userId: string; displayName: string } | null }> {
   assertTeamId(teamId);
   const shardClient = forTeam(teamId);
 
@@ -347,6 +457,7 @@ export async function getTeam(
     name: team.name,
     role: membership.role as Role,
     managersCanRevokeInvites: team.managers_can_revoke_invites,
+    coverageStatus: team.coverage_status ?? 'covered',
     createdBy,
   };
 }
@@ -450,6 +561,12 @@ export async function removeMember(
     throw new HttpError(400, 'auth.deleteOwner.blocked', 'Transfer or delete your team first.');
   }
 
+  // G4-3: The payer (registry owner) cannot be removed.
+  const registry = await loadTeamRegistry(teamId);
+  if (registry?.ownerUserId === targetUserId) {
+    throw new HttpError(403, 'billing.payer_cannot_leave', 'This person pays for this team. Ask them to move billing first.');
+  }
+
   const allowed = can(
     { id: userId },
     { ...callerMembership, role: callerMembership.role as Role },
@@ -473,6 +590,9 @@ export async function removeMember(
     where: { user_id: targetUserId, team_id: teamId },
   });
 
+  // Cancel any open move for this member / team
+  await cancelOpenHandoverSafe(teamId, targetUserId);
+
   return { removed: true };
 }
 
@@ -480,6 +600,12 @@ export async function removeMember(
 export async function leaveTeam(userId: string, teamId: string): Promise<{ left: boolean }> {
   const shardClient = forTeam(teamId);
   const { membership: callerMembership } = await requireActiveMemberAndTeam(shardClient, teamId, userId);
+
+  // G4-3: The payer cannot leave their own team.
+  const registry = await loadTeamRegistry(teamId);
+  if (registry?.ownerUserId === userId) {
+    throw new HttpError(403, 'billing.payer_cannot_leave_self', 'You pay for this team. Move billing first.');
+  }
 
   if (callerMembership.role === 'owner') {
     throw new HttpError(400, 'auth.deleteOwner.blocked', 'Transfer or delete your team first.');
@@ -499,6 +625,9 @@ export async function leaveTeam(userId: string, teamId: string): Promise<{ left:
   await db0.user_team_index.deleteMany({
     where: { user_id: userId, team_id: teamId },
   });
+
+  // Cancel any open move for this member / team
+  await cancelOpenHandoverSafe(teamId, userId);
 
   return { left: true };
 }
@@ -528,11 +657,12 @@ export async function createInvite(
   const expiresAt = new Date(Date.now() + INVITE_TTL_SECONDS * 1_000);
 
   let teamName = '';
+  let seatLimited = false;
 
   await teamTransaction(teamId, async (tx) => {
     // 1. Lock team row (SELECT ... FOR UPDATE)
-    const lockedTeams = await tx.$queryRaw<{ id: string; name: string }[]>`
-      SELECT id::text, name FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
+    const lockedTeams = await tx.$queryRaw<{ id: string; name: string; created_by: string | null }[]>`
+      SELECT id::text, name, created_by FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
     `;
     if (!lockedTeams || lockedTeams.length === 0) {
       throw new HttpError(404, 'team.notFound', 'Team not found.');
@@ -540,28 +670,30 @@ export async function createInvite(
     const lockedTeam = lockedTeams[0]!;
     teamName = lockedTeam.name;
 
-    // 2. Count active non-owner members plus open unexpired invites for OTHER emails
-    const activeMembersRes = await tx.$queryRaw<{ count: number }[]>`
-      SELECT count(*)::int AS count
-      FROM memberships
-      WHERE team_id = ${teamId}::uuid AND role != 'owner' AND removed_at IS NULL
-    `;
-    const activeNonOwnerCount = activeMembersRes[0]?.count ?? 0;
-
-    const openInvitesRes = await tx.$queryRaw<{ count: number }[]>`
-      SELECT count(*)::int AS count
-      FROM invites
-      WHERE team_id = ${teamId}::uuid
-        AND email != ${emailNorm}
-        AND accepted_at IS NULL
-        AND revoked_at IS NULL
-        AND expires_at > now()
-    `;
-    const openInvitesCount = openInvitesRes[0]?.count ?? 0;
-
-    const cap = await getSeatCap(teamId, tx);
-    if (activeNonOwnerCount + openInvitesCount >= cap) {
-      throw new HttpError(422, 'team.seatLimit', 'Seat limit reached.');
+    // 2. Capacity check: entitlements-based limit (peoplePerTeam + extra_people, hard cap 50).
+    //    During a trial, extra_people is ignored (limit = trialPeople). A pending invite for
+    //    this email is being replaced, so it does not consume an additional seat.
+    const ent = await entitlementsFor(teamId);
+    const existingInviteForEmail = await tx.invites.count({
+      where: {
+        team_id: teamId,
+        email: emailNorm,
+        accepted_at: null,
+        revoked_at: null,
+        expires_at: { gt: new Date() },
+      },
+    });
+    const atCapacity = !ent.canAddPerson && existingInviteForEmail === 0;
+    if (atCapacity && lockedTeam.created_by) {
+      const today = new Date().toISOString().slice(0, 10);
+      await enqueueNotification(tx, {
+        recipientUserId: lockedTeam.created_by,
+        category: 'billing.seat_limit_reached',
+        payload: { teamId },
+        dedupeKey: `seat_limit:${teamId}:${today}`,
+      });
+      seatLimited = true;
+      return;
     }
 
     // 3. A resend replaces any existing open invite (invites_one_open_idx)
@@ -587,6 +719,10 @@ export async function createInvite(
       },
     });
   });
+
+  if (seatLimited) {
+    throw new HttpError(422, 'billing.seat_limit_reached', 'This team is at capacity.');
+  }
 
   // Enqueue email job
   const inviter = await globalDb().users.findUnique({ where: { id: userId } });
@@ -735,6 +871,11 @@ export async function acceptInvite(
 
   const teamId = foundInvite.team_id;
 
+  // R5: a restricted team cannot take new members (same 403 as the other write paths).
+  await requireBillingNotRestricted(teamId);
+
+  let seatLimited = false;
+
   await teamTransaction(teamId, async (tx) => {
     // 1. Lock invite row and team row (FOR UPDATE)
     const lockedInvites = await tx.$queryRaw<{ id: string; accepted_at: Date | null; revoked_at: Date | null; expires_at: Date }[]>`
@@ -756,59 +897,67 @@ export async function acceptInvite(
       throw new HttpError(400, 'auth.link.invalid', 'This link is invalid or has expired. Request a new one.');
     }
 
-    const lockedTeams = await tx.$queryRaw<{ id: string; deleted_at: Date | null }[]>`
-      SELECT id::text, deleted_at FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
+    const lockedTeams = await tx.$queryRaw<{ id: string; deleted_at: Date | null; created_by: string | null }[]>`
+      SELECT id::text, deleted_at, created_by FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
     `;
     if (!lockedTeams || lockedTeams.length === 0 || lockedTeams[0]?.deleted_at !== null) {
       throw new HttpError(400, 'auth.link.invalid', 'This link is invalid or has expired. Request a new one.');
     }
 
-    // 2. Count active non-owner members against cap
-    const activeMembersRes = await tx.$queryRaw<{ count: number }[]>`
-      SELECT count(*)::int AS count
-      FROM memberships
-      WHERE team_id = ${teamId}::uuid AND role != 'owner' AND removed_at IS NULL
-    `;
-    const activeCount = activeMembersRes[0]?.count ?? 0;
-    const cap = await getSeatCap(teamId, tx);
-
-    if (activeCount >= cap) {
-      throw new HttpError(422, 'team.seatLimit', 'Seat limit reached.');
+    // 2. Capacity check: entitlements-based limit (peoplePerTeam + extra_people, hard cap 50).
+    //    During a trial, extra_people is ignored (limit = trialPeople).
+    const ent = await entitlementsFor(teamId);
+    if (!ent.canAddPerson && lockedTeams[0]!.created_by) {
+      const today = new Date().toISOString().slice(0, 10);
+      await enqueueNotification(tx, {
+        recipientUserId: lockedTeams[0]!.created_by,
+        category: 'billing.seat_limit_reached',
+        payload: { teamId },
+        dedupeKey: `seat_limit:${teamId}:${today}`,
+      });
+      seatLimited = true;
+      return;
     }
 
-    // 3. Upsert membership
-    const existingMembership = await tx.memberships.findUnique({
-      where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-    });
+    // 3. Upsert membership (skipped when at capacity).
+    if (!seatLimited) {
+      const existingMembership = await tx.memberships.findUnique({
+        where: { team_id_user_id: { team_id: teamId, user_id: userId } },
+      });
 
-    if (existingMembership) {
-      if (existingMembership.removed_at === null) {
-        // Already active member
-        throw new HttpError(400, 'auth.link.invalid', 'This link is invalid or has expired. Request a new one.');
+      if (existingMembership) {
+        if (existingMembership.removed_at === null) {
+          // Already active member
+          throw new HttpError(400, 'auth.link.invalid', 'This link is invalid or has expired. Request a new one.');
+        }
+        await tx.memberships.update({
+          where: { id: existingMembership.id },
+          data: {
+            role: foundInvite.role,
+            removed_at: null,
+          },
+        });
+      } else {
+        await tx.memberships.create({
+          data: {
+            team_id: teamId,
+            user_id: userId,
+            role: foundInvite.role,
+          },
+        });
       }
-      await tx.memberships.update({
-        where: { id: existingMembership.id },
-        data: {
-          role: foundInvite.role,
-          removed_at: null,
-        },
-      });
-    } else {
-      await tx.memberships.create({
-        data: {
-          team_id: teamId,
-          user_id: userId,
-          role: foundInvite.role,
-        },
+
+      // 4. Mark invite accepted
+      await tx.invites.update({
+        where: { id: foundInvite.id },
+        data: { accepted_at: new Date() },
       });
     }
-
-    // 4. Mark invite accepted
-    await tx.invites.update({
-      where: { id: foundInvite.id },
-      data: { accepted_at: new Date() },
-    });
   });
+
+  if (seatLimited) {
+    throw new HttpError(422, 'billing.seat_limit_reached', 'This team is at capacity.');
+  }
 
   // 5. Update user_team_index in DB0
   const db0 = globalDb();
@@ -923,11 +1072,29 @@ export async function transferTeam(
   const targetMembership = await shardClient.memberships.findUnique({
     where: { team_id_user_id: { team_id: teamId, user_id: input.targetUserId } },
   });
-  if (!targetMembership || targetMembership.removed_at !== null) {
-    throw new HttpError(422, 'team.transferTargetInvalid', 'Target user is not an active member of this team.');
-  }
+    if (!targetMembership || targetMembership.removed_at !== null) {
+      throw new HttpError(422, 'team.transferTargetInvalid', 'Target user is not an active member of this team.');
+    }
 
-  await teamTransaction(teamId, async (tx) => {
+    // T17 #1: transfer_still_paying notice — only when the payer is not the new Admin.
+    // db0 lookups are done before the shard transaction (db0 is not available inside it).
+    const teamRegistry = await loadTeamRegistry(teamId);
+    const teamNameRow = await globalDb().teams.findUnique({
+      where: { id: teamId },
+      select: { name: true },
+    });
+    const newAdminUser = await globalDb().users.findUnique({
+      where: { id: input.targetUserId },
+      select: { display_name: true },
+    });
+    const payerUser = teamRegistry?.ownerUserId
+      ? await globalDb().users.findUnique({
+          where: { id: teamRegistry.ownerUserId },
+          select: { display_name: true, email: true },
+        })
+      : null;
+
+    await teamTransaction(teamId, async (tx) => {
     // 1. Lock team row and both membership rows (FOR UPDATE) in consistent user_id order
     await tx.$queryRaw`
       SELECT id::text FROM teams WHERE id = ${teamId}::uuid FOR UPDATE
@@ -978,7 +1145,49 @@ export async function transferTeam(
         },
       },
     });
+
+    // T17 #1: transfer_still_paying push notice to the payer (if payer is not the new Admin).
+    if (
+      teamRegistry &&
+      teamRegistry.ownerUserId !== input.targetUserId &&
+      payerUser &&
+      teamNameRow &&
+      newAdminUser
+    ) {
+      await enqueueNotification(tx, {
+        recipientUserId: teamRegistry.ownerUserId,
+        category: 'billing.transfer_still_paying',
+        payload: { teamId },
+        dedupeKey: `billing:transfer:${teamId}:still_paying`,
+      });
+    }
   });
+
+  // R4: ownership moved, so any open Move billing request for this team is stale. Billing rows
+  // are on the shard/db0, so this runs after the transfer transaction has committed. A failure
+  // here must never fail the transfer.
+  await cancelOpenHandoverSafe(teamId, userId);
+
+  // T17 #1: transfer_still_paying email to the payer (if payer is not the new Admin).
+  if (
+    teamRegistry &&
+    teamRegistry.ownerUserId !== input.targetUserId &&
+    payerUser &&
+    teamNameRow &&
+    newAdminUser
+  ) {
+    try {
+      await enqueueEmail({
+        kind: 'transferStillPaying',
+        email: payerUser.email,
+        team: teamNameRow.name,
+        name: newAdminUser.display_name,
+        from: payerUser.display_name,
+      } as EmailJobData);
+    } catch {
+      // Notification failure must not fail the transfer.
+    }
+  }
 
   return { success: true, teamId, newOwnerId: input.targetUserId };
 }
@@ -1108,6 +1317,13 @@ export async function restoreTeam(
 
     if (team.deleted_at.getTime() < windowStart.getTime()) {
       throw new HttpError(410, 'team.restoreExpired', authMessage('team.restoreExpired'));
+    }
+
+    // Restoring needs capacity: a deleted team keeps its slot until purged, but restoring
+    // still requires a free seat (peoplePerTeam + extra_people, hard cap 50).
+    const ent = await entitlementsFor(teamId);
+    if (!ent.canAddPerson) {
+      throw new HttpError(422, 'billing.seat_limit_reached', 'This team is at capacity.');
     }
 
     await tx.teams.update({
