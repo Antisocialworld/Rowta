@@ -189,7 +189,19 @@ write(
   ).join('\n')}\n</urlset>\n`,
 );
 
-write('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${base}/sitemap.xml\n`);
+const AI_CRAWLERS = [
+  'GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'ClaudeBot', 'Claude-Web',
+  'anthropic-ai', 'CCBot', 'Google-Extended', 'PerplexityBot', 'Bytespider',
+  'Amazonbot', 'Applebot-Extended', 'meta-externalagent', 'FacebookBot',
+  'cohere-ai', 'Diffbot', 'ImagesiftBot', 'Omgilibot', 'YouBot',
+];
+
+const aiRules = AI_CRAWLERS.map((name) => `User-agent: ${name}\nDisallow: /`).join('\n');
+
+write(
+  'robots.txt',
+  `User-agent: *\nAllow: /\n\n${aiRules}\n\nSitemap: ${base}/sitemap.xml\n`,
+);
 
 write(
   'manifest.webmanifest',

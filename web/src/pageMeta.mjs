@@ -23,7 +23,7 @@ export function pageMeta({ base, title, description, path = '', keywords, noinde
     `<meta name="description" content="${escapeAttr(description)}">`,
     keywords ? `<meta name="keywords" content="${escapeAttr(keywords)}">` : '',
     `<link rel="canonical" href="${escapeAttr(canonical)}">`,
-    noindex ? '<meta name="robots" content="noindex, nofollow">' : '<meta name="robots" content="index, follow, max-image-preview:large">',
+    noindex ? '<meta name="robots" content="noindex, nofollow">' : '<meta name="robots" content="index, follow, max-image-preview:large, noai, noimageai">',
     `<meta name="theme-color" content="${escapeAttr(themeColor)}">`,
     // Favicon set (W1): ICO, SVG, Apple touch icon, web-manifest icons 192/512.
     '<link rel="icon" href="/brand/favicon.ico" sizes="any">',
