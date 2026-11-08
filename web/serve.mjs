@@ -59,7 +59,13 @@ const TOKEN_HEADERS = {
 
 function tokenRouteFile(urlPath) {
   const clean = decodeURIComponent(urlPath.split('?')[0]);
-  const page = /^\/magic(\/|$)/.test(clean) ? 'magic' : /^\/invite(\/|$)/.test(clean) ? 'invite' : null;
+  const page = /^\/magic(\/|$)/.test(clean)
+    ? 'magic'
+    : /^\/invite(\/|$)/.test(clean)
+      ? 'invite'
+      : /^\/billing\/complete(\/|$)/.test(clean)
+        ? path.join('billing', 'complete')
+        : null;
   if (page === null) return null;
   const file = path.join(DIST, page, 'index.html');
   return fs.existsSync(file) && fs.statSync(file).isFile() ? file : null;

@@ -10,6 +10,9 @@ export const MAGIC_MISSING_MESSAGE =
 export const INVITE_MISSING_MESSAGE =
   'This invitation link is incomplete or has expired. Ask the person who invited you to send a new invitation.';
 
+export const BILLING_COMPLETE_MESSAGE =
+  'If you paid, Rowta will update in a moment.';
+
 /** The DEV-ONLY "Open in the web app" link (owner decision 28 Oct 2026): present in the markup only
  *  when the build ran with WEB_APP_URL set; hidden until the runtime script finds a valid token. The
  *  href is built at RUNTIME (origin + kind + token), so the token never exists in a generated file. */
@@ -39,6 +42,20 @@ export function inviteMain(downloadUrl, webAppUrl = '') {
     <p>This invitation opens in the Rowta app on your phone.</p>
     <p id="token-notice" role="status" aria-live="polite">${INVITE_MISSING_MESSAGE}</p>
     <a id="open-app" class="button" hidden>Open in the app</a>${webAppLink(webAppUrl)}
+    <p>Rowta is an Android app.</p>
+    ${cta}
+  </section>`;
+}
+
+/** /billing/complete — static fallback page after hosted checkout (PRD 8.1, I3). */
+export function billingCompleteMain(downloadUrl, webAppUrl = '') {
+  const cta = downloadUrl
+    ? `<a class="button" href="${downloadUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}">Get the Android app</a>`
+    : `<p class="soon">Download link coming soon</p>`;
+  return `<section class="prose token-page">
+    <h1 id="token-heading" tabindex="-1">Billing return</h1>
+    <p id="token-message">${BILLING_COMPLETE_MESSAGE}</p>
+    <a id="open-app" class="button" href="rowta://billing/complete">Open in the app</a>${webAppLink(webAppUrl)}
     <p>Rowta is an Android app.</p>
     ${cta}
   </section>`;

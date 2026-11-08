@@ -17,12 +17,20 @@
   } else if (kind === 'invite') {
     var parts = window.location.pathname.split('/').filter(Boolean);
     if (parts.length === 2 && parts[0] === 'invite') token = parts[1];
+  } else if (kind === 'billing-complete') {
+    token = 'complete';
   }
   function reveal() {
     var link = document.getElementById('open-web-app');
     if (!link) return;
     var base = link.getAttribute('data-web-app-origin') || '';
-    if (!base || !SAFE.test(token)) return;
+    if (!base) return;
+    if (kind === 'billing-complete') {
+      link.href = base + '/billing/complete';
+      link.hidden = false;
+      return;
+    }
+    if (!SAFE.test(token)) return;
     link.href = base + '/' + kind + '/' + token;
     link.hidden = false;
   }

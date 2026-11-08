@@ -13,7 +13,7 @@
 //               pages must not be followed from the crawler's point of view (PRD 8.1/8.2, web-metadata)
 //   type        Open Graph type ('website' for landing, 'article' for the rest)
 //   themeColor  the resolved design-system token (build reads it from design-variables.css; never a literal here)
-export function pageMeta({ base, title, description, path = '', keywords, noindex = false, type = 'article', themeColor }) {
+export function pageMeta({ base, title, description, path = '', keywords, noindex = false, referrer, type = 'article', themeColor }) {
   const canonical = `${base}${path}`;
   const image = `${base}/brand/og-image-1200x630.png`;
   const lines = [
@@ -24,6 +24,7 @@ export function pageMeta({ base, title, description, path = '', keywords, noinde
     keywords ? `<meta name="keywords" content="${escapeAttr(keywords)}">` : '',
     `<link rel="canonical" href="${escapeAttr(canonical)}">`,
     noindex ? '<meta name="robots" content="noindex, nofollow">' : '<meta name="robots" content="index, follow, max-image-preview:large, noai, noimageai">',
+    referrer ? `<meta name="referrer" content="${escapeAttr(referrer)}">` : '',
     `<meta name="theme-color" content="${escapeAttr(themeColor)}">`,
     // Favicon set (W1): ICO, SVG, Apple touch icon, web-manifest icons 192/512.
     '<link rel="icon" href="/brand/favicon.ico" sizes="any">',

@@ -70,6 +70,21 @@
   function start() {
     applyNoReferrer();
     var kind = document.body.getAttribute('data-token-kind') || '';
+    if (kind === 'billing-complete') {
+      if (window.location.search || window.location.hash) {
+        history.replaceState(null, '', window.location.pathname);
+      }
+      var button = document.getElementById('open-app');
+      if (button) {
+        button.href = 'rowta://billing/complete';
+        button.hidden = false;
+      }
+      focusHeading();
+      try {
+        window.location.href = 'rowta://billing/complete';
+      } catch (_) {}
+      return;
+    }
     var token = readToken();
     if (!token || !reveal(kind, token)) {
       // No usable token: the built-in "incomplete or expired" message stays visible, no button.

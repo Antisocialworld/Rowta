@@ -2,7 +2,8 @@
   "rewrites": [
     { "source": "/magic", "destination": "/magic/index.html" },
     { "source": "/magic/:token", "destination": "/magic/index.html" },
-    { "source": "/invite/:token", "destination": "/invite/index.html" }
+    { "source": "/invite/:token", "destination": "/invite/index.html" },
+    { "source": "/billing/complete", "destination": "/billing/complete/index.html" }
   ],
   "headers": [
     {
@@ -47,6 +48,22 @@
     },
     {
       "source": "/invite/:token",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/billing/complete",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/billing/complete/",
       "headers": [
         { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
         { "key": "Referrer-Policy", "value": "no-referrer" },
