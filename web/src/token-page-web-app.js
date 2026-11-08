@@ -4,7 +4,7 @@
 // BEFORE the base token-page.js start() strips the address — under `defer` the base runs
 // immediately at script evaluation, so an appended block reads an already-stripped location.
 // It captures the token into a closure at evaluation time and reveals the "Open in the web app"
-// link (href = WEB_APP_URL + "/" + kind + "/" + token, built at runtime only). The token exists
+// link (href = WEB_APP_URL + "/" + kind + "#" + token, built at runtime only). The token exists
 // only inside the href, is never logged, and nothing here makes a network request. The SAFE
 // shape duplicates the base page's on purpose: the base script must stay byte-identical for
 // default builds.
@@ -12,11 +12,8 @@
   var SAFE = /^[A-Za-z0-9._~-]{1,512}$/;
   var kind = document.body.getAttribute('data-token-kind') || '';
   var token = '';
-  if (kind === 'magic') {
+  if (kind === 'magic' || kind === 'invite') {
     token = window.location.hash ? window.location.hash.slice(1) : '';
-  } else if (kind === 'invite') {
-    var parts = window.location.pathname.split('/').filter(Boolean);
-    if (parts.length === 2 && parts[0] === 'invite') token = parts[1];
   } else if (kind === 'billing-complete') {
     token = 'complete';
   }
@@ -31,7 +28,7 @@
       return;
     }
     if (!SAFE.test(token)) return;
-    link.href = base + '/' + kind + '/' + token;
+    link.href = kind === 'invite' ? base + '/invite#' + token : base + '/' + kind + '/' + token;
     link.hidden = false;
   }
   if (document.readyState === 'loading') {

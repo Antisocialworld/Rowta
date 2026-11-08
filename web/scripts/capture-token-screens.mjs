@@ -25,7 +25,7 @@ const VIEWPORTS = [
 const PAGES = [
   { name: 'magic-with-token', url: `/magic#${FAKE_MAGIC}` },
   { name: 'magic-no-token', url: '/magic' },
-  { name: 'invite-with-token', url: `/invite/${FAKE_INVITE}` },
+  { name: 'invite-with-token', url: `/invite/#${FAKE_INVITE}` },
   { name: 'invite-no-token', url: '/invite/' },
 ];
 

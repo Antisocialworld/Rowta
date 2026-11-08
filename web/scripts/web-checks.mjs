@@ -14,7 +14,7 @@ import puppeteer from 'puppeteer-core';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASE_URL = process.env.ROWTA_WEB_URL ?? 'http://localhost:8321';
 const AXE_PATH = path.join(ROOT, 'node_modules', 'axe-core', 'axe.min.js');
-// Obviously fake token for the invite URL (P6): the page only reads the path segment at runtime.
+// Obviously fake token for the invite URL (P6): the page only reads the fragment at runtime.
 const FAKE_INVITE = 'FAKEINVITE0000000.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 const BROWSER_CANDIDATES = [
@@ -138,7 +138,7 @@ async function main() {
       { name: 'landing', url: '/' },
       { name: 'privacy', url: '/privacy/' },
       { name: 'magic', url: '/magic' },
-      { name: 'invite', url: `/invite/${FAKE_INVITE}` },
+      { name: 'invite', url: `/invite/#${FAKE_INVITE}` },
     ]) {
       for (const viewport of [
         { name: '360x800', width: 360, height: 800 },
@@ -205,7 +205,7 @@ async function main() {
       { name: 'magic no token', url: '/magic' },
       { name: 'magic with token', url: `/magic#FAKETOKEN00000000.fffffffffffffffffffffffffffffffffffffff` },
       { name: 'invite no token', url: '/invite/' },
-      { name: 'invite with token', url: `/invite/${FAKE_INVITE}` },
+      { name: 'invite with token', url: `/invite/#${FAKE_INVITE}` },
     ]) {
       const audited = await browser.newPage();
       await audited.setViewport({ width: 1280, height: 800 });

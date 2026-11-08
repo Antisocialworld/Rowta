@@ -206,9 +206,9 @@ export function webHomeUrl(): string {
   return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/`;
 }
 
-/** The canonical invite link: https page with the token path (PRD 8.2; Owner Decision 3). */
+/** The canonical invite link: https page with the token in the URL FRAGMENT (A13, G7). */
 export function inviteUrl(token: string): string {
-  return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/invite/${token}`;
+  return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/invite/#${token}`;
 }
 
 export function inviteEmail(input: {

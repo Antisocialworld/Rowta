@@ -1,4 +1,4 @@
-// tokenPages — the two token fallback pages: /magic (PRD 8.1) and /invite/:token (PRD 8.2).
+// tokenPages — the two token fallback pages: /magic (PRD 8.1) and /invite (PRD 8.2).
 // Static content only: no token is ever written into the HTML (the runtime script builds the
 // rowta:// deep link from the fragment / path segment), and nothing here makes a network request.
 // Wording never says whether an email has an account (A5, A6) and never leaks a token (W2).

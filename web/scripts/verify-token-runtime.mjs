@@ -129,8 +129,8 @@ async function main() {
       expect: { kind: 'magic', token: null },
     });
     await openCase(browser, {
-      name: '/invite/<token>',
-      url: `/invite/${FAKE_INVITE}`,
+      name: '/invite/#<token>',
+      url: `/invite/#${FAKE_INVITE}`,
       expect: { kind: 'invite', token: FAKE_INVITE },
     });
     await openCase(browser, { name: '/invite/ (no token)', url: '/invite/', expect: { kind: 'invite', token: null } });

@@ -16,10 +16,10 @@ export type DeepLink =
   | { kind: 'invite'; token: string }
   | { kind: 'billing_complete' };
 
-const WEB_FRAGMENT = /^https?:\/\/[^/?#]+\/(magic)#([^/?#]{1,2048})$/i;
-const WEB_PATH = /^https?:\/\/[^/?#]+\/(magic|invite)\/([^/?#]{1,2048})$/i;
-const SCHEME_FRAGMENT = /^rowta:\/\/(magic|invite)#([^/?#]{1,2048})$/i;
-const SCHEME_PATH = /^rowta:\/\/(magic|invite)\/([^/?#]{1,2048})$/i;
+const WEB_FRAGMENT = /^https?:\/\/[^/?#]+\/(magic|invite)(?:\/)?#([^/?#]{1,2048})$/i;
+const WEB_PATH = /^https?:\/\/[^/?#]+\/(magic)\/([^/?#]{1,2048})$/i;
+const SCHEME_FRAGMENT = /^rowta:\/\/(magic|invite)(?:\/)?#([^/?#]{1,2048})$/i;
+const SCHEME_PATH = /^rowta:\/\/(magic)\/([^/?#]{1,2048})$/i;
 
 const WEB_BILLING_COMPLETE = /^https?:\/\/[^/?#]+\/billing\/complete(?:\/)?(?:[?#].*)?$/i;
 const SCHEME_BILLING_COMPLETE = /^rowta:\/\/billing\/complete(?:\/)?(?:[?#].*)?$/i;
