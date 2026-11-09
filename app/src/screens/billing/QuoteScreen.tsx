@@ -12,7 +12,8 @@ import { billingApi } from '../../api/billing';
 import { formatMinorToNaira } from '../../lib/money-format';
 import { shouldPollOnAppStateChange, toAppStateStatus } from '../../lib/quote-appstate';
 import { pollAccountActive } from '../../lib/poll-account-active';
-import { useBilling, type QuoteAction, type QuoteParams } from '../../state/billing';
+import { resolveQuoteParams } from '../../lib/quote-params';
+import { useBilling, type QuoteAction } from '../../state/billing';
 import { useTeamsView } from '../../state/teams-view';
 import { TeamScreenLayout } from '../teams/TeamScreenLayout';
 import { typeStyle } from '../../theme/fonts';
@@ -25,7 +26,7 @@ export type QuoteScreenProps = {
 
 export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
   const headingRef = useRef<TextInstance>(null);
-  const { setLoading, error, setError, ensureKey, quoteParams, clearQuoteParams } = useBilling();
+  const { setLoading, error, setError, ensureKey, clearQuoteParams } = useBilling();
   const teamsViewGo = useTeamsView((state) => state.go);
   const teamsViewBack = useTeamsView((state) => state.back);
   const handleBack = onBack ?? teamsViewBack;
@@ -38,8 +39,7 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
     refetchOnWindowFocus: false,
   });
 
-  const params: QuoteParams =
-    quoteParams ?? { action: 'subscribe', interval: 'monthly', teamId: undefined, people: undefined };
+  const [params] = useState(() => resolveQuoteParams(useBilling.getState().quoteParams));
   const { action, interval, teamId, people } = params;
   const accountPlan = accountQuery.data?.account?.plan ?? null;
   const resolvedInterval: 'monthly' | 'yearly' = interval ?? (accountPlan === 'yearly' ? 'yearly' : 'monthly');
@@ -122,7 +122,7 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
     try {
       const key = ensureKey('checkout');
       const result = await billingApi.checkout(
-        { action, interval, teamId: teamId ?? undefined, people },
+        { action, interval: resolvedInterval, teamId: teamId ?? undefined, people },
         key,
       );
       if (result.checkoutUrl.includes('/simulator/')) {
