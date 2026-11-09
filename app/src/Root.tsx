@@ -11,11 +11,17 @@ import { useEffect } from 'react';
 import { AuthPage } from './screens/AuthPage';
 import { GalleryScreen } from './screens/GalleryScreen';
 import { TeamsRouter } from './screens/TeamsRouter';
+import { WelcomeScreen } from './components/welcome/WelcomeScreen';
 import { devToolsVisible } from './lib/dev-tools';
 import { clearNotificationHandler, handleColdStartNotification, registerPushDevice, setupNotificationHandler, setupTapListener } from './lib/push-registration';
 import { useAuthSession } from './state/auth-session';
 
-export function Root() {
+export type RootProps = {
+  welcomeVisible?: boolean;
+  onWelcomeFinish?: () => void;
+};
+
+export function Root({ welcomeVisible = false, onWelcomeFinish }: RootProps = {}) {
   const status = useAuthSession((state) => state.status);
   const screen = useAuthSession((state) => state.screen);
 
@@ -33,7 +39,12 @@ export function Root() {
   }, [status]);
 
   if (status === 'restoring') return null;
-  if (status === 'signedOut') return <AuthPage />;
+  if (status === 'signedOut') {
+    if (welcomeVisible && onWelcomeFinish !== undefined) {
+      return <WelcomeScreen onFinish={onWelcomeFinish} />;
+    }
+    return <AuthPage />;
+  }
   // Dev tools are development-only (P7, owner decision 28 Oct 2026): outside development a stray
   // 'gallery' screen value falls through to the normal signed-in router (defence in depth).
   if (screen === 'gallery' && devToolsVisible(__DEV__)) return <GalleryScreen />;

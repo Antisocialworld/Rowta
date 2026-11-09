@@ -587,6 +587,7 @@ export const en = {
   'billing.complete.title': 'Billing update',
   'billing.complete.message': 'If you paid, Rowta will update in a moment.',
   'billing.complete.openApp': 'Open in the app',
+  'welcome.skip': 'Skip',
 } as const;
 
 export type MessageKey = keyof typeof en;
