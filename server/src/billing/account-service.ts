@@ -7,7 +7,6 @@ import { randomUUID } from 'node:crypto';
 import { globalDb } from '../db/clients.ts';
 import { HttpError } from '../middleware/error.ts';
 import { resolvePaymentProvider } from './provider.ts';
-import { toProviderAmount } from './money.ts';
 import { prorateTerm } from './proration.ts';
 import { type AccountAction } from './account-schema.ts';
 import { loadOwnerAccount, loadPlanEntitlements } from './entitlements.ts';
@@ -156,16 +155,12 @@ export async function checkout(
 
   const txRef = `tx-${randomUUID()}`;
   const provider = resolvePaymentProvider();
-  const providerAmount = toProviderAmount(quoteResult.amountMinor, account.currency);
-  if (providerAmount === null) {
-    throw new Error(`Currency not configured: ${account.currency}`);
-  }
 
   // customerEmail comes from the users table, never ''.
   const user = await db0.users.findUnique({ where: { id: userId }, select: { email: true } });
   const customerEmail = user?.email ?? '';
   const checkout = await provider.createCheckout({
-    amountMinor: providerAmount,
+    amountMinor: quoteResult.amountMinor,
     currency: account.currency,
     txRef,
     customerEmail,

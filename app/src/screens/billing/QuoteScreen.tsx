@@ -7,7 +7,7 @@ import { Linking, StyleSheet, TextInstance, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BillingBackButton, Button, Card, Skeleton, Text as BText } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
-import { ApiError, errorMessageKey } from '../../lib/api';
+import { ApiError, DEFAULT_TIMEOUT_MS, errorMessageKey } from '../../lib/api';
 import { billingApi } from '../../api/billing';
 import { formatMinorToNaira } from '../../lib/money-format';
 import { useBilling, type QuoteAction, type QuoteParams } from '../../state/billing';
@@ -18,9 +18,10 @@ import { spacing } from '../../theme/tokens';
 
 export type QuoteScreenProps = {
   readonly onBack?: () => void;
+  readonly onSuccess?: () => void;
 };
 
-export function QuoteScreen({ onBack }: QuoteScreenProps = {}) {
+export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
   const headingRef = useRef<TextInstance>(null);
   const { setLoading, error, setError, ensureKey, quoteParams, clearQuoteParams } = useBilling();
   const teamsViewGo = useTeamsView((state) => state.go);
@@ -53,6 +54,7 @@ export function QuoteScreen({ onBack }: QuoteScreenProps = {}) {
   };
 
   const [busy, setBusy] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState(false);
 
   useEffect(() => {
     if (accountQuery.data?.account) {
@@ -94,34 +96,89 @@ export function QuoteScreen({ onBack }: QuoteScreenProps = {}) {
     };
   }
 
+  const handleSuccess = () => {
+    if (onSuccess) {
+      onSuccess();
+    } else {
+      teamsViewGo('billing', 'billing.account.subscribed');
+    }
+  };
+
+  const pollAccountActive = async (): Promise<boolean> => {
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const acc = await billingApi.accountStatus();
+      if (acc.account?.status === 'active') return true;
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    }
+    return false;
+  };
+
   const handleConfirm = async () => {
     if (!quote) return;
     setBusy(true);
+    setError(null);
     try {
       const key = ensureKey('checkout');
       const result = await billingApi.checkout(
         { action, interval, teamId: teamId ?? undefined, people },
         key,
       );
-      if (__DEV__) {
+      if (result.checkoutUrl.includes('/simulator/')) {
         const base = process.env.EXPO_PUBLIC_API_URL;
         if (!base || base.trim() === '') {
           throw new Error('billing.simulatorUnavailable');
         }
         const cleanBase = base.replace(/\/+$/, '');
-        await fetch(`${cleanBase}/simulator/checkout/${encodeURIComponent(result.txRef)}`);
-        const deadline = Date.now() + 30_000;
-        while (Date.now() < deadline) {
-          const acc = await billingApi.accountStatus();
-          if (acc.account?.status === 'active') break;
-          await new Promise((resolve) => setTimeout(resolve, 2_000));
+        const controller = new AbortController();
+        const timer = setTimeout(() => {
+          controller.abort();
+        }, DEFAULT_TIMEOUT_MS);
+        let simRes: Response;
+        try {
+          simRes = await fetch(`${cleanBase}/simulator/checkout/${encodeURIComponent(result.txRef)}`, {
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timer);
         }
+        if (!simRes.ok) {
+          throw new Error('billing.simulatorFailed');
+        }
+        const active = await pollAccountActive();
         await queryClient.invalidateQueries({ queryKey: ['billing', 'account'] });
         await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
-        teamsViewGo('billing', 'billing.account.subscribed');
+        if (active) {
+          handleSuccess();
+          return;
+        }
+        setPendingPayment(true);
         return;
       }
       void Linking.openURL(result.checkoutUrl);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(t(errorMessageKey(err.code)));
+      } else {
+        setError(t('billing.error.generic'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRetryStatus = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const active = await pollAccountActive();
+      await queryClient.invalidateQueries({ queryKey: ['billing', 'account'] });
+      await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
+      if (active) {
+        handleSuccess();
+        return;
+      }
+      setPendingPayment(true);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(t(errorMessageKey(err.code)));
@@ -168,6 +225,12 @@ export function QuoteScreen({ onBack }: QuoteScreenProps = {}) {
         </BText>
       </View>
 
+      {pendingPayment ? (
+        <Card variant="flat" style={styles.pendingCard}>
+          <BText variant="body-medium">{t('billing.complete.message')}</BText>
+        </Card>
+      ) : null}
+
       <View style={styles.actions}>
         <Button
           label="billing.quote.notNow"
@@ -176,13 +239,17 @@ export function QuoteScreen({ onBack }: QuoteScreenProps = {}) {
           testID="quote-not-now"
         />
         <Button
-          label="billing.quote.confirmAndPay"
+          label={pendingPayment ? 'billing.card.retry' : 'billing.quote.confirmAndPay'}
           variant="primary"
           busy={busy}
           onPress={() => {
-            void handleConfirm();
+            if (pendingPayment) {
+              void handleRetryStatus();
+            } else {
+              void handleConfirm();
+            }
           }}
-          testID="quote-confirm-pay"
+          testID={pendingPayment ? 'quote-retry' : 'quote-confirm-pay'}
         />
       </View>
       {error ? (
@@ -200,6 +267,7 @@ const styles = StyleSheet.create({
   actionCard: { flex: 1, minWidth: 140, marginBottom: spacing.base },
   priceCard: { flex: 1, minWidth: 140, marginBottom: spacing.base },
   actions: { gap: spacing.small, marginTop: spacing.base },
+  pendingCard: { marginBottom: spacing.base },
   errorCard: { marginBottom: spacing.base },
   skeleton: { width: '100%', alignSelf: 'center' },
 });

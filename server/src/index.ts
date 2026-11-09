@@ -216,6 +216,13 @@ async function main(): Promise<void> {
   // P7 boot guard (explicit at the entry point, in addition to env.ts loadEnv()):
   // the dev-only payment simulator must never run against production.
   assertNotProductionSimulator(env);
+
+  if (!process.env.FLW_WEBHOOK_SECRET_HASH || process.env.FLW_WEBHOOK_SECRET_HASH.trim().length === 0) {
+    log.fatal(
+      'Missing required environment variable: FLW_WEBHOOK_SECRET_HASH. Set it in your .env file (e.g. FLW_WEBHOOK_SECRET_HASH=<secret-hash>).'
+    );
+    process.exit(1);
+  }
   const redis = createRedisConnection(false);
   const app = createApp({ log, redis });
 

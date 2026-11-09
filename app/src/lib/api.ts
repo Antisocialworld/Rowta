@@ -258,7 +258,7 @@ export function setFetchForTests(next: FetchLike | null): void {
   fetchImpl = next === null ? (input, init) => fetch(input, init) : next;
 }
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+export const DEFAULT_TIMEOUT_MS = 15_000;
 
 // ---------------------------------------------------------------------------------------------
 // The one request function

@@ -19,6 +19,10 @@ import type { Hono } from 'hono';
 import { env } from '../config/env.ts';
 import type { PaymentProvider, CheckoutResult, VerifyResult, ChargeResult } from './payment-provider.ts';
 import { WEBHOOK_SIGNATURE_HEADER } from './webhook-constants.ts';
+import { logger } from '../lib/logger.ts';
+import { toProviderAmount } from './money.ts';
+
+const log = logger.child({ module: 'billing-simulator' });
 
 let simulatorSecret: string | null = null;
 
@@ -57,7 +61,8 @@ export class SimulatorProvider implements PaymentProvider {
     txRef: string;
     customerEmail?: string;
   }): Promise<CheckoutResult> {
-    fakeCheckouts.set(params.txRef, { status: 'pending', amountMinor: params.amountMinor, currency: params.currency });
+    const providerAmount = toProviderAmount(params.amountMinor, params.currency) ?? params.amountMinor;
+    fakeCheckouts.set(params.txRef, { status: 'pending', amountMinor: providerAmount, currency: params.currency });
     const checkoutUrl = `${apiBaseUrl()}/simulator/checkout/${params.txRef}`;
     return { checkoutUrl, txRef: params.txRef };
   }
@@ -86,17 +91,36 @@ export class SimulatorProvider implements PaymentProvider {
   }
 
   async verifyTransaction(txRef: string): Promise<VerifyResult> {
+    // Check in-process map first (same-process callers such as test runners).
+    const local = fakeCheckouts.get(txRef);
+    if (local) {
+      return {
+        status: local.status as VerifyResult['status'],
+        amountMinor: local.amountMinor,
+        currency: local.currency,
+        txRef,
+        authorizationRef: local.authorizationRef,
+      };
+    }
+
     // Cross-process verification: call the dev-only API endpoint served by this same process.
-    const res = await fetch(`${apiBaseUrl()}/simulator/verify/${encodeURIComponent(txRef)}`);
-    if (!res.ok) throw new Error(`unknown tx_ref: ${txRef}`);
-    const body = (await res.json()) as { status: string; amountMinor: number; currency: string; authorizationRef?: string };
-    return {
-      status: body.status as VerifyResult['status'],
-      amountMinor: body.amountMinor,
-      currency: body.currency,
-      txRef,
-      authorizationRef: body.authorizationRef,
-    };
+    try {
+      const res = await fetch(`${apiBaseUrl()}/simulator/verify/${encodeURIComponent(txRef)}`);
+      if (res.ok) {
+        const body = (await res.json()) as { status: string; amountMinor: number; currency: string; authorizationRef?: string };
+        return {
+          status: body.status as VerifyResult['status'],
+          amountMinor: body.amountMinor,
+          currency: body.currency,
+          txRef,
+          authorizationRef: body.authorizationRef,
+        };
+      }
+    } catch {
+      // Cross-process fetch threw (e.g. connection refused)
+    }
+    log.error({ txRef }, 'unknown tx_ref during simulator verify');
+    return { status: 'failed', amountMinor: 0, currency: '', txRef };
   }
 
   /** Look up a checkout's current status for the GET /simulator/verify/:txRef endpoint. */
@@ -113,10 +137,11 @@ export class SimulatorProvider implements PaymentProvider {
     txRef: string;
     customerEmail?: string;
   }): Promise<ChargeResult> {
-    fakeCheckouts.set(params.txRef, { status: 'succeeded', amountMinor: params.amountMinor, currency: params.currency });
+    const providerAmount = toProviderAmount(params.amountMinor, params.currency) ?? params.amountMinor;
+    fakeCheckouts.set(params.txRef, { status: 'succeeded', amountMinor: providerAmount, currency: params.currency });
 
     // Send the signed webhook through the same path as production (same route, handler, signature check).
-    await this.notifyWebhook(params.txRef, params.amountMinor, params.currency);
+    await this.notifyWebhook(params.txRef, providerAmount, params.currency);
     return { status: 'succeeded', txRef: params.txRef, authorizationRef: params.authorizationRef };
   }
 
@@ -133,7 +158,7 @@ export class SimulatorProvider implements PaymentProvider {
   }
 
   /** Notify the real webhook endpoint with a signed charge.completed event. */
-  async notifyWebhook(txRef: string, amountMinor: number, currency: string): Promise<void> {
+  async notifyWebhook(txRef: string, amountMinor: number, currency: string): Promise<{ ok: boolean; status: number }> {
     const rawBody = JSON.stringify({
       event: 'charge.completed',
       data: { tx_ref: txRef, amount: amountMinor, currency, status: 'successful' },
@@ -142,7 +167,7 @@ export class SimulatorProvider implements PaymentProvider {
     const secret = getSimulatorWebhookSecret();
 
     const webhookUrl = `${apiBaseUrl()}/webhook`;
-    await fetch(webhookUrl, {
+    const res = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -150,6 +175,7 @@ export class SimulatorProvider implements PaymentProvider {
       },
       body: rawBody,
     });
+    return { ok: res.ok, status: res.status };
   }
 }
 
@@ -183,7 +209,11 @@ export function registerSimulatorRoutes(app: Hono): void {
     }
     // Mark succeeded and fire the signed webhook
     simulatorProvider.succeedCheckout(txRef);
-    await simulatorProvider.notifyWebhook(txRef, checkout.amountMinor, checkout.currency);
+    const webhookRes = await simulatorProvider.notifyWebhook(txRef, checkout.amountMinor, checkout.currency);
+    if (!webhookRes.ok) {
+      log.warn({ txRef, status: webhookRes.status }, 'simulator webhook call failed');
+      return c.json({ error: 'simulator.webhook_failed', status: webhookRes.status }, 502);
+    }
     return c.json({ ok: true, txRef, status: checkout.status });
   });
 
@@ -204,7 +234,13 @@ export function registerSimulatorRoutes(app: Hono): void {
 
     // Mark it succeeded so re-verification passes, then notify the real webhook endpoint.
     simulatorProvider.succeedCheckout(txRef);
-    await simulatorProvider.notifyWebhook(txRef, amountMinor, currency);
+    const checkout = simulatorProvider.getCheckoutStatus(txRef);
+    const webhookAmount = checkout?.amountMinor ?? (toProviderAmount(amountMinor, currency) ?? amountMinor);
+    const webhookRes = await simulatorProvider.notifyWebhook(txRef, webhookAmount, currency);
+    if (!webhookRes.ok) {
+      log.warn({ txRef, status: webhookRes.status }, 'simulator webhook call failed');
+      return c.json({ error: 'simulator.webhook_failed', status: webhookRes.status }, 502);
+    }
 
     return c.json({ ok: true, txRef });
   });

@@ -100,7 +100,15 @@ export function BillingScreen() {
   }
 
   if (view === 'quote') {
-    return <QuoteScreen onBack={() => setView('account')} />;
+    return (
+      <QuoteScreen
+        onBack={() => setView('account')}
+        onSuccess={() => {
+          useTeamsView.setState({ message: 'billing.account.subscribed' });
+          setView('account');
+        }}
+      />
+    );
   }
 
   const acct = account;
