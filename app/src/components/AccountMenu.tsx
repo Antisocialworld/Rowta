@@ -1,7 +1,8 @@
 // AccountMenu — shared icon-only account button and modal sheet (rules U1, U5, U7, X1, X4, X6, X14; ADR 0018).
 // Reuses SheetModal (which implements the DeleteTeamModal / TransferOwnershipModal modal pattern with existing design tokens).
 import { useRef, useState } from 'react';
-import { StyleSheet, View, type ViewInstance } from 'react-native';
+import { Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from './Button';
 import { SheetModal } from './SheetModal';
@@ -10,8 +11,9 @@ import { t, type MessageKey } from '../i18n/en';
 import { authApi } from '../lib/api';
 import { billingApi } from '../api/billing';
 import { useAuthSession } from '../state/auth-session';
-import { MIN_TOUCH_TARGET } from '../theme/layout';
-import { spacing } from '../theme/tokens';
+import { useTeamsView } from '../state/teams-view';
+import { MIN_TOUCH_TARGET, iconSize } from '../theme/layout';
+import { colors, spacing, state } from '../theme/tokens';
 
 export type AccountMenuProps = {
   readonly testID?: string;
@@ -21,6 +23,7 @@ export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
   const [visible, setVisible] = useState(false);
   const triggerRef = useRef<ViewInstance>(null);
   const signOut = useAuthSession((state) => state.signOut);
+  const teamsViewGo = useTeamsView((state) => state.go);
 
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],
@@ -84,10 +87,36 @@ export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
           ) : null}
 
           {hasAccount && account ? (
-            <View style={styles.accountRow}>
-              <Text variant="body-medium">{t('billing.account.title')}</Text>
-              <Text variant="body-small" tone="secondary">{statusLine}</Text>
-            </View>
+            <Pressable
+              onPress={() => {
+                setVisible(false);
+                teamsViewGo('billing');
+              }}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={
+                statusLine
+                  ? `${t('billing.account.title')}, ${statusLine}`
+                  : t('billing.account.title')
+              }
+              testID="account-billing-row"
+              style={({ pressed }) => [
+                styles.accountRow,
+                pressed && { opacity: 1 - state.pressed },
+              ]}
+            >
+              <View style={styles.accountTextContainer}>
+                <Text variant="body-medium">{t('billing.account.title')}</Text>
+                <Text variant="body-small" tone="secondary">{statusLine}</Text>
+              </View>
+              <MaterialIcons
+                name="chevron-right"
+                size={iconSize('title-medium')}
+                color={colors['color-on-surface-variant']}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              />
+            </Pressable>
           ) : null}
 
           <View style={styles.actions}>
@@ -125,10 +154,18 @@ const styles = StyleSheet.create({
     gap: Number(spacing.base),
   },
   accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: Number(spacing.extraSmall),
     marginBottom: Number(spacing.small),
     paddingBottom: Number(spacing.small),
+    minHeight: MIN_TOUCH_TARGET,
     borderBottomWidth: 1,
+  },
+  accountTextContainer: {
+    flex: 1,
+    gap: Number(spacing.extraSmall),
   },
   actions: {
     gap: Number(spacing.small),

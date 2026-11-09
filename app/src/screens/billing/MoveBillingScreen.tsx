@@ -6,13 +6,13 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInstance, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { BillingBackButton, Button, Card, ConfirmDialog, Skeleton, Text as BText } from '../../components';
+import { BillingBackButton, Button, Card, ConfirmDialog, EmptyState, Skeleton, Text as BText } from '../../components';
 import { type MemberItem } from '@rowta/shared';
 import { t } from '../../i18n/en';
 import { ApiError } from '../../lib/api';
 import { billingApi } from '../../api/billing';
 import { useBilling } from '../../state/billing';
-import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
+import { useTeam, useTeamMembers, useTeams, useTeamsList } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
 import { TeamScreenLayout } from '../teams/TeamScreenLayout';
 import { typeStyle } from '../../theme/fonts';
@@ -46,11 +46,13 @@ export function MoveBillingScreen() {
 
   const teamQuery = useTeam(selectedTeamId);
   const membersQuery = useTeamMembers(selectedTeamId);
+  const teamsListQuery = useTeamsList();
 
   const currentUserId = accountQuery.data?.account?.userId ?? null;
   const team = teamQuery.data;
   const members: MemberItem[] = membersQuery.data?.members ?? [];
-  const payerUserId = team?.payerUserId ?? null;
+  const teamFromList = teamsListQuery.data?.teams.find((t) => t.id === selectedTeamId);
+  const payerUserId = teamFromList?.payerUserId ?? team?.payerUserId ?? team?.createdBy?.userId ?? null;
   const isPayer = currentUserId !== null && payerUserId !== null && currentUserId === payerUserId;
   const isAdmin = members.some((m) => m.role === 'owner' && m.userId === currentUserId);
   const memberById = new Map(members.map((m) => [m.userId, m.displayName]));
@@ -134,10 +136,47 @@ export function MoveBillingScreen() {
     }
   };
 
-  if (moveQuery.isLoading || accountQuery.isLoading || teamQuery.isLoading || membersQuery.isLoading) {
+  const isLoading = moveQuery.isLoading || accountQuery.isLoading || teamQuery.isLoading || membersQuery.isLoading || teamsListQuery.isLoading;
+  const isError = moveQuery.isError || accountQuery.isError || teamQuery.isError || membersQuery.isError || teamsListQuery.isError;
+
+  if (isLoading) {
     return (
       <TeamScreenLayout testID="move-billing-screen">
+        <View style={styles.headerRow}>
+          <BText ref={headingRef} variant="headline-small" style={styles.heading} accessibilityRole="header">
+            {t('billing.move.title')}
+          </BText>
+          <BillingBackButton onPress={teamsViewBack} testID="move-back" accessibilityRole="button" />
+        </View>
         <Skeleton variant="block" style={[styles.skeleton, { height: 500 }]} />
+      </TeamScreenLayout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <TeamScreenLayout testID="move-billing-screen">
+        <View style={styles.headerRow}>
+          <BText ref={headingRef} variant="headline-small" style={styles.heading} accessibilityRole="header">
+            {t('billing.move.title')}
+          </BText>
+          <BillingBackButton onPress={teamsViewBack} testID="move-back" accessibilityRole="button" />
+        </View>
+        <EmptyState
+          kind="error"
+          titleKey="billing.error.loadFailed"
+          bodyKey="billing.error.generic"
+          action={{
+            label: 'action.retry',
+            onPress: () => {
+              void moveQuery.refetch();
+              void accountQuery.refetch();
+              void teamQuery.refetch();
+              void membersQuery.refetch();
+              void teamsListQuery.refetch();
+            },
+          }}
+        />
       </TeamScreenLayout>
     );
   }
@@ -272,6 +311,17 @@ export function MoveBillingScreen() {
     }
 
     // Any other state (accepted, declined, cancelled, or not relevant to current user).
+    let statusText: string = t('generic.empty.body');
+    if (status === 'accepted') {
+      statusText = t('billing.move.accepted', { name: memberById.get(move.toUserId) ?? t('billing.move.unknownMember') });
+    } else if (status === 'declined') {
+      statusText = t('billing.move.declined', { name: memberById.get(move.toUserId) ?? t('billing.move.unknownMember') });
+    } else if (status === 'cancelled') {
+      statusText = t('billing.move.cancelled');
+    } else if (status === 'expired') {
+      statusText = t('billing.move.expired');
+    }
+
     return (
       <TeamScreenLayout testID="move-billing-screen">
         <View style={styles.headerRow}>
@@ -279,6 +329,19 @@ export function MoveBillingScreen() {
             {t('billing.move.title')}
           </BText>
           <BillingBackButton onPress={teamsViewBack} testID="move-back" accessibilityRole="button" />
+        </View>
+
+        <View style={styles.moveCard}>
+          <BText variant="body-medium">{statusText}</BText>
+        </View>
+
+        <View style={styles.actions}>
+          <Button
+            label="action.back"
+            variant="secondary"
+            onPress={teamsViewBack}
+            testID="move-back-action"
+          />
         </View>
 
         {error ? (
@@ -306,6 +369,15 @@ export function MoveBillingScreen() {
           <BText variant="body-medium">{t('billing.move.isPayerAdmin')}</BText>
         </View>
 
+        <View style={styles.actions}>
+          <Button
+            label="action.back"
+            variant="secondary"
+            onPress={teamsViewBack}
+            testID="move-back-action"
+          />
+        </View>
+
         {error ? (
           <Card variant="flat" style={styles.errorCard}>
             <BText variant="body-medium" tone="error">{error}</BText>
@@ -315,8 +387,8 @@ export function MoveBillingScreen() {
     );
   }
 
-  // Payer who is also the Admin, with eligible receivers → can request.
-  if (isPayer && isAdmin) {
+  // Payer who has eligible receiver(s) (current Admin is eligible receiver) → can request.
+  if (isPayer && eligibleReceivers.length > 0) {
     const selectedReceiverName =
       receiverUserId && memberById.get(receiverUserId)
         ? memberById.get(receiverUserId)!
@@ -344,41 +416,35 @@ export function MoveBillingScreen() {
           <BText variant="body-small" tone="secondary">{t('billing.move.receiver')}</BText>
         </View>
 
-        {eligibleReceivers.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <BText variant="body-medium" tone="secondary">{t('billing.move.noEligibleReceiver')}</BText>
-          </View>
-        ) : (
-          <View style={styles.receiverList}>
-            {eligibleReceivers.map((member) => {
-              const isSelected = member.userId === receiverUserId;
-              return (
-                <Pressable
-                  key={member.userId}
-                  onPress={() => setReceiverUserId(member.userId)}
-                  accessibilityRole="button"
-                  accessibilityLabel={member.displayName}
-                  accessibilityState={{ selected: isSelected }}
-                  testID={`move-receiver-${member.userId}`}
-                  style={[styles.receiverRow, isSelected && styles.receiverRowSelected]}
-                >
-                  <View style={styles.receiverRowContent}>
-                    <BText variant="body-medium">{member.displayName}</BText>
-                    {isSelected ? (
-                      <MaterialIcons
-                        name="check"
-                        size={18}
-                        color={colors['color-primary']}
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                      />
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
+        <View style={styles.receiverList}>
+          {eligibleReceivers.map((member) => {
+            const isSelected = member.userId === receiverUserId;
+            return (
+              <Pressable
+                key={member.userId}
+                onPress={() => setReceiverUserId(member.userId)}
+                accessibilityRole="button"
+                accessibilityLabel={member.displayName}
+                accessibilityState={{ selected: isSelected }}
+                testID={`move-receiver-${member.userId}`}
+                style={[styles.receiverRow, isSelected && styles.receiverRowSelected]}
+              >
+                <View style={styles.receiverRowContent}>
+                  <BText variant="body-medium">{member.displayName}</BText>
+                  {isSelected ? (
+                    <MaterialIcons
+                      name="check"
+                      size={18}
+                      color={colors['color-primary']}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                    />
+                  ) : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <View style={styles.actions}>
           <Button
@@ -402,7 +468,8 @@ export function MoveBillingScreen() {
     );
   }
 
-  // Not the payer, not the Admin, or no billing move actions available.
+  // Not the payer (e.g. Admin whose team is paid by someone else, or manager/staff)
+  // or payer with no eligible receivers on a non-admin role.
   return (
     <TeamScreenLayout testID="move-billing-screen">
       <View style={styles.headerRow}>
@@ -411,6 +478,16 @@ export function MoveBillingScreen() {
         </BText>
         <BillingBackButton onPress={teamsViewBack} testID="move-back" accessibilityRole="button" />
       </View>
+
+      <EmptyState
+        kind="empty"
+        titleKey="billing.move.title"
+        bodyKey={isPayer ? 'billing.move.noEligibleReceiver' : 'billing.error.notPayer'}
+        action={{
+          label: 'action.back',
+          onPress: teamsViewBack,
+        }}
+      />
 
       {error ? (
         <Card variant="flat" style={styles.errorCard}>

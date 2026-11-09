@@ -11,12 +11,13 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  useWindowDimensions,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH, HAIRLINE, MIN_TOUCH_TARGET } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH, HAIRLINE, MIN_TOUCH_TARGET, isCompactWidth } from '../../theme/layout';
 
 export type TeamScreenLayoutProps = {
   readonly children: ReactNode;
@@ -35,6 +36,9 @@ export function TeamScreenLayout({
   contentContainerStyle,
   footer,
 }: TeamScreenLayoutProps) {
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && !isCompactWidth(width);
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']} testID={testID}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -47,7 +51,7 @@ export function TeamScreenLayout({
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.content, style]}>{children}</View>
+          <View style={[styles.content, isDesktop && styles.contentDesktop, style]}>{children}</View>
         </ScrollView>
       </KeyboardAvoidingView>
       {footer !== undefined ? (
@@ -75,6 +79,9 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: CONTENT_MAX_WIDTH,
     gap: Number(spacing.base),
+  },
+  contentDesktop: {
+    marginVertical: 'auto',
   },
   footer: {
     paddingHorizontal: Number(spacing.base),
