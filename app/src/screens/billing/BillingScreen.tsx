@@ -100,7 +100,7 @@ export function BillingScreen() {
   }
 
   if (view === 'quote') {
-    return <QuoteScreen />;
+    return <QuoteScreen onBack={() => setView('account')} />;
   }
 
   const acct = account;

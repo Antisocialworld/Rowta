@@ -55,6 +55,7 @@ import {
   HAIRLINE,
   MIN_TOUCH_TARGET,
   RING,
+  desktopCenterStyle,
   iconSize,
   isCompactWidth,
 } from '../theme/layout';
@@ -214,7 +215,7 @@ export function DashboardScreen() {
             />
           }
         >
-          <View style={styles.content}>
+          <View style={[styles.content, desktopCenterStyle(width)]}>
             {/* 1. Header: greeting, team identity, role, last updated, Teams trigger */}
             <View style={styles.header}>
               <View style={styles.greetingRow}>

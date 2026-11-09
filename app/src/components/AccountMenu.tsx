@@ -111,8 +111,8 @@ export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
               </View>
               <MaterialIcons
                 name="chevron-right"
-                size={iconSize('title-medium')}
-                color={colors['color-on-surface-variant']}
+                size={iconSize('headline-small')}
+                color={colors['color-primary']}
                 accessibilityElementsHidden
                 importantForAccessibility="no-hide-descendants"
               />

@@ -16,11 +16,16 @@ import { TeamScreenLayout } from '../teams/TeamScreenLayout';
 import { typeStyle } from '../../theme/fonts';
 import { spacing } from '../../theme/tokens';
 
-export function QuoteScreen() {
+export type QuoteScreenProps = {
+  readonly onBack?: () => void;
+};
+
+export function QuoteScreen({ onBack }: QuoteScreenProps = {}) {
   const headingRef = useRef<TextInstance>(null);
   const { setLoading, error, setError, ensureKey, quoteParams, clearQuoteParams } = useBilling();
   const teamsViewGo = useTeamsView((state) => state.go);
   const teamsViewBack = useTeamsView((state) => state.back);
+  const handleBack = onBack ?? teamsViewBack;
   const queryClient = useQueryClient();
 
   const accountQuery = useQuery({
@@ -144,7 +149,7 @@ export function QuoteScreen() {
         <BText ref={headingRef} variant="headline-small" style={styles.heading} accessibilityRole="header">
           {t('billing.quote.title')}
         </BText>
-        <BillingBackButton onPress={teamsViewBack} testID="quote-back" accessibilityRole="button" />
+        <BillingBackButton onPress={handleBack} testID="quote-back" accessibilityRole="button" />
       </View>
 
       <View style={styles.actionCard}>
@@ -167,7 +172,7 @@ export function QuoteScreen() {
         <Button
           label="billing.quote.notNow"
           variant="ghost"
-          onPress={teamsViewBack}
+          onPress={handleBack}
           testID="quote-not-now"
         />
         <Button
