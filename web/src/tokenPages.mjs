@@ -48,15 +48,10 @@ export function inviteMain(downloadUrl, webAppUrl = '') {
 }
 
 /** /billing/complete — static fallback page after hosted checkout (PRD 8.1, I3). */
-export function billingCompleteMain(downloadUrl, webAppUrl = '') {
-  const cta = downloadUrl
-    ? `<a class="button" href="${downloadUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}">Get the Android app</a>`
-    : `<p class="soon">Download link coming soon</p>`;
+export function billingCompleteMain(_downloadUrl, webAppUrl = '') {
   return `<section class="prose token-page">
     <h1 id="token-heading" tabindex="-1">Billing return</h1>
     <p id="token-message">${BILLING_COMPLETE_MESSAGE}</p>
     <a id="open-app" class="button" href="rowta://billing/complete">Open in the app</a>${webAppLink(webAppUrl)}
-    <p>Rowta is an Android app.</p>
-    ${cta}
   </section>`;
 }

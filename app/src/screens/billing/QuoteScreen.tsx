@@ -3,13 +3,15 @@
 // and lets the owner confirm and pay (checkout) or decline. Every amount comes from the server;
 // no floats, no client-computed prices.
 import { useEffect, useRef, useState } from 'react';
-import { Linking, StyleSheet, TextInstance, View } from 'react-native';
+import { AppState, type AppStateStatus, Linking, Platform, StyleSheet, TextInstance, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BillingBackButton, Button, Card, Skeleton, Text as BText } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, DEFAULT_TIMEOUT_MS, errorMessageKey } from '../../lib/api';
 import { billingApi } from '../../api/billing';
 import { formatMinorToNaira } from '../../lib/money-format';
+import { shouldPollOnAppStateChange, toAppStateStatus } from '../../lib/quote-appstate';
+import { pollAccountActive } from '../../lib/poll-account-active';
 import { useBilling, type QuoteAction, type QuoteParams } from '../../state/billing';
 import { useTeamsView } from '../../state/teams-view';
 import { TeamScreenLayout } from '../teams/TeamScreenLayout';
@@ -55,6 +57,15 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
 
   const [busy, setBusy] = useState(false);
   const [pendingPayment, setPendingPayment] = useState(false);
+  const pollingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (accountQuery.data?.account) {
@@ -104,16 +115,6 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
     }
   };
 
-  const pollAccountActive = async (): Promise<boolean> => {
-    const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline) {
-      const acc = await billingApi.accountStatus();
-      if (acc.account?.status === 'active') return true;
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
-    }
-    return false;
-  };
-
   const handleConfirm = async () => {
     if (!quote) return;
     setBusy(true);
@@ -145,7 +146,9 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
         if (!simRes.ok) {
           throw new Error('billing.simulatorFailed');
         }
-        const active = await pollAccountActive();
+        const active = await pollAccountActive({
+          shouldContinue: () => isMountedRef.current,
+        });
         await queryClient.invalidateQueries({ queryKey: ['billing', 'account'] });
         await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
         if (active) {
@@ -156,28 +159,6 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
         return;
       }
       void Linking.openURL(result.checkoutUrl);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(t(errorMessageKey(err.code)));
-      } else {
-        setError(t('billing.error.generic'));
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleRetryStatus = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const active = await pollAccountActive();
-      await queryClient.invalidateQueries({ queryKey: ['billing', 'account'] });
-      await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
-      if (active) {
-        handleSuccess();
-        return;
-      }
       setPendingPayment(true);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -186,9 +167,75 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
         setError(t('billing.error.generic'));
       }
     } finally {
-      setBusy(false);
+      if (isMountedRef.current) {
+        setBusy(false);
+      }
     }
   };
+
+  const handleRetryStatus = async () => {
+    if (pollingRef.current) return;
+    pollingRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const active = await pollAccountActive({
+        shouldContinue: () => isMountedRef.current,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['billing', 'account'] });
+      await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
+      if (active) {
+        handleSuccess();
+        return;
+      }
+      if (isMountedRef.current) {
+        setPendingPayment(true);
+      }
+    } catch (err) {
+      if (isMountedRef.current) {
+        if (err instanceof ApiError) {
+          setError(t(errorMessageKey(err.code)));
+        } else {
+          setError(t('billing.error.generic'));
+        }
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setBusy(false);
+      }
+      pollingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!pendingPayment) return;
+
+    let previousState: AppStateStatus = toAppStateStatus(AppState.currentState);
+
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (shouldPollOnAppStateChange(previousState, nextState, true, pollingRef.current)) {
+        void handleRetryStatus();
+      }
+      previousState = nextState;
+    });
+
+    const onWindowFocus = () => {
+      if (!pollingRef.current && isMountedRef.current) {
+        void handleRetryStatus();
+      }
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('focus', onWindowFocus);
+    }
+
+    return () => {
+      subscription.remove();
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('focus', onWindowFocus);
+      }
+    };
+  }, [pendingPayment]);
 
   if (accountQuery.isLoading || quoteQuery.isLoading) {
     return (
