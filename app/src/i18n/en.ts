@@ -576,7 +576,7 @@ export const en = {
   'billing.error.payerCannotLeave': 'This person pays for this team. Ask them to move billing first.',
   'billing.error.payerCannotLeaveSelf': 'You pay for this team. Move billing first.',
   'billing.error.checkoutMoved': 'This checkout has moved. Use account billing.',
-  'billing.error.switchNotAvailableYet': 'You can switch to monthly when your yearly plan ends.',
+  'billing.error.switchNotAvailableYet': "Switching to monthly isn't available yet. You can switch when your yearly plan ends.",
   'billing.seatLimitReached': 'This team is full. Ask your owner to add people.',
   'billing.readOnlyBanner': 'Billing issue — contact your owner. You can still view shifts.',
   'billing.dashboardBanner': 'Your trial ends in {days} days. Subscribe to keep access.',

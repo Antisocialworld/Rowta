@@ -25,3 +25,13 @@ export function resolveQuoteParams(quoteParams: QuoteParams): ResolvedQuoteParam
   return DEFAULT_QUOTE_PARAMS;
 }
 
+/**
+ * Decides whether the "Change billing period" action is available.
+ * Only monthly subscribers can switch (monthly -> yearly).
+ * Yearly accounts cannot switch to monthly (Task H18, 422 switch_not_available_yet).
+ */
+export function canSwitchBillingInterval(plan: string | null | undefined): boolean {
+  return plan === 'monthly';
+}
+
+

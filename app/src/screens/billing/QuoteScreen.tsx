@@ -246,6 +246,12 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
   }
 
   const priceText = quote ? formatMinorToNaira(quote.amountMinor, quote.currency) : '-';
+  const quoteError = quoteQuery.error
+    ? quoteQuery.error instanceof ApiError
+      ? t(errorMessageKey(quoteQuery.error.code))
+      : t('billing.error.generic')
+    : null;
+  const displayError = error ?? quoteError;
 
   return (
     <TeamScreenLayout testID="quote-screen">
@@ -262,15 +268,17 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
         <BText variant="body-small" tone="secondary">{t(actionLabelKey[action])}</BText>
       </View>
 
-      <View style={styles.priceCard}>
-        <BText variant="title-medium">{t('billing.quote.amount')}</BText>
-        <BText variant="body-large">{priceText}</BText>
-        <BText variant="body-small" tone="secondary">
-          {quote?.effectiveFrom === 'next_renewal'
-            ? t('billing.quote.effectiveNextRenewal')
-            : t('billing.quote.effectiveNow')}
-        </BText>
-      </View>
+      {!quoteQuery.isError && quote !== null ? (
+        <View style={styles.priceCard}>
+          <BText variant="title-medium">{t('billing.quote.amount')}</BText>
+          <BText variant="body-large">{priceText}</BText>
+          <BText variant="body-small" tone="secondary">
+            {quote.effectiveFrom === 'next_renewal'
+              ? t('billing.quote.effectiveNextRenewal')
+              : t('billing.quote.effectiveNow')}
+          </BText>
+        </View>
+      ) : null}
 
       {pendingPayment ? (
         <Card variant="flat" style={styles.pendingCard}>
@@ -285,23 +293,25 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
           onPress={handleBack}
           testID="quote-not-now"
         />
-        <Button
-          label={pendingPayment ? 'billing.card.retry' : 'billing.quote.confirmAndPay'}
-          variant="primary"
-          busy={busy}
-          onPress={() => {
-            if (pendingPayment) {
-              void handleRetryStatus();
-            } else {
-              void handleConfirm();
-            }
-          }}
-          testID={pendingPayment ? 'quote-retry' : 'quote-confirm-pay'}
-        />
+        {!quoteQuery.isError && quote !== null ? (
+          <Button
+            label={pendingPayment ? 'billing.card.retry' : 'billing.quote.confirmAndPay'}
+            variant="primary"
+            busy={busy}
+            onPress={() => {
+              if (pendingPayment) {
+                void handleRetryStatus();
+              } else {
+                void handleConfirm();
+              }
+            }}
+            testID={pendingPayment ? 'quote-retry' : 'quote-confirm-pay'}
+          />
+        ) : null}
       </View>
-      {error ? (
+      {displayError ? (
         <Card variant="flat" style={styles.errorCard}>
-          <BText variant="body-medium" tone="error">{error}</BText>
+          <BText variant="body-medium" tone="error">{displayError}</BText>
         </Card>
       ) : null}
     </TeamScreenLayout>

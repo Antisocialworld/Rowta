@@ -12,6 +12,7 @@ import { ApiError, errorMessageKey, teamsApi } from '../../lib/api';
 import { billingApi } from '../../api/billing';
 import { formatMinorToNaira } from '../../lib/money-format';
 import { formatDisplayDate } from '../../lib/shift-time';
+import { canSwitchBillingInterval } from '../../lib/quote-params';
 import { useBilling } from '../../state/billing';
 import { useTeams } from '../../state/teams';
 import { useTeamsView } from '../../state/teams-view';
@@ -347,12 +348,14 @@ export function BillingScreen() {
           </>
         ) : (
           <>
-            <Button
-              label="billing.account.changeBillingPeriod"
-              variant="secondary"
-              onPress={handleSwitchInterval}
-              testID="billing-switch-interval"
-            />
+            {canSwitchBillingInterval(acct.plan) ? (
+              <Button
+                label="billing.account.changeBillingPeriod"
+                variant="secondary"
+                onPress={handleSwitchInterval}
+                testID="billing-switch-interval"
+              />
+            ) : null}
             {acct.cancelAtPeriodEnd && acct.periodEnd && new Date(acct.periodEnd) > new Date() ? (
               <>
                 <BText variant="body-small" tone="secondary">
