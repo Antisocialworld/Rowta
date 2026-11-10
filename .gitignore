@@ -93,12 +93,9 @@ docs/TAX-NOTES.md
 backup-*.sql
 *-out.txt
 
-app/scripts/test-*.ts
 app/scripts/generate-feed-evidence.ts
 docs/gates/evidence-*.txt
-server/tests/
 
-web/tests/
 scripts/test-app-tokens.mjs
 scripts/test-ui-tokens-gate.mjs
 server/scripts/test-isolation-check.ts
