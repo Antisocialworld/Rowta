@@ -43,9 +43,10 @@ import {
   pickRecentActivity,
 } from '../lib/dashboard-shifts';
 import { AccountMenu } from '../components/AccountMenu';
+import { CreateTeamModal } from './teams/CreateTeamModal';
 import { activityEventShiftId } from '../lib/shift-feed';
 import { useActivityClearedUntil } from '../lib/useActivityClearedUntil';
-import { useTeams, useTeamsList } from '../state/teams';
+import { resolveSelectedTeamId, useTeams, useTeamsList } from '../state/teams';
 import { useTeamsView } from '../state/teams-view';
 import { useShiftNav } from '../state/shift-nav';
 import { ActivityRow } from './shifts/ActivityRow';
@@ -69,12 +70,14 @@ const ROLE_LABEL: Record<string, MessageKey> = {
 export function DashboardScreen() {
   const headingRef = useRef<TextInstance>(null);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
+  const setSelectedTeamId = useTeams((state) => state.setSelectedTeamId);
   const setPickingTeam = useTeams((state) => state.setPickingTeam);
   const teamsViewGo = useTeamsView((state) => state.go);
   const openShift = useShiftNav((state) => state.open);
   const { width } = useWindowDimensions();
   const compact = isCompactWidth(width);
   const [swapsFocused, setSwapsFocused] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],
@@ -106,7 +109,21 @@ export function DashboardScreen() {
   );
 
   const teamsQuery = useTeamsList();
-  const selectedTeam = teamsQuery.data?.teams.find((t) => t.id === selectedTeamId);
+  const teams = teamsQuery.data?.teams;
+
+  useEffect(() => {
+    if (teams === undefined) return;
+    const next = resolveSelectedTeamId(teams, selectedTeamId);
+    if (next !== selectedTeamId) {
+      setSelectedTeamId(next);
+    }
+  }, [teams, selectedTeamId, setSelectedTeamId]);
+
+  const hasZeroTeams = teamsQuery.isSuccess && (teams?.length ?? 0) === 0;
+  const isTeamsLoading = teamsQuery.isLoading && selectedTeamId === null;
+  const isTeamsError = teamsQuery.isError && selectedTeamId === null;
+
+  const selectedTeam = teams?.find((t) => t.id === selectedTeamId);
   const role = selectedTeam?.role ?? 'staff';
   const isManagerOrOwner = canViewPendingSwaps(role);
 
@@ -178,6 +195,7 @@ export function DashboardScreen() {
     setRefreshing(true);
     try {
       const promises: Promise<unknown>[] = [
+        teamsQuery.refetch(),
         calendarQuery.refetch(),
         activityQuery.refetch(),
       ];
@@ -188,7 +206,7 @@ export function DashboardScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [calendarQuery, activityQuery, swapsQuery, isManagerOrOwner]);
+  }, [teamsQuery, calendarQuery, activityQuery, swapsQuery, isManagerOrOwner]);
 
   const latestUpdatedAt = getLatestUpdatedTimestamp(
     calendarQuery.dataUpdatedAt,
@@ -229,46 +247,74 @@ export function DashboardScreen() {
                 <AccountMenu testID="dashboard-account-button" />
               </View>
 
-              <Card variant="flat" style={styles.identityCard}>
-                <View style={styles.identityRow}>
-                  <View style={styles.identityText}>
-                    <Text
-                      variant="title-medium"
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      style={styles.teamLabel}
-                    >
-                      {teamLabel}
+              {!hasZeroTeams && !isTeamsLoading && !isTeamsError ? (
+                <>
+                  <Card variant="flat" style={styles.identityCard}>
+                    <View style={styles.identityRow}>
+                      <View style={styles.identityText}>
+                        <Text
+                          variant="title-medium"
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                          style={styles.teamLabel}
+                        >
+                          {teamLabel}
+                        </Text>
+                      </View>
+                      <View style={styles.teamsButton}>
+                        <Button
+                          label="dashboard.switchTeam"
+                          variant="ghost"
+                          fullWidth={false}
+                          onPress={() => setPickingTeam(true)}
+                          testID="dashboard-switch-team"
+                        />
+                      </View>
+                    </View>
+                    <Text variant="body-medium" tone="secondary">
+                      {t('dashboard.roleLine', { role: t(ROLE_LABEL[role] ?? 'role.staff') })}
                     </Text>
-                  </View>
-                  <View style={styles.teamsButton}>
-                    <Button
-                      label="dashboard.switchTeam"
-                      variant="ghost"
-                      fullWidth={false}
-                      onPress={() => setPickingTeam(true)}
-                      testID="dashboard-switch-team"
-                    />
-                  </View>
-                </View>
-                <Text variant="body-medium" tone="secondary">
-                  {t('dashboard.roleLine', { role: t(ROLE_LABEL[role] ?? 'role.staff') })}
-                </Text>
-              </Card>
-              {updatedTime ? (
-                <Text variant="body-small" tone="secondary">
-                  {t('dashboard.lastUpdated', { time: updatedTime })}
-                </Text>
+                  </Card>
+                  {updatedTime ? (
+                    <Text variant="body-small" tone="secondary">
+                      {t('dashboard.lastUpdated', { time: updatedTime })}
+                    </Text>
+                  ) : null}
+                </>
               ) : null}
             </View>
 
-            {(showTrialBanner || showPaymentBanner) && (
-              <BillingBanner
-                kind={showTrialBanner ? 'trial_ending' : 'payment_late'}
-                days={trialDaysLeft}
-                onGoToBilling={() => void teamsViewGo('billing')}
+            {isTeamsLoading ? (
+              <View style={styles.section}>
+                <Skeleton variant="block" style={{ height: 80, marginBottom: spacing.medium }} />
+                <Skeleton variant="block" style={{ height: 160 }} />
+              </View>
+            ) : isTeamsError ? (
+              <Card style={styles.cardPadding}>
+                <EmptyState
+                  kind="error"
+                  action={{ label: 'dashboard.card.retry', onPress: () => void teamsQuery.refetch() }}
+                />
+              </Card>
+            ) : hasZeroTeams ? (
+              <EmptyState
+                kind="empty"
+                titleKey="teams.empty.title"
+                bodyKey="teams.empty.body"
+                action={{
+                  label: 'action.createTeam',
+                  onPress: () => setCreateModalOpen(true),
+                }}
               />
-            )}
+            ) : (
+              <>
+                {(showTrialBanner || showPaymentBanner) && (
+                  <BillingBanner
+                    kind={showTrialBanner ? 'trial_ending' : 'payment_late'}
+                    days={trialDaysLeft}
+                    onGoToBilling={() => void teamsViewGo('billing')}
+                  />
+                )}
 
             {/* 2. Quick Navigation Shortcuts */}
             <View style={styles.actionRow}>
@@ -535,10 +581,18 @@ export function DashboardScreen() {
                 />
               </View>
             </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </>
+        )}
+      </View>
+    </ScrollView>
+  </KeyboardAvoidingView>
+  <CreateTeamModal
+    visible={createModalOpen}
+    onClose={() => setCreateModalOpen(false)}
+    returnFocusRef={headingRef}
+    testID="dashboard-create-team-modal"
+  />
+</SafeAreaView>
   );
 }
 

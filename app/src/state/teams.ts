@@ -194,12 +194,13 @@ export function inviteFailureDisposition(error: unknown): 'retry' | 'failed' {
 }
 
 /** Decision helper for showing the Dashboard vs TeamListScreen (PRD §12, rule U2).
- * Shows Dashboard only when a team is selected AND the user is not actively picking/switching a team. */
+ * The user always lands on the Dashboard (including zero teams). Shows TeamListScreen only
+ * when pickingTeam is true (the user explicitly tapped 'Switch team' / 'Teams'). */
 export function shouldShowDashboard(
-  selectedTeamId: string | null,
+  _selectedTeamId: string | null,
   pickingTeam: boolean,
 ): boolean {
-  return selectedTeamId !== null && !pickingTeam;
+  return !pickingTeam;
 }
 
 /** The switcher's fallback (B1): keep the preferred team while it is still in the list, else the
