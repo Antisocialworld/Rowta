@@ -7,7 +7,7 @@ import { registerPost, registerGet } from '../http/routes.ts';
 import { HttpError, ok } from '../middleware/error.ts';
 import * as service from './account-service.ts';
 import { loadOwnerAccount, loadPlanEntitlements } from './entitlements.ts';
-import { quoteSchema, checkoutSchema, cancelSchema } from './account-schema.ts';
+import { quoteSchema, checkoutSchema, cancelSchema, verifyIntentSchema } from './account-schema.ts';
 
 type ZodIssue = z.ZodError['issues'][number];
 
@@ -139,6 +139,19 @@ export function createAccountRouter(): Hono {
         throw new HttpError(400, 'idempotency.missing', 'Idempotency-Key header is required.');
       }
       const result = await service.resumeAccount(userId, idempotencyKey);
+      return c.json(ok(result), 200);
+    },
+  );
+
+  // 6. POST /billing/account/verify-intent — verify a pending intent with the provider (Task H24).
+  registerPost(
+    router,
+    '/billing/account/verify-intent',
+    { limits: ['billing.verify'], auth: true },
+    async (c) => {
+      const userId = getUserId(c);
+      const body = parseWith(verifyIntentSchema, c.get('parsedBody'));
+      const result = await service.verifyIntent(userId, body.txRef);
       return c.json(ok(result), 200);
     },
   );

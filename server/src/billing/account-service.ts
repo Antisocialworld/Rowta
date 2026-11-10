@@ -129,6 +129,13 @@ export async function quote(
   return { action: input.action, amountMinor, currency: account.currency, description, interval, effectiveFrom };
 }
 
+/**
+ * Stale pending intent threshold for idempotency replay (Task H23).
+ * [VERIFY]: Real Flutterwave hosted payment link lifetime is unverified against live endpoints;
+ * 30 minutes prevents returning a link that Flutterwave will display as expired.
+ */
+export const STALE_CHECKOUT_MS = 30 * 60 * 1000;
+
 export async function checkout(
   userId: string,
   input: { action: AccountAction; interval?: 'monthly' | 'yearly'; teamId?: string; people?: number },
@@ -144,6 +151,16 @@ export async function checkout(
     where: { idempotency_key: idempotencyKey, created_by: userId },
   });
   if (existingKey) {
+    if (existingKey.status === 'pending') {
+      const ageMs = Date.now() - existingKey.created_at.getTime();
+      if (ageMs > STALE_CHECKOUT_MS) {
+        throw new HttpError(
+          409,
+          'billing.checkout_stale',
+          'This checkout session has expired. Start a new payment.',
+        );
+      }
+    }
     const provider = resolvePaymentProvider();
     return {
       checkoutUrl: await provider.checkoutUrlFor(existingKey.tx_ref),
@@ -279,4 +296,49 @@ export async function assertAccountOwner(userId: string, targetUserId: string): 
   if (userId !== targetUserId) {
     throw new HttpError(403, 'billing.account_owner_only', 'Only the account owner can manage billing.');
   }
+}
+
+/**
+ * Verify a pending payment intent with the provider (Task H24).
+ * Calls provider.verifyTransaction(txRef) first. If successful, enqueues the existing
+ * webhook job to process it. The processor remains the only writer of owner_accounts.status.
+ */
+export async function verifyIntent(
+  userId: string,
+  txRef: string,
+): Promise<{ status: 'confirmed' | 'pending' | 'failed' | 'unknown' }> {
+  const db0 = globalDb();
+  const intent = await db0.payment_intents.findUnique({
+    where: { tx_ref: txRef },
+  });
+  if (!intent) {
+    throw new HttpError(404, 'billing.intent_not_found', 'Payment intent not found.');
+  }
+  if (intent.created_by !== userId) {
+    throw new HttpError(403, 'auth.forbidden', 'Access denied.');
+  }
+  if (intent.status !== 'pending') {
+    if (intent.status === 'succeeded') return { status: 'confirmed' };
+    if (intent.status === 'failed' || intent.status === 'expired') return { status: 'failed' };
+    return { status: 'unknown' };
+  }
+
+  const provider = resolvePaymentProvider();
+  const verifyResult = await provider.verifyTransaction(txRef);
+
+  if (verifyResult.status === 'succeeded') {
+    const { getQueue } = await import('../jobs/queues.ts');
+    await getQueue('webhook').add('process-webhook', {
+      txRef,
+      eventType: 'charge.completed',
+    });
+    return { status: 'confirmed' };
+  }
+  if (verifyResult.status === 'pending') {
+    return { status: 'pending' };
+  }
+  if (verifyResult.status === 'failed' || verifyResult.status === 'expired') {
+    return { status: 'failed' };
+  }
+  return { status: 'unknown' };
 }

@@ -182,7 +182,7 @@ export function createTeamsRouter(): Hono {
     const userId = getUserId(c);
     const body = parseWith(acceptInviteSchema, c.get('parsedBody'));
     const user = await globalDb().users.findUnique({ where: { id: userId } });
-    if (!user) {
+    if (!user || user.status === 'pending_deletion' || user.status === 'deleted') {
       throw new HttpError(401, 'auth.not_authenticated', 'Not authenticated.');
     }
     const result = await service.acceptInvite(userId, user.email, body.token);

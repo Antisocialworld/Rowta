@@ -25,3 +25,7 @@ export const checkoutSchema = z.object({
 export const cancelSchema = z.object({
   confirm: z.literal('cancel'),
 });
+
+export const verifyIntentSchema = z.object({
+  txRef: z.string().min(1),
+}).strict();

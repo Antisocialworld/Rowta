@@ -36,6 +36,7 @@ import { createSettingsRouter } from './settings/routes.ts';
 import { createDevicesRouter } from './devices/routes.ts';
 import { createBillingRouter } from './billing/routes.ts';
 import { createAccountRouter } from './billing/account-routes.ts';
+import { createAccountDeletionRouter } from './account/routes.ts';
 import { createMoveRouter } from './billing/move-routes.ts';
 import { registerSimulatorRoutes } from './billing/simulator.ts';
 import { webhookHandler } from './billing/webhook.ts';
@@ -187,6 +188,7 @@ export function createApp(deps: AppDeps): Hono {
   app.route('/', createDevicesRouter());
   app.route('/', createBillingRouter());
   app.route('/', createAccountRouter());
+  app.route('/', createAccountDeletionRouter());
   app.route('/', createMoveRouter());
   // Old per-team hand-over routes retired at C7 in favour of account-level move (/teams/:teamId/billing/move/*).
   // server/src/billing/handover-routes.ts and server/src/billing/handover.ts remain as legacy code.

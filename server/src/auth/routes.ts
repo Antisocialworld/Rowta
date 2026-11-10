@@ -20,6 +20,7 @@ import {
   resendCodeSchema,
   resetCodeSchema,
   resetNewPasswordSchema,
+  restoreAccountSchema,
   signInSchema,
   signUpSchema,
   verifyCodeSchema,
@@ -203,6 +204,13 @@ export function createAuthRouter(): Hono {
     const input = parseInput(magicConsumeSchema, c.get('parsedBody'));
     const tokens = await service.magicConsume(input);
     return c.json(ok(tokens));
+  });
+
+  // ---- Restore account (Task D2; PRD 8.10) ----------------------------------------------------
+  registerPost(router, '/auth/restore-account', { limits: ['restore.ip', 'restore.email'] }, async (c) => {
+    const input = parseInput(restoreAccountSchema, c.get('parsedBody'));
+    const result = await service.restoreAccount(input);
+    return c.json(ok(result));
   });
 
   // Keep the catalog import honest: routes only ever return catalog text for failures (A6).

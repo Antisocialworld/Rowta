@@ -100,6 +100,15 @@ export const LIMITS: readonly LimitDef[] = [
   // Phase 6 Stage 3 — Devices and push tokens.
   { id: 'device.register', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'device registration write' },
   { id: 'device.unregister', key: 'user', max: 30, windowSec: 60, failMode: 'C', reason: 'device unregistration write' },
+
+  // Task H24 — Billing verification.
+  { id: 'billing.verify', key: 'user', max: 10, windowSec: 60, failMode: 'C', reason: 'rate limit provider transaction verification calls' },
+
+  // Task D2 — Account deletion and restore.
+  { id: 'account.delete', key: 'user', max: 5, windowSec: 3_600, failMode: 'C', reason: 'account deletion write' },
+  { id: 'account.delete_preview', key: 'user', max: 30, windowSec: 60, failMode: 'O', reason: 'account deletion preview read' },
+  { id: 'restore.ip', key: 'ip', max: 30, windowSec: 900, failMode: 'C', reason: 'restore account per-IP limit' },
+  { id: 'restore.email', key: 'emailHash', max: 10, windowSec: 900, failMode: 'C', reason: 'restore account per-email limit' },
 ];
 
 const BY_ID = new Map(LIMITS.map((def) => [def.id, def]));
