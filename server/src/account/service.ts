@@ -4,6 +4,7 @@ import { shardFor, type Shard } from '../db/shard.ts';
 import { verifySecret } from '../security/argon2.ts';
 import { loadOwnerAccount } from '../billing/entitlements.ts';
 import { logoutAll } from '../auth/service.ts';
+import { markUserRefused } from '../auth/deletion-cache.ts';
 import { HttpError } from '../middleware/error.ts';
 import {
   AUTH_MESSAGES,
@@ -82,7 +83,7 @@ export async function getDeletePreview(userId: string): Promise<DeletePreviewRes
   const hasActiveSubscription = Boolean(
     account &&
     (account.status === 'active' || account.status === 'trialing') &&
-    !account.cancel_at_period_end,
+    !account.cancelAtPeriodEnd,
   );
 
   return {
@@ -148,6 +149,9 @@ export async function deleteAccount(
 
   // 6. Delete user's push device rows
   await db0.devices.deleteMany({ where: { user_id: userId } });
+
+  // 7. Refuse already-issued access tokens in auth middleware (Task D2b)
+  await markUserRefused(userId);
 
   return { deleted: true };
 }

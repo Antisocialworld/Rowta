@@ -33,6 +33,7 @@ import { globalDb } from '../db/clients.ts';
 import { isUniqueViolation } from '../db/errors.ts';
 import { HttpError } from '../middleware/error.ts';
 import { getDummyHash, hashSecret, needsRehash, verifySecret } from '../security/argon2.ts';
+import { clearUserRefused } from './deletion-cache.ts';
 import { signAccessToken } from '../security/access-token.ts';
 import { cooldownSeconds, startCooldown } from '../security/rate-limit.ts';
 import { createTokenParts, formatToken, splitToken } from '../security/tokens.ts';
@@ -662,6 +663,9 @@ export async function restoreAccount(input: RestoreAccountInput): Promise<Messag
       deletion_requested_at: null,
     },
   });
+
+  // Task D2b: Remove refusal key in Redis so immediate subsequent requests are accepted
+  await clearUserRefused(user.id);
 
   return { message: AUTH_MESSAGES['auth.account_restored'] };
 }
