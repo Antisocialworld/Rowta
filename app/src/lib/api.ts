@@ -54,6 +54,16 @@ import {
   deleteTeamResponseSchema,
   type DeleteTeamInput,
   type DeleteTeamResponse,
+  deleteAccountSchema,
+  deleteAccountResponseSchema,
+  type DeleteAccountInput,
+  type DeleteAccountResponse,
+  deletePreviewResponseSchema,
+  type DeletePreviewResponse,
+  restoreAccountSchema,
+  restoreAccountResponseSchema,
+  type RestoreAccountInput,
+  type RestoreAccountResponse,
   deletedTeamItemSchema,
   deletedTeamsResponseSchema,
   restoreTeamResponseSchema,
@@ -142,6 +152,7 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'auth.link.invalid': 'auth.link.invalid',
   'auth.not_authenticated': 'generic.error',
   'auth.refresh_invalid': 'generic.error',
+  'auth.account_pending_deletion': 'auth.account_pending_deletion',
   'auth.deleteOwner.blocked': 'auth.deleteOwner.blocked',
   'team.notFound': 'team.notFound',
   'team.forbidden': 'team.forbidden',
@@ -183,6 +194,7 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'billing.payer_cannot_leave': 'billing.error.payerCannotLeave',
   'billing.payer_cannot_leave_self': 'billing.error.payerCannotLeaveSelf',
   'billing.checkout_moved': 'billing.error.checkoutMoved',
+  'billing.checkout_stale': 'billing.error.checkoutStale',
   'billing.switch_not_available_yet': 'billing.error.switchNotAvailableYet',
   'rate.limited': 'auth.rateLimited',
   'validation.failed': 'generic.error',
@@ -559,6 +571,17 @@ export const authApi = {
       dataSchema: authTokensResponseSchema,
     });
     return out.data as AuthTokensResponse;
+  },
+
+  async restoreAccount(input: z.input<typeof restoreAccountSchema>): Promise<MessageResponse> {
+    restoreAccountSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: '/auth/restore-account',
+      body: input,
+      dataSchema: messageResponseSchema,
+    });
+    return out.data as MessageResponse;
   },
 };
 
@@ -957,6 +980,30 @@ export const swapsApi = {
   },
 };
 
+export const accountApi = {
+  async deletePreview(): Promise<DeletePreviewResponse> {
+    const out = await send({
+      method: 'GET',
+      path: '/account/delete-preview',
+      auth: true,
+      dataSchema: deletePreviewResponseSchema,
+    });
+    return out.data as DeletePreviewResponse;
+  },
+
+  async deleteAccount(input: z.input<typeof deleteAccountSchema>): Promise<DeleteAccountResponse> {
+    deleteAccountSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: '/account/delete',
+      body: input,
+      auth: true,
+      dataSchema: deleteAccountResponseSchema,
+    });
+    return out.data as DeleteAccountResponse;
+  },
+};
+
 export const devicesApi = {
   async registerDevice(
     input: z.input<typeof registerDeviceSchema>,
@@ -983,6 +1030,16 @@ export {
   deleteTeamResponseSchema,
   type DeleteTeamInput,
   type DeleteTeamResponse,
+  deleteAccountSchema,
+  deleteAccountResponseSchema,
+  type DeleteAccountInput,
+  type DeleteAccountResponse,
+  deletePreviewResponseSchema,
+  type DeletePreviewResponse,
+  restoreAccountSchema,
+  restoreAccountResponseSchema,
+  type RestoreAccountInput,
+  type RestoreAccountResponse,
   deletedTeamItemSchema,
   deletedTeamsResponseSchema,
   restoreTeamResponseSchema,

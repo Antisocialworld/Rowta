@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from './Button';
+import { DeleteAccountModal } from './DeleteAccountModal';
 import { SheetModal } from './SheetModal';
 import { Text } from './Text';
 import { t, type MessageKey } from '../i18n/en';
@@ -21,6 +22,7 @@ export type AccountMenuProps = {
 
 export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
   const [visible, setVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const triggerRef = useRef<ViewInstance>(null);
   const signOut = useAuthSession((state) => state.signOut);
   const teamsViewGo = useTeamsView((state) => state.go);
@@ -130,6 +132,15 @@ export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
               testID="team-sign-out"
             />
             <Button
+              label="action.deleteAccount"
+              variant="ghost"
+              onPress={() => {
+                setVisible(false);
+                setDeleteModalVisible(true);
+              }}
+              testID="account-delete-button"
+            />
+            <Button
               label="action.cancel"
               variant="ghost"
               onPress={() => setVisible(false)}
@@ -138,6 +149,10 @@ export function AccountMenu({ testID = 'account-button' }: AccountMenuProps) {
           </View>
         </View>
       </SheetModal>
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+      />
     </View>
   );
 }

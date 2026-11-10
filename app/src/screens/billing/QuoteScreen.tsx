@@ -26,7 +26,7 @@ export type QuoteScreenProps = {
 
 export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
   const headingRef = useRef<TextInstance>(null);
-  const { setLoading, error, setError, ensureKey, clearQuoteParams } = useBilling();
+  const { setLoading, error, setError, ensureKey, clearKey, clearQuoteParams } = useBilling();
   const teamsViewGo = useTeamsView((state) => state.go);
   const teamsViewBack = useTeamsView((state) => state.back);
   const handleBack = onBack ?? teamsViewBack;
@@ -57,15 +57,25 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
 
   const [busy, setBusy] = useState(false);
   const [pendingPayment, setPendingPayment] = useState(false);
+  const [pendingTxRef, setPendingTxRef] = useState<string | null>(null);
+  const [isStaleCheckout, setIsStaleCheckout] = useState(false);
   const pollingRef = useRef(false);
   const isMountedRef = useRef(true);
+  const pendingPaymentRef = useRef(false);
+
+  useEffect(() => {
+    pendingPaymentRef.current = pendingPayment;
+  }, [pendingPayment]);
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (!pendingPaymentRef.current) {
+        clearKey('checkout');
+      }
     };
-  }, []);
+  }, [clearKey]);
 
   useEffect(() => {
     if (accountQuery.data?.account) {
@@ -108,6 +118,7 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
   }
 
   const handleSuccess = () => {
+    clearKey('checkout');
     if (onSuccess) {
       onSuccess();
     } else {
@@ -117,15 +128,28 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
 
   const handleConfirm = async () => {
     if (!quote) return;
+    const popup =
+      Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.open === 'function'
+        ? window.open('about:blank', '_blank')
+        : null;
     setBusy(true);
     setError(null);
+    setIsStaleCheckout(false);
     try {
       const key = ensureKey('checkout');
       const result = await billingApi.checkout(
         { action, interval: resolvedInterval, teamId: teamId ?? undefined, people },
         key,
       );
+      setPendingTxRef(result.txRef);
       if (result.checkoutUrl.includes('/simulator/')) {
+        if (popup) {
+          try {
+            popup.close();
+          } catch {
+            // Ignore
+          }
+        }
         const base = process.env.EXPO_PUBLIC_API_URL;
         if (!base || base.trim() === '') {
           throw new Error('billing.simulatorUnavailable');
@@ -158,11 +182,33 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
         setPendingPayment(true);
         return;
       }
-      void Linking.openURL(result.checkoutUrl);
+      if (popup) {
+        try {
+          popup.opener = null;
+        } catch {
+          // Ignore
+        }
+        popup.location.href = result.checkoutUrl;
+      } else {
+        void Linking.openURL(result.checkoutUrl);
+      }
       setPendingPayment(true);
     } catch (err) {
+      if (popup) {
+        try {
+          popup.close();
+        } catch {
+          // Ignore
+        }
+      }
       if (err instanceof ApiError) {
-        setError(t(errorMessageKey(err.code)));
+        if (err.code === 'billing.checkout_stale') {
+          clearKey('checkout');
+          setIsStaleCheckout(true);
+          setError(t('billing.error.checkoutStale'));
+        } else {
+          setError(t(errorMessageKey(err.code)));
+        }
       } else {
         setError(t('billing.error.generic'));
       }
@@ -179,6 +225,9 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
     setBusy(true);
     setError(null);
     try {
+      if (pendingTxRef) {
+        await billingApi.verifyIntent(pendingTxRef).catch(() => ({ status: 'unknown' }));
+      }
       const active = await pollAccountActive({
         shouldContinue: () => isMountedRef.current,
       });
@@ -190,6 +239,7 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
       }
       if (isMountedRef.current) {
         setPendingPayment(true);
+        setError(t('billing.complete.notConfirmedYet'));
       }
     } catch (err) {
       if (isMountedRef.current) {
@@ -293,7 +343,19 @@ export function QuoteScreen({ onBack, onSuccess }: QuoteScreenProps = {}) {
           onPress={handleBack}
           testID="quote-not-now"
         />
-        {!quoteQuery.isError && quote !== null ? (
+        {isStaleCheckout ? (
+          <Button
+            label="billing.quote.startNewPayment"
+            variant="primary"
+            busy={busy}
+            onPress={() => {
+              clearKey('checkout');
+              setIsStaleCheckout(false);
+              void handleConfirm();
+            }}
+            testID="quote-start-new-payment"
+          />
+        ) : !quoteQuery.isError && quote !== null ? (
           <Button
             label={pendingPayment ? 'billing.card.retry' : 'billing.quote.confirmAndPay'}
             variant="primary"

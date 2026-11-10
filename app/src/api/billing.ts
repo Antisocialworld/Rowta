@@ -58,6 +58,10 @@ const cancelResponseSchema = z.object({
   cancelled: z.boolean(),
 });
 
+const verifyIntentResponseSchema = z.object({
+  status: z.enum(['confirmed', 'pending', 'failed', 'unknown']),
+});
+
 const resumeResponseSchema = z.object({
   resumed: z.boolean(),
 });
@@ -161,6 +165,18 @@ export const billingApi = {
       dataSchema: checkoutResponseSchema,
     });
     return out.data as { checkoutUrl: string; txRef: string; amountMinor: number; currency: string };
+  },
+
+  // POST /billing/account/verify-intent — verify a pending intent with the provider (Task H24).
+  async verifyIntent(txRef: string) {
+    const out = await send({
+      method: 'POST',
+      path: '/billing/account/verify-intent',
+      body: { txRef },
+      auth: true,
+      dataSchema: verifyIntentResponseSchema,
+    });
+    return out.data as { status: 'confirmed' | 'pending' | 'failed' | 'unknown' };
   },
 
   // POST /billing/account/cancel — cancel at period end.
