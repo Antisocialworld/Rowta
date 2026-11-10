@@ -4,7 +4,7 @@
 // 1. Full accessibility of all controls on small viewports (360 x 800) with flexGrow: 1 and handled taps.
 // 2. Generous bottom padding (spacing.veryLarge = 32) so the last action button is never hidden under the gesture bar.
 // 3. Centered column capped at CONTENT_MAX_WIDTH (400) matching AuthPage.
-import { isValidElement, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -19,7 +19,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH, HAIRLINE, MIN_TOUCH_TARGET, desktopCenterStyle } from '../../theme/layout';
 import { useInlineBack } from '../../lib/use-inline-back';
-import { BillingBackButton } from '../../components/BillingBackButton';
 
 export type TeamScreenLayoutProps = {
   readonly children: ReactNode;
@@ -54,18 +53,6 @@ export function TeamScreenLayout({
           keyboardShouldPersistTaps="handled"
         >
           <View style={[styles.content, desktopCenterStyle(width), style]}>
-            {footer !== undefined && inlineBack ? (
-              <View style={styles.inlineBack}>
-                {isValidElement<{ onPress?: () => void; testID?: string }>(footer) ? (
-                  <BillingBackButton
-                    onPress={footer.props.onPress ?? (() => {})}
-                    testID={footer.props.testID}
-                  />
-                ) : (
-                  footer
-                )}
-              </View>
-            ) : null}
             {children}
           </View>
         </ScrollView>
@@ -95,11 +82,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: CONTENT_MAX_WIDTH,
     gap: Number(spacing.base),
-  },
-  inlineBack: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
   },
   footer: {
     paddingHorizontal: Number(spacing.base),

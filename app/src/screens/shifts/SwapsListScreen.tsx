@@ -12,6 +12,8 @@ import {
   EmptyState,
   Input,
   LiveRegion,
+  PinnedFooter,
+  ScreenHeaderRow,
   SheetModal,
   Skeleton,
   SwapTargetModal,
@@ -39,7 +41,7 @@ import { teamContextLabel } from '../../lib/team-context';
 import { useShiftNav } from '../../state/shift-nav';
 import { useTeam, useTeamMembers, useTeams } from '../../state/teams';
 import { colors, shape, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH, HAIRLINE } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH } from '../../theme/layout';
 
 const END_KEY: MessageKey = 'swap.end';
 
@@ -374,9 +376,12 @@ export function SwapsListScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-          {t('swap.list.title')}
-        </Text>
+        <ScreenHeaderRow
+          title="swap.list.title"
+          onBack={back}
+          topSpacing
+          headingRef={headingRef}
+        />
         {teamQuery.data !== undefined ? (
           <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
         ) : null}
@@ -444,11 +449,7 @@ export function SwapsListScreen() {
         {announcement !== null ? <LiveRegion>{announcement}</LiveRegion> : null}
       </View>
 
-      <View style={styles.footer}>
-        <View style={styles.footerContent}>
-          <Button label="action.back" variant="secondary" onPress={back} />
-        </View>
-      </View>
+      <PinnedFooter label="action.back" variant="secondary" onPress={back} />
 
       <SwapTargetModal
         visible={approvingSwap !== null}
@@ -595,19 +596,6 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     gap: Number(spacing.base),
-  },
-  footer: {
-    paddingHorizontal: Number(spacing.base),
-    paddingTop: Number(spacing.small),
-    paddingBottom: Number(spacing.small),
-    backgroundColor: colors['color-surface'],
-    borderTopWidth: HAIRLINE,
-    borderTopColor: colors['color-outline-variant'],
-  },
-  footerContent: {
-    width: '100%',
-    maxWidth: CONTENT_MAX_WIDTH,
-    alignSelf: 'center',
   },
   modalFooterRow: {
     flexDirection: 'row',

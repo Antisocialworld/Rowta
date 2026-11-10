@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Switch, View, type TextInstance } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
+import { Button, Card, EmptyState, LiveRegion, ScreenHeaderRow, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, authApi, errorMessageKey, teamsApi } from '../../lib/api';
 import { billingApi } from '../../api/billing';
@@ -114,12 +114,17 @@ export function TeamSettingsScreen() {
     }
   };
 
+  const backFooter = <Button label="action.back" variant="ghost" onPress={back} testID="settings-back" />;
+
   return (
-    <TeamScreenLayout testID="team-settings-screen">
-      <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-        {t('teams.view.settings.heading')}
-      </Text>
-          {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
+    <TeamScreenLayout testID="team-settings-screen" footer={backFooter}>
+      <ScreenHeaderRow
+        title="teams.view.settings.heading"
+        onBack={back}
+        backTestID="settings-back"
+        headingRef={headingRef}
+      />
+      {team !== undefined ? <Text variant="title-medium">{team.name}</Text> : null}
 
           {isOwner && accountQuery.data && (
             <>
@@ -205,7 +210,6 @@ export function TeamSettingsScreen() {
             </>
           )}
 
-          <Button label="action.back" variant="ghost" onPress={back} testID="settings-back" />
           {announcement !== null ? <LiveRegion>{announcement}</LiveRegion> : null}
 
       <TransferOwnershipModal

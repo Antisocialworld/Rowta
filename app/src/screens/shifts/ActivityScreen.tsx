@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Button, ConfirmDialog, EmptyState, LiveRegion, PinnedFooter, PinnedHeader, Skeleton, Text } from '../../components';
-import { t, type MessageKey } from '../../i18n/en';
+import { Button, ConfirmDialog, EmptyState, LiveRegion, PinnedFooter, PinnedHeader, ScreenHeaderRow, Skeleton, Text } from '../../components';
+import type { MessageKey } from '../../i18n/en';
 import { shiftsApi, authApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import {
@@ -113,9 +113,12 @@ export function ActivityScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-          {t('teams.view.activity.heading')}
-        </Text>
+        <ScreenHeaderRow
+          title="teams.view.activity.heading"
+          onBack={back}
+          topSpacing
+          headingRef={headingRef}
+        />
         {teamQuery.data !== undefined ? (
           <Text variant="title-medium">{teamContextLabel(teamQuery.data.name)}</Text>
         ) : null}

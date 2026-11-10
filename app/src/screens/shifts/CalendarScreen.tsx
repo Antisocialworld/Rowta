@@ -7,8 +7,7 @@ import { ScrollView, StyleSheet, View, type TextInstance, type ViewInstance } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import type { ShiftView } from '@rowta/shared';
-import { Button, EmptyState, PinnedFooter, PinnedHeader, ShiftCard, Skeleton, Text } from '../../components';
-import { t } from '../../i18n/en';
+import { Button, EmptyState, PinnedFooter, PinnedHeader, ScreenHeaderRow, ShiftCard, Skeleton, Text } from '../../components';
 import { shiftsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
 import { canManageShifts } from '../../lib/shift-access';
@@ -65,9 +64,12 @@ export function CalendarScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
-          {t('teams.view.calendar.heading')}
-        </Text>
+        <ScreenHeaderRow
+          title="teams.view.calendar.heading"
+          onBack={back}
+          topSpacing
+          headingRef={headingRef}
+        />
         {teamQuery.data !== undefined ? <Text variant="title-medium">{teamQuery.data.name}</Text> : null}
         <PinnedHeader>
           <View style={styles.topRow}>

@@ -24,4 +24,5 @@ export { SwapTargetModal, type SwapTargetModalProps } from './SwapTargetModal';
 export { SheetModal, type SheetModalProps } from './SheetModal';
 export { PinnedFooter, type PinnedFooterProps } from './PinnedFooter';
 export { PinnedHeader, type PinnedHeaderProps } from './PinnedHeader';
+export { ScreenHeaderRow, type ScreenHeaderRowProps } from './ScreenHeaderRow';
 
