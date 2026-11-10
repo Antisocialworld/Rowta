@@ -29,6 +29,8 @@ import { TeamScreenLayout } from './TeamScreenLayout';
 import { DeletedTeamsModal } from './DeletedTeamsModal';
 import { CreateTeamModal } from './CreateTeamModal';
 import { shouldCloseDeletedTeamsModal, shouldShowDeletedTeamsTrigger } from '../../lib/deleted-teams-logic';
+import { useInlineBack } from '../../lib/use-inline-back';
+import { BillingBackButton } from '../../components/BillingBackButton';
 
 const SHORT_ROLE_KEY: Record<string, MessageKey> = {
   owner: 'role.owner',
@@ -265,8 +267,11 @@ export function TeamListScreen() {
     go('quote');
   };
 
+  const isBackActive = pickingTeam && selectedTeamId !== null;
+  const showInlineBack = useInlineBack(isBackActive);
+
   const backFooter =
-    pickingTeam && selectedTeamId !== null ? (
+    isBackActive ? (
       <Button
         label="action.back"
         variant="secondary"
@@ -276,9 +281,15 @@ export function TeamListScreen() {
     ) : undefined;
 
   return (
-    <TeamScreenLayout testID="team-list-screen" footer={backFooter}>
-      <View style={styles.topRow}>
+    <TeamScreenLayout testID="team-list-screen" footer={showInlineBack ? undefined : backFooter}>
+      <View style={showInlineBack ? styles.topRowWithBack : styles.topRow}>
         <AccountMenu testID="teams-account-button" />
+        {showInlineBack ? (
+          <BillingBackButton
+            onPress={() => setPickingTeam(false)}
+            testID="team-list-back"
+          />
+        ) : null}
       </View>
       <View style={styles.headerBlock}>
         <Text ref={headingRef} variant="headline-small" accessibilityRole="header">
@@ -465,6 +476,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    minHeight: MIN_TOUCH_TARGET,
+  },
+  topRowWithBack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     minHeight: MIN_TOUCH_TARGET,
   },
   headerBlock: { gap: Number(spacing.extraSmall) },

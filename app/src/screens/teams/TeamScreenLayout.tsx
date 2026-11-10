@@ -4,7 +4,7 @@
 // 1. Full accessibility of all controls on small viewports (360 x 800) with flexGrow: 1 and handled taps.
 // 2. Generous bottom padding (spacing.veryLarge = 32) so the last action button is never hidden under the gesture bar.
 // 3. Centered column capped at CONTENT_MAX_WIDTH (400) matching AuthPage.
-import { type ReactNode } from 'react';
+import { isValidElement, type ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -18,6 +18,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../theme/tokens';
 import { CONTENT_MAX_WIDTH, HAIRLINE, MIN_TOUCH_TARGET, desktopCenterStyle } from '../../theme/layout';
+import { useInlineBack } from '../../lib/use-inline-back';
+import { BillingBackButton } from '../../components/BillingBackButton';
 
 export type TeamScreenLayoutProps = {
   readonly children: ReactNode;
@@ -37,6 +39,7 @@ export function TeamScreenLayout({
   footer,
 }: TeamScreenLayoutProps) {
   const { width } = useWindowDimensions();
+  const inlineBack = useInlineBack(footer !== undefined);
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']} testID={testID}>
@@ -45,15 +48,29 @@ export function TeamScreenLayout({
           style={styles.flex}
           contentContainerStyle={[
             styles.scrollContent,
-            footer !== undefined ? styles.scrollContentWithFooter : null,
+            footer !== undefined && !inlineBack ? styles.scrollContentWithFooter : null,
             contentContainerStyle,
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.content, desktopCenterStyle(width), style]}>{children}</View>
+          <View style={[styles.content, desktopCenterStyle(width), style]}>
+            {footer !== undefined && inlineBack ? (
+              <View style={styles.inlineBack}>
+                {isValidElement<{ onPress?: () => void; testID?: string }>(footer) ? (
+                  <BillingBackButton
+                    onPress={footer.props.onPress ?? (() => {})}
+                    testID={footer.props.testID}
+                  />
+                ) : (
+                  footer
+                )}
+              </View>
+            ) : null}
+            {children}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      {footer !== undefined ? (
+      {footer !== undefined && !inlineBack ? (
         <View style={styles.footer}>
           <View style={styles.footerContent}>{footer}</View>
         </View>
@@ -79,6 +96,11 @@ const styles = StyleSheet.create({
     maxWidth: CONTENT_MAX_WIDTH,
     gap: Number(spacing.base),
   },
+  inlineBack: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
   footer: {
     paddingHorizontal: Number(spacing.base),
     paddingTop: Number(spacing.small),
@@ -93,4 +115,3 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 });
-

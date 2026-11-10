@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInstance, type ViewInstance } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type TeamRole } from '@rowta/shared';
-import { Badge, Button, BillingBanner, Card, ConfirmDialog, EmptyState, LiveRegion, PinnedFooter, Skeleton, Text } from '../../components';
+import { Badge, Button, BillingBanner, Card, ConfirmDialog, EmptyState, LiveRegion, Skeleton, Text } from '../../components';
 import { t, type MessageKey } from '../../i18n/en';
 import { ApiError, authApi, errorMessageKey, teamsApi } from '../../lib/api';
 import { focusOn } from '../../lib/a11y';
@@ -124,7 +124,7 @@ export function MembersScreen() {
     }
   };
 
-  const backFooter = <PinnedFooter label="action.back" onPress={back} />;
+  const backFooter = <Button label="action.back" variant="ghost" onPress={back} testID="members-back" />;
 
   return (
     <TeamScreenLayout testID="team-members-screen" footer={backFooter}>
