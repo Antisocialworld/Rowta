@@ -16,7 +16,7 @@ Repository: https://github.com/Antisocialworld/Rowta (the owner commits and push
 | Demo GIF | not recorded yet |
 | Android development build | not built yet |
 | Demo video (captions + transcript) | not recorded yet |
-| Web surface | not deployed yet |
+| Web surface | static site live at https://rowta-rowta.vercel.app; app and API not deployed |
 
 ## What it is
 
