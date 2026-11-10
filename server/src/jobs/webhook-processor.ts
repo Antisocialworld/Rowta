@@ -334,19 +334,90 @@ export async function processWebhookJob(job: Job<WebhookJobData>): Promise<{ pro
   if (isAccountKind) {
     const now = new Date();
     if (intent.kind === 'account_subscribe') {
-      const targetInterval = (intent.interval ?? 'month') as 'month' | 'year';
+      const targetInterval = (intent.interval ?? (intent.plan === 'yearly' ? 'year' : 'month')) as 'month' | 'year';
       const periodStart = now;
       const periodEnd = addInterval(now, targetInterval);
-      await db0.owner_accounts.update({
-        where: { user_id: intent.created_by },
-        data: {
-          status: 'active',
-          plan: intent.plan ?? 'monthly',
-          period_start: periodStart,
-          period_end: periodEnd,
-          cancel_at_period_end: false,
-          updated_at: now,
-        },
+      const incomingPlan = intent.plan ?? (targetInterval === 'year' ? 'yearly' : 'monthly');
+
+      await db0.$transaction(async (tx) => {
+        // Atomic row lock on owner_accounts (prevents concurrent webhook updates from racing)
+        const rows = await tx.$queryRaw<Array<{
+          user_id: string;
+          plan: string;
+          status: string;
+          period_start: Date | null;
+          period_end: Date | null;
+        }>>`
+          SELECT user_id, plan, status, period_start, period_end
+          FROM owner_accounts
+          WHERE user_id = ${intent.created_by}::uuid
+          FOR UPDATE
+        `;
+
+        const existing = rows[0];
+        if (!existing) {
+          throw new Error(`owner_accounts row not found for user ${intent.created_by}`);
+        }
+
+        const periodEndTime = existing.period_end instanceof Date
+          ? existing.period_end.getTime()
+          : existing.period_end ? new Date(existing.period_end).getTime() : 0;
+        const isActiveWithFuturePeriod =
+          existing.status === 'active' &&
+          periodEndTime > now.getTime();
+
+        if (isActiveWithFuturePeriod) {
+          if (incomingPlan === existing.plan) {
+            // Case 1a: Duplicate payment for same plan
+            log.warn({
+              txRef,
+              intentId: intent.id,
+              incomingPlan,
+              existingPlan: existing.plan,
+            }, 'duplicate_payment: account already active on same plan with future period');
+            return;
+          }
+
+          if (incomingPlan === 'monthly' && existing.plan === 'yearly') {
+            // Case 1b: Late monthly payment for account already on yearly (downgrade ignored)
+            log.warn({
+              txRef,
+              intentId: intent.id,
+              incomingPlan,
+              existingPlan: existing.plan,
+            }, 'duplicate_payment: incoming monthly intent ignored for active yearly account');
+            return;
+          }
+
+          if (incomingPlan === 'yearly' && existing.plan === 'monthly') {
+            // Case 1c: Upgrade from monthly to yearly
+            await tx.owner_accounts.update({
+              where: { user_id: intent.created_by },
+              data: {
+                status: 'active',
+                plan: 'yearly',
+                period_start: periodStart,
+                period_end: periodEnd,
+                cancel_at_period_end: false,
+                updated_at: now,
+              },
+            });
+            return;
+          }
+        }
+
+        // Case 2: Otherwise (trialing, past_due, read_only, cancelled, or active with expired period)
+        await tx.owner_accounts.update({
+          where: { user_id: intent.created_by },
+          data: {
+            status: 'active',
+            plan: incomingPlan,
+            period_start: periodStart,
+            period_end: periodEnd,
+            cancel_at_period_end: false,
+            updated_at: now,
+          },
+        });
       });
     } else if (intent.kind === 'account_renewal') {
       const targetInterval = (intent.interval ?? 'month') as 'month' | 'year';
