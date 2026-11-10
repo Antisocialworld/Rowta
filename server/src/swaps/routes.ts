@@ -9,6 +9,7 @@ import {
 import { registerGet, registerPost } from '../http/routes.ts';
 import { HttpError, ok } from '../middleware/error.ts';
 import * as service from './service.ts';
+import { requireBillingNotRestricted } from '../billing/restricted-guard.ts';
 
 type ZodIssue = z.ZodError['issues'][number];
 
@@ -122,6 +123,7 @@ export function createSwapsRouter(): Hono {
     const userId = getUserId(c);
     const teamId = param(c, 'teamId');
     const swapId = param(c, 'swapId');
+    await requireBillingNotRestricted(teamId);
     const body = parseWith(decideSwapSchema, c.get('parsedBody'));
     const result = await service.decideSwap(teamId, userId, swapId, body);
     return c.json(ok(result));

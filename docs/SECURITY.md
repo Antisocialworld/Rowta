@@ -15,14 +15,13 @@ State: skeleton. Each section is filled with evidence as its phase is completed.
 | Name | Why it is safe |
 |---|---|
 | `EXPO_PUBLIC_API_URL` | an address, not a credential |
-| `EXPO_PUBLIC_SENTRY_DSN` | a Sentry DSN only allows sending events |
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | an identifier, not a credential |
 
 ## 3. Development-only code (must refuse to start when `NODE_ENV=production`; rule P7)
 
 | Item | Guard | Status |
 |---|---|---|
-| Payment simulator (`PAYMENT_SIMULATOR_ENABLED`) | startup check | not built |
+| Payment simulator (`PAYMENT_SIMULATOR_ENABLED`) | startup check | **BUILT** (Task 4, 6 Nov 2026): `server/src/billing/simulator.ts` implements the PaymentProvider interface and a dev-only webhook trigger; `server/src/index.ts` main() calls `assertNotProductionSimulator(env)` in addition to the env.ts boot guard; `server/tests/billing-simulator-guard.test.ts` proves the refusal. Never exposed in the app. |
 | Component gallery (`app/src/screens/GalleryScreen.tsx`) | rendered only when `devToolsVisible(__DEV__)` (pure helper `app/src/lib/dev-tools.ts`); React Native sets `__DEV__` false in release builds. Both render sites gate on it (the team-list button and `Root.tsx`), and Root falls through to the signed-in router as a second gate so a stray `gallery` screen state can never expose it (defence in depth) | **ACTIVE** (2026-10-28): owner decision 28 Oct 2026; proven by `npm exec --workspace @rowta/app -- tsx scripts/test-dev-tools.ts` (2/2), app typecheck + lint gates; evidence `docs/gates/evidence-dev-tools.txt` |
 | Phase 1 session stub (`app/src/state/session.ts`) | was: throws at import when `__DEV__ === false` (React Native release builds set it false — the app-side equivalent of this rule's `NODE_ENV=production`); proven by `npm exec --workspace @rowta/app -- tsx scripts/test-session-guard.ts` (2/2 at the Phase 2 gate) | **REMOVED** (2026-10-21): the real session store (`app/src/state/auth-session.ts` — expo-secure-store tokens, single-flight refresh, server decides — S5) replaced it and nothing imported the stub any more (`git grep` showed only its own test and docs). No release-build guard is needed for it any more because no stub exists — the P7 obligation ends with the dev-only code it guarded; the payment simulator row above keeps P7 live for the app. Evidence: `docs/gates/phase-2.md` §9c (removal note), `docs/BUILD-PROGRESS.md` session log. |
 
@@ -34,10 +33,13 @@ State: skeleton. Each section is filled with evidence as its phase is completed.
 | 2 | Stolen or replayed refresh token | Rotating one-time `selector.verifier` (Argon2id verifier, 30-day TTL). A guarded `UPDATE … used_at IS NULL` performs the rotation; a replay revokes the WHOLE family and forces a re-login (ADR 0007). `logout` revokes the presented family; `logout-all` revokes every token and deletes every device row. Only the hash is stored. | `server/tests/auth-sessions.test.ts` — rotate once, replay → 401 and the new child is dead too; cross-user logout revokes nothing; logout idempotent `{"data":{}}`; `auth-security.test.ts` (verifier is PHC, never the plaintext) |
 | 3 | Cross-team data access (IDOR) | | pending (Phase 3) |
 | 4 | Staff calling Manager or Owner endpoints | | pending (Phase 3) |
-| 5 | Forged or replayed payment webhook | | pending (Phase 7) |
-| 6 | Duplicate charge from a retried request | | pending (Phase 7) |
+| 5 | Forged or replayed payment webhook | Webhook signature verified over the RAW body before parsing (server/src/billing/signature.ts, [VERIFY] pending provider scheme); provider event ID inserted into webhook_events (UNIQUE) in the same transaction as the job enqueue; duplicate event ID acknowledged and skipped; job re-verifies with the provider API (never trusts the payload). Simulator signs webhooks with the same shared secret (docs/SECURITY.md section 3). | pending (Task 6) |
+| 6 | Duplicate charge from a retried request | Idempotency-Key on every payment-initiating endpoint (same key = stored result; same key + different body = 422); ledger provider_ref UNIQUE with ON CONFLICT DO NOTHING; payment_intent completed only after the shard transaction succeeds; renewal idempotent per (subscription, period_end). | pending (Tasks 5–6) |
 | 7 | Brute force and account enumeration | Redis-backed limits on every auth route (per-IP, per-email and per-IP+email budgets; skill `rowta-rate-limiting-recipes`), a 5-attempt code cap that blocks even the CORRECT code afterwards, a 60-second resend cooldown that never restarts, and uniform byte-identical responses for known vs unknown addresses on sign-up, sign-in, forgot and magic request (A5/A6/A7/A9). Sign-in failure is always "Invalid email or password." Unknown emails still pay one real Argon2id (timing, §5). Fail-closed (generic 503) when Redis is down on sensitive routes; fail-open only on the low-risk logout limit. | `server/tests/auth-limits-validation.test.ts` — registry walk (13 routes, every route has limits), exactly 30 → 429 with Retry-After, shared counter across two app instances, X-Forwarded-For ignored without a trusted proxy, C/O fail modes; `auth-flows.test.ts` — byte-identical sign-in failures, attempts cap; `auth-reset-magic.test.ts` — forgot/magic uniformity |
 | 8 | Secrets extracted from the app bundle | | pending (app packaging) |
+| 9 | Hand-over billing takeover | Hand-over recipient must be the current Admin (delegation to Managers OFF); one open hand-over per subscription enforced by partial UNIQUE index; lazy 7-day expiry; handover events in append-only ledger (no card data), not in team activity feed; takeover blocked while past_due/restricted/cancelled; Admin take-over by adding their own payment method. | built (Task B1) |
+| 10 | Restricted billing state | Restricted subscription blocks shift create/edit, invite create, and swap approval via ONE guard function (server/src/billing/restricted-guard.ts) applied to those endpoints; members can still view shifts; payment restores active. | built (Task 7) |
+
 
 ## 5. Timing measurement (rule A7)
 

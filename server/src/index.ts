@@ -27,12 +27,20 @@ import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { timeout } from 'hono/timeout';
 import { env } from './config/env.ts';
+import { assertNotProductionSimulator } from './config/env.ts';
 import { createAuthRouter } from './auth/routes.ts';
 import { createTeamsRouter } from './teams/routes.ts';
 import { createShiftsRouter } from './shifts/routes.ts';
 import { createSwapsRouter } from './swaps/routes.ts';
 import { createSettingsRouter } from './settings/routes.ts';
 import { createDevicesRouter } from './devices/routes.ts';
+import { createBillingRouter } from './billing/routes.ts';
+import { createAccountRouter } from './billing/account-routes.ts';
+import { createAccountDeletionRouter } from './account/routes.ts';
+import { createMoveRouter } from './billing/move-routes.ts';
+import { registerSimulatorRoutes } from './billing/simulator.ts';
+import { webhookHandler } from './billing/webhook.ts';
+import { AI_CRAWLER_TOKENS } from '@rowta/shared';
 import { getDummyHash } from './security/argon2.ts';
 import { createRedisConnection } from './jobs/queues.ts';
 import { createHealthRoutes } from './health/router.ts';
@@ -146,6 +154,26 @@ export function createApp(deps: AppDeps): Hono {
     }),
   );
 
+  // 6c. AI crawler deny list. Blocks known AI crawler user agents from the API
+  //     before routing. Never affects the Rowta app (React Native/Expo user agents),
+  //     the payment webhook, or health checks.
+  app.use('*', async (c, next) => {
+    const path = c.req.path;
+    // Never block the payment webhook or health checks.
+    if (path === '/webhook' || path === '/health' || path.startsWith('/health/')) {
+      await next();
+      return;
+    }
+    const ua = (c.req.header('user-agent') ?? '').toLowerCase();
+    if (AI_CRAWLER_TOKENS.some((token) => new RegExp(`\\b${token.toLowerCase()}\\b`).test(ua))) {
+      return c.json(
+        { error: { code: 'generic.error', message: 'Forbidden', requestId: c.get('requestId') ?? '' } },
+        403,
+      );
+    }
+    await next();
+  });
+
   // 7./8. Per-route rate limits and authentication are registered PER ROUTE by
   //       src/http/routes.ts (each route declares its limit ids; auth runs after body parsing).
   //       The chain inside a route is always limits -> body -> auth -> handler (skill
@@ -158,7 +186,22 @@ export function createApp(deps: AppDeps): Hono {
   app.route('/', createSwapsRouter());
   app.route('/', createSettingsRouter());
   app.route('/', createDevicesRouter());
+  app.route('/', createBillingRouter());
+  app.route('/', createAccountRouter());
+  app.route('/', createAccountDeletionRouter());
+  app.route('/', createMoveRouter());
+  // Old per-team hand-over routes retired at C7 in favour of account-level move (/teams/:teamId/billing/move/*).
+  // server/src/billing/handover-routes.ts and server/src/billing/handover.ts remain as legacy code.
+  // Simulator routes: only mounted when PAYMENT_SIMULATOR_ENABLED=true.
+  // The server boot guard (assertNotProductionSimulator) ensures this is never reached in production.
+  if (env.PAYMENT_SIMULATOR_ENABLED) {
+    registerSimulatorRoutes(app);
+  }
   app.route('/health', createHealthRoutes({ redis: deps.redis }));
+
+  // Public webhook endpoint: no auth — signature over the raw body is the authorization.
+  // Registered directly (not via registerPost) so the raw body can be read for signature verification.
+  app.post('/webhook', webhookHandler);
 
   // 10. ONE error handler, plus the 404 handler. Nothing else formats an error body.
   app.onError(createErrorHandler(deps.log));
@@ -172,6 +215,16 @@ async function main(): Promise<void> {
   // Build the dummy Argon2id hash once at boot (A7): the first unknown-email sign-in then never
   // pays an extra Argon2 run while real ones are still warming up (timing parity by construction).
   await getDummyHash();
+  // P7 boot guard (explicit at the entry point, in addition to env.ts loadEnv()):
+  // the dev-only payment simulator must never run against production.
+  assertNotProductionSimulator(env);
+
+  if (!process.env.FLW_WEBHOOK_SECRET_HASH || process.env.FLW_WEBHOOK_SECRET_HASH.trim().length === 0) {
+    log.fatal(
+      'Missing required environment variable: FLW_WEBHOOK_SECRET_HASH. Set it in your .env file (e.g. FLW_WEBHOOK_SECRET_HASH=<secret-hash>).'
+    );
+    process.exit(1);
+  }
   const redis = createRedisConnection(false);
   const app = createApp({ log, redis });
 
@@ -194,12 +247,29 @@ async function main(): Promise<void> {
 
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('unhandledRejection', (reason) => {
-    log.fatal({ err: reason }, 'unhandled rejection in api');
+  process.on('unhandledRejection', (reason: unknown) => {
+    const err = (reason instanceof Error ? reason : { name: String(reason).slice(0, 100), message: String(reason).slice(0, 300), stack: undefined as string | undefined }) as { name: string; code?: unknown; stack?: string; message?: string };
+    const logEntry: Record<string, unknown> = {
+      name: err.name,
+      ...(err.code ? { errorCode: err.code } : {}),
+      ...(err.stack ? { stack: err.stack } : {}),
+    };
+    if (!String(err.name).startsWith('Prisma') && err.message) {
+      logEntry.message = String(err.message).slice(0, 300);
+    }
+    log.fatal(logEntry, 'unhandled rejection in api');
     process.exit(1);
   });
-  process.on('uncaughtException', (err) => {
-    log.fatal({ err }, 'uncaught exception in api');
+  process.on('uncaughtException', (err: Error & { code?: unknown }) => {
+    const logEntry: Record<string, unknown> = {
+      name: err.name,
+      ...(err.code ? { errorCode: err.code } : {}),
+      ...(err.stack ? { stack: err.stack } : {}),
+    };
+    if (!err.name.startsWith('Prisma') && err.message) {
+      logEntry.message = err.message.slice(0, 300);
+    }
+    log.fatal(logEntry, 'uncaught exception in api');
     process.exit(1);
   });
 }

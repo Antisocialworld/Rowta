@@ -6,8 +6,9 @@
 //   R3 X1    every <MaterialIcons> element is either decorative (accessibilityElementsHidden) or named
 //            (accessibilityLabel). A bare icon is a silent control to TalkBack.
 //   R4 X1    every JSX element with onPress= outside the kit has accessibilityRole= in the same element
-//            (the kit sets roles internally — Button/Chip/ShiftCard and LinkButton, which exposes
-//            accessibilityRole="link"; screens must not add raw pressables without a role).
+//            (the kit sets roles internally — Button/Chip/ShiftCard, LinkButton which exposes
+//            accessibilityRole="link", and PinnedFooter/BillingBackButton which wrap Button;
+//            screens must not add raw pressables without a role).
 //   R5 X14a  no native disabled= on a Pressable outside the kit: waiting buttons use the kit's ready/reason
 //            (dimmed + accessibilityState.disabled + focusable), never the native prop.
 // Run from the repo root:  node scripts/check-app-a11y.mjs   (wired into `npm run lint --workspace @rowta/app`)
@@ -20,7 +21,20 @@ const SCAN_DIR = path.join(ROOT, 'app', 'src');
 const EXCLUDE_FILE = /(\.test\.|__tests__|\.d\.ts$)/;
 const EXCLUDE_PATHS = /[\\/]i18n[\\/]/;
 
-const KIT_PRESSABLE_TAGS = new Set(['Button', 'Chip', 'ShiftCard', 'LinkButton', 'PinnedFooter', 'Pressable', 'TouchableOpacity', 'TouchableHighlight', 'TouchableWithoutFeedback']);
+// Kit pressable tags that set or forward their accessibilityRole internally.
+// BillingBackButton renders Button (which sets accessibilityRole="button" on AnimatedPressable).
+const KIT_PRESSABLE_TAGS = new Set([
+  'Button',
+  'Chip',
+  'ShiftCard',
+  'LinkButton',
+  'PinnedFooter',
+  'BillingBackButton',
+  'Pressable',
+  'TouchableOpacity',
+  'TouchableHighlight',
+  'TouchableWithoutFeedback',
+]);
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);

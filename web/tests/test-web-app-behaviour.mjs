@@ -132,18 +132,18 @@ const captureIndex = setScript.indexOf('data-web-app-origin');
 const baseIndex = setScript.indexOf("rowta://'");
 check(captureIndex !== -1 && captureIndex < baseIndex, 'built script: the web-app capture runs BEFORE the base deep-link code (prepended, not appended)');
 
-// --- invite: /invite/abc123 with WEB_APP_URL set ------------------------------------------------------
+// --- invite: /invite#abc123 with WEB_APP_URL set ------------------------------------------------------
 {
-  const page = makePage({ kind: 'invite', pathname: `/invite/${FAKE_TOKEN}`, hash: '', webAppOrigin: WEB_APP_ORIGIN });
+  const page = makePage({ kind: 'invite', pathname: '/invite', hash: `#${FAKE_TOKEN}`, webAppOrigin: WEB_APP_ORIGIN });
   runScript(setScript, page);
   const openApp = page.elements.get('open-app');
   const webApp = page.elements.get('open-web-app');
   check(openApp.href === `rowta://invite/${FAKE_TOKEN}` && openApp.hidden === false, 'invite: the rowta:// deep link is revealed');
   check(
-    webApp !== undefined && webApp.href === `${WEB_APP_ORIGIN}/invite/${FAKE_TOKEN}` && webApp.hidden === false,
-    `invite: the web-app link reveals with href ${WEB_APP_ORIGIN}/invite/<token>`,
+    webApp !== undefined && webApp.href === `${WEB_APP_ORIGIN}/invite#${FAKE_TOKEN}` && webApp.hidden === false,
+    `invite: the web-app link reveals with href ${WEB_APP_ORIGIN}/invite#<token>`,
   );
-  check(page.replaceStateCalls.includes('/invite') && page.location.pathname === '/invite', 'invite: history.replaceState still strips the address to /invite');
+  check(page.replaceStateCalls.includes('/invite') && page.location.hash === '', 'invite: history.replaceState still strips the fragment');
 }
 
 // --- magic: /magic#abc123 with WEB_APP_URL set ----------------------------------------------------------
@@ -172,12 +172,12 @@ check(captureIndex !== -1 && captureIndex < baseIndex, 'built script: the web-ap
 const unsetScript = unsetBuild();
 check(!unsetScript.includes('open-web-app'), 'unset: the built script contains no web-app code');
 {
-  const page = makePage({ kind: 'invite', pathname: `/invite/${FAKE_TOKEN}`, hash: '', webAppOrigin: undefined });
+  const page = makePage({ kind: 'invite', pathname: '/invite', hash: `#${FAKE_TOKEN}`, webAppOrigin: undefined });
   runScript(unsetScript, page);
   const openApp = page.elements.get('open-app');
   check(openApp.href === `rowta://invite/${FAKE_TOKEN}` && openApp.hidden === false, 'unset: the base rowta:// deep link still reveals');
   check(page.elements.has('open-web-app') === false, 'unset: no web-app link element exists');
-  check(page.replaceStateCalls.includes('/invite'), 'unset: the address is still stripped');
+  check(page.replaceStateCalls.includes('/invite') && page.location.hash === '', 'unset: the address is still stripped');
 }
 
 // --- restore the default build state ----------------------------------------------------------------------

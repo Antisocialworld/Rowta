@@ -119,6 +119,22 @@ export const PAGES = [
     keywords: 'team invitation, invite link, Rowta',
   },
   {
+    // /billing/complete — static fallback page after hosted checkout (PRD 8.1, I3).
+    // The page makes no network calls, does not store or send the query string,
+    // has noindex and no-referrer, and tries to open rowta://billing/complete.
+    key: 'billing-complete',
+    path: '/billing/complete/',
+    canonicalPath: '/billing/complete',
+    type: 'website',
+    special: 'billing-complete',
+    noindex: true,
+    referrer: 'no-referrer',
+    title: 'Billing return - Rowta',
+    description:
+      'If you paid, Rowta will update in a moment. Return to the Rowta app on your phone.',
+    keywords: 'billing, complete, subscription, Rowta',
+  },
+  {
     key: 'notfound',
     path: '/404.html',
     noindex: true,

@@ -72,6 +72,9 @@ model ledger_entries {
   idempotency_key String?
   period_start    DateTime? @db.Timestamptz(6)
   period_end      DateTime? @db.Timestamptz(6)
+  plan            String?
+  seats           Int?
+  interval        String?
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
 
   @@unique([team_id, idempotency_key], map: "ledger_idem_idx", where: raw("(idempotency_key IS NOT NULL)"))
@@ -148,12 +151,34 @@ model subscriptions {
   grace_ends_at              DateTime? @db.Timestamptz(6)
   provider_customer_ref      String?
   provider_authorization_ref String?
+  billing_user_id            String?   @db.Uuid
+  interval                   String    @default("month")
+  cancel_at_period_end       Boolean   @default(false)
   created_at                 DateTime  @default(now()) @db.Timestamptz(6)
   updated_at                 DateTime  @default(now()) @db.Timestamptz(6)
   teams                      teams     @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([grace_ends_at], map: "subscriptions_grace_idx", where: raw("(status = 'past_due'::text)"))
   @@index([period_end], map: "subscriptions_renewal_idx", where: raw("(status = 'active'::text)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model billing_handovers {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscription_id        String?   @db.Uuid
+  team_id                String    @db.Uuid
+  from_user_id           String    @db.Uuid
+  to_user_id             String    @db.Uuid
+  status                 String    @default("requested")
+  giver_acknowledged_at  DateTime? @db.Timestamptz(6)
+  recipient_acknowledged_at DateTime? @db.Timestamptz(6)
+  expires_at             DateTime  @db.Timestamptz(6)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  resolved_at            DateTime? @db.Timestamptz(6)
+
+  @@index([subscription_id], map: "billing_handovers_one_open_idx", where: raw("(status = 'requested'::text)"))
+  @@index([team_id, created_at(sort: Desc)], map: "billing_handovers_team_idx")
+  @@index([expires_at], map: "billing_handovers_expires_idx", where: raw("(status = 'requested'::text)"))
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -192,6 +217,10 @@ model teams {
   created_by                  String?           @db.Uuid
   deleted_by                  String?           @db.Uuid
   managers_can_revoke_invites Boolean           @default(true)
+  coverage_status             String            @default("covered")
+  extra_people                Int               @default(0)
+  is_extra                    Boolean           @default(false)
+  coverage_updated_at         DateTime          @default(now()) @db.Timestamptz(6)
   activity_events             activity_events[]
   invites                     invites[]
   memberships                 memberships[]

@@ -5,16 +5,23 @@
 // covers it until the token store has been read — no flash of the signed-out page); 'signedOut' is AuthPage;
 // 'signedIn' is the signed-in branch (server decides — S5). The Phase 8 Dashboard (PRD §12) will replace the
 // list view's placeholder body; the routing shape stays.
+// expo-notifications is NOT imported here: it is lazily required inside push-registration so Android Expo Go
+// (where its native modules are unavailable) does not crash at startup.
 import { useEffect } from 'react';
-import * as Notifications from 'expo-notifications';
 import { AuthPage } from './screens/AuthPage';
 import { GalleryScreen } from './screens/GalleryScreen';
 import { TeamsRouter } from './screens/TeamsRouter';
+import { WelcomeScreen } from './components/welcome/WelcomeScreen';
 import { devToolsVisible } from './lib/dev-tools';
-import { handleColdStartNotification, registerPushDevice, setupNotificationHandler, setupTapListener } from './lib/push-registration';
+import { clearNotificationHandler, handleColdStartNotification, registerPushDevice, setupNotificationHandler, setupTapListener } from './lib/push-registration';
 import { useAuthSession } from './state/auth-session';
 
-export function Root() {
+export type RootProps = {
+  welcomeVisible?: boolean;
+  onWelcomeFinish?: () => void;
+};
+
+export function Root({ welcomeVisible = false, onWelcomeFinish }: RootProps = {}) {
   const status = useAuthSession((state) => state.status);
   const screen = useAuthSession((state) => state.screen);
 
@@ -27,12 +34,17 @@ export function Root() {
     void handleColdStartNotification();
     return () => {
       subscription.remove();
-      Notifications.setNotificationHandler(null);
+      clearNotificationHandler();
     };
   }, [status]);
 
   if (status === 'restoring') return null;
-  if (status === 'signedOut') return <AuthPage />;
+  if (status === 'signedOut') {
+    if (welcomeVisible && onWelcomeFinish !== undefined) {
+      return <WelcomeScreen onFinish={onWelcomeFinish} />;
+    }
+    return <AuthPage />;
+  }
   // Dev tools are development-only (P7, owner decision 28 Oct 2026): outside development a stray
   // 'gallery' screen value falls through to the normal signed-in router (defence in depth).
   if (screen === 'gallery' && devToolsVisible(__DEV__)) return <GalleryScreen />;

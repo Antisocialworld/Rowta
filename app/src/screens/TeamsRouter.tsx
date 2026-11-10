@@ -20,8 +20,9 @@ import { ShiftCreateEditScreen } from './shifts/ShiftCreateEditScreen';
 import { ShiftDetailScreen } from './shifts/ShiftDetailScreen';
 import { SwapsListScreen } from './shifts/SwapsListScreen';
 import { useTeamsView } from '../state/teams-view';
-import { shouldShowDashboard, useTeams } from '../state/teams';
+import { resolveSelectedTeamId, shouldShowDashboard, useTeams, useTeamsList } from '../state/teams';
 import { useShiftNav } from '../state/shift-nav';
+import { BillingScreen, QuoteScreen, MoveBillingScreen } from './billing';
 
 export function TeamsRouter() {
   const view = useTeamsView((state) => state.view);
@@ -29,8 +30,19 @@ export function TeamsRouter() {
   const shiftRoute = useShiftNav((state) => state.route);
   const shiftBack = useShiftNav((state) => state.back);
   const selectedTeamId = useTeams((state) => state.selectedTeamId);
+  const setSelectedTeamId = useTeams((state) => state.setSelectedTeamId);
   const pickingTeam = useTeams((state) => state.pickingTeam);
   const setPickingTeam = useTeams((state) => state.setPickingTeam);
+  const teamsQuery = useTeamsList();
+  const teams = teamsQuery.data?.teams;
+
+  useEffect(() => {
+    if (teams === undefined) return;
+    const next = resolveSelectedTeamId(teams, selectedTeamId);
+    if (next !== selectedTeamId) {
+      setSelectedTeamId(next);
+    }
+  }, [teams, selectedTeamId, setSelectedTeamId]);
 
   useEffect(() => {
     if (!shouldListenForHardwareBack(Platform.OS)) return;
@@ -61,6 +73,12 @@ export function TeamsRouter() {
     screen = <MembersScreen />;
   } else if (view === 'teamSettings') {
     screen = <TeamSettingsScreen />;
+  } else if (view === 'billing') {
+    screen = <BillingScreen />;
+  } else if (view === 'quote') {
+    screen = <QuoteScreen />;
+  } else if (view === 'move-billing') {
+    screen = <MoveBillingScreen />;
   }
 
   return (

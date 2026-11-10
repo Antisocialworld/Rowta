@@ -81,7 +81,15 @@ export function createErrorHandler(log: AppLogger = logger) {
     const requestId = requestIdOf(c);
 
     if (err instanceof HttpError) {
-      log.warn({ requestId, code: err.code, status: err.status }, 'request failed');
+      log.warn(
+        {
+          requestId,
+          errorCode: err.code,
+          status: err.status,
+          ...(err.status >= 500 ? { err } : {}),
+        },
+        'request failed',
+      );
       return c.json(errorBody(err.code, err.message, requestId, err.fields), err.status as never, err.headers);
     }
 

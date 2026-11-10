@@ -1,6 +1,6 @@
 # 0013. Web build keeps tokens in memory only
 
-Date: 2026-10-27. Status: accepted (agent decision; owner has seen the reload sign-out and accepted it for this surface). Phase 2 app preview / Phase 11 web surface.
+Date: 2026-10-27. Status: superseded by ADR 0025 for the web build (agent decision; owner has seen the reload sign-out and accepted it for this surface). Phase 2 app preview / Phase 11 web surface.
 
 ## Problem
 

@@ -48,9 +48,11 @@ check(
 const sitemap = fs.readFileSync(path.join(DIST, 'sitemap.xml'), 'utf8');
 check(!sitemap.includes('/magic'), 'sitemap.xml excludes /magic');
 check(!sitemap.includes('/invite'), 'sitemap.xml excludes /invite');
+check(!sitemap.includes('/billing/complete'), 'sitemap.xml excludes /billing/complete');
 const robots = fs.readFileSync(path.join(DIST, 'robots.txt'), 'utf8');
 check(robots.includes('Allow: /'), 'robots.txt keeps Allow: / (a blocked page cannot show its noindex)');
-check(!/Disallow:/i.test(robots), 'robots.txt has no Disallow rule');
+check(!/Disallow:\s*\/(?:magic|invite)/i.test(robots), 'robots.txt has no Disallow rule for token pages (magic/invite)');
+check(/Disallow:\s*\/billing\//i.test(robots), 'robots.txt disallows /billing/');
 
 // --- 2. canonical = clean URL without the token ----------------------------------------------------
 const landing = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
@@ -147,11 +149,12 @@ check(/tokenRouteFile/.test(serveSrc), 'serve.mjs routes any /invite/<token> to 
 
 const vercel = JSON.parse(fs.readFileSync(path.join(WEB, 'vercel.json'), 'utf8'));
 const rewriteSources = (vercel.rewrites ?? []).map((r) => r.source);
-check(rewriteSources.includes('/invite/:token'), 'vercel.json rewrites /invite/:token to the static page');
+check(rewriteSources.includes('/invite'), 'vercel.json rewrites /invite to the static page');
+check(!rewriteSources.includes('/invite/:token'), 'vercel.json does not rewrite /invite/:token (path token removed, G7b)');
 check(rewriteSources.includes('/magic'), 'vercel.json rewrites /magic to the static page');
 const headerRules = vercel.headers ?? [];
 const sources = headerRules.map((r) => r.source);
-for (const route of ['/magic', '/magic/', '/invite', '/invite/', '/invite/:token']) {
+for (const route of ['/magic', '/magic/', '/invite', '/invite/']) {
   const rule = headerRules.find((r) => r.source === route);
   const values = new Map((rule?.headers ?? []).map((h) => [h.key, h.value]));
   check(

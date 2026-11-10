@@ -25,9 +25,13 @@ export function stripTokenFromAddress(history: AddressHistory, location: Address
   let next: string | null = null;
   if (segments.length === 2) {
     const kind = segments[0]?.toLowerCase();
-    if (kind === 'invite' || kind === 'magic') next = `/${kind}`;
-  } else if (segments.length === 1 && segments[0]?.toLowerCase() === 'magic' && hash.length > 1) {
-    next = '/magic';
+    if (kind === 'magic') next = `/${kind}`;
+  } else if (
+    segments.length === 1 &&
+    (segments[0]?.toLowerCase() === 'magic' || segments[0]?.toLowerCase() === 'invite') &&
+    hash.length > 1
+  ) {
+    next = `/${segments[0].toLowerCase()}`;
   }
   if (next === null) return;
   try {

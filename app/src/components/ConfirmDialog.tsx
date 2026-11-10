@@ -35,6 +35,7 @@ export type ConfirmDialogProps = {
   visible: boolean;
   titleKey: MessageKey;
   messageKey: MessageKey;
+  messageParams?: Record<string, string | number>;
   confirmLabel: MessageKey;
   cancelLabel?: MessageKey;
   destructive?: boolean;
@@ -48,6 +49,7 @@ export function ConfirmDialog({
   visible,
   titleKey,
   messageKey,
+  messageParams,
   confirmLabel,
   cancelLabel = 'action.cancel',
   destructive = false,
@@ -97,7 +99,7 @@ export function ConfirmDialog({
             bounces={false}
           >
             <Text variant="body-medium" tone="secondary">
-              {t(messageKey)}
+              {t(messageKey, messageParams)}
             </Text>
           </ScrollView>
           <View style={styles.actions}>

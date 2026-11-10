@@ -79,6 +79,10 @@ export const teamResponseSchema = z.object({
   role: teamRoleSchema,
   managersCanRevokeInvites: z.boolean(),
   createdBy: teamCreatorSchema.nullable().optional(),
+  coverageStatus: z.string().optional(),
+  pendingPayment: z.boolean().optional(),
+  payerUserId: z.string().uuid().optional(),
+  readOnlyReason: z.enum(['payer_unpaid', 'plan_ended']).optional(),
 });
 export type TeamResponse = z.infer<typeof teamResponseSchema>;
 

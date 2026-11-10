@@ -1,75 +1,61 @@
-# PAYMENTS-CURRENCIES.md — where the currency and country lists come from
+# Payments — Currencies
 
-State: the `currencies` and `countries` tables in DB0 are seeded from the cited sources below
-(23 October 2026, `scripts/db-seed-reference.mjs`). Two parts of this document are still open and
-are marked **[VERIFY]**: the provider's supported-currency list (PRD 5, Phase 7) and the per-country
-tax notes (they live in `TAX-NOTES.md`).
+Rowta is sold in **NGN (Nigerian naira) only**. USD and every other currency stay disabled and unsold. No USD price, and no hard-coded price of any kind, may exist in production code or in the real seed. The PRD's USD list (Starter 2000; Team 5000 + 300 per extra seat; Business 12000 + 200 per extra seat, in cents) is a **test fixture only** for reproducing the PRD's printed proration rows.
 
-## What is seeded, and from where
+## Supported currencies
 
-| Table | Rows | Source (pinned) | Licence | File read |
-|---|---|---|---|---|
-| `countries` | 249 | `i18n-iso-countries@7.14.0` (npm) | MIT | `langs/en.json` (ISO 3166-1 alpha-2 codes + English names) |
-| `currencies` | 153 | `cldr-core@45.0.0` (npm, Unicode CLDR 45) | Unicode-3.0 | `supplemental/currencyData.json` (`fractions` = ISO 4217 minor units) |
-| `currencies.name` | 153 | `cldr-numbers-modern@45.0.0` (npm) | Unicode-3.0 | `main/en/currencies.json` (`displayName`) |
-| country → currency | 249 | `cldr-core@45.0.0` | Unicode-3.0 | `currencyData.region` (per-territory currency validity) |
+| Code | Name | Minor unit (decimals) | Provider supported | Enabled | Sold | Price rows |
+|------|------|----------------------|-------------------|---------|------|------------|
+| NGN | Nigerian naira | 2 | true | true | Yes | Yes (owner-supplied, kobo) |
+| USD | US dollar | 2 | false | false | No | No (test fixture only) |
+| JPY | Japanese yen | 0 | false | false | No | No |
+| GBP | Pound sterling | 2 | false | false | No | No |
+| KWD | Kuwaiti dinar | 3 | false | false | No | No |
 
-- npm pages: <https://www.npmjs.com/package/i18n-iso-countries>, <https://www.npmjs.com/package/cldr-core>,
-  <https://www.npmjs.com/package/cldr-numbers-modern>. Upstream: <https://github.com/michaelwittig/node-i18n-iso-countries>,
-  <https://github.com/unicode-cldr/cldr-json>, <https://cldr.unicode.org>.
-- All three are devDependencies of the repo root; the seed script fails loudly if they are missing.
-  Nothing is typed from memory: the script reads the three JSON files and validates every row.
+## Currency rule
 
-## Selection rules (the script applies exactly these)
+A currency is **sold** only if all three conditions hold:
+1. `currencies.enabled = true`
+2. `currencies.provider_supported = true`
+3. `plan_prices` has a row for every plan (starter, team, business) in that currency
 
-1. **One row per ISO alpha-2 code the package ships** (250 codes; 249 land in the table, see the
-   skip rule). The package carries `XK` (Kosovo), which is user-assigned and **not** officially in
-   ISO 3166-1; it is kept so people in Kosovo can sign up. Deviation from strict ISO: 1 code.
-2. **A country's currency is the first CLDR region entry that is current and tender**: an entry with
-   no `_to` date and `_tender` not `"false"`. For the six countries where CLDR lists more than one
-   current tender currency, CLDR's own order wins (domestic currency listed first):
-   `BT` BTN (also INR), `HT` HTG (also USD), `LS` LSL (also ZAR), `NA` NAD (also ZAR),
-   `PS` ILS (also JOD), `PA` PAB (also USD). One currency per country because `countries.currency`
-   is a single foreign key (PRD 5: the country decides the payment currency).
-3. **Skip countries with no current tender currency**: only `AQ` (Antarctica; CLDR lists sole entry
-   `XXX`, marked not tender). Nothing else was skipped.
-4. **`minor_unit`** = the CLDR `fractions[code]._digits` value for that currency, else the CLDR
-   `DEFAULT` (2). Validated against the table CHECK (0–3) before writing. Spot checks: `NGN` 2,
-   `JPY` 0, `BHD` 3, `USD` 2. (`CLF` and `UYW` carry 4 digits in CLDR but are never a current
-   tender, so they never reach the table.)
-5. **English names**: country = the package's first English name (arrays like `US` take the first
-   entry, "United States of America"); currency = CLDR's English `displayName` ("Nigerian Naira").
+No fallback currency exists. If a currency is not sold, its country is not offered at sign-up.
 
-## Flags: nothing is sold yet
+## Locked currency
 
-Every currency row is seeded `provider_supported = false, enabled = false`. PRD 5 defines a SOLD
-currency as: `enabled` **and** the provider supports it **and** `plan_prices` has a row for every
-plan. Therefore:
+The payment currency is the paying user's country currency, fixed at the **first purchase** and locked on `subscriptions.currency` for the subscription's life. A later country change affects only a **new** subscription. There is no exchange rate and no conversion.
 
-- **`plan_prices` is untouched** — the owner supplies prices for every currency to be sold
-  (PRD OPEN Q12). No price is invented anywhere in this repo.
-- **Provider support is [VERIFY]** — Flutterwave's supported-currency list must be checked on the
-  provider's official page in Phase 7 (test mode); until then no currency is marked supported.
-- The seed's `UPDATE` never rewrites `enabled`/`provider_supported`, so the owner (or the Phase 7
-  slice) can flip the flags and a later seed re-run keeps them.
+## NGN price table (owner-supplied, 6 Nov 2026)
 
-## How to re-run
+All amounts in kobo (NGN minor unit = 2 decimals).
 
-```
-node scripts/db-seed-reference.mjs --check   # plan + counts, writes nothing
-node scripts/db-seed-reference.mjs           # converge db0 (idempotent; refuses NODE_ENV=production)
-```
+| Plan | Base (kobo) | Extra seat (kobo) | Included seats | Hard cap |
+|------|-------------|-------------------|----------------|----------|
+| Starter | 650000 | Not available | 5 | 5 |
+| Team | 1625000 | 97500 | 15 | 200 |
+| Business | 3900000 | 65000 | 40 | 200 |
 
-Re-running with unchanged sources changes nothing (`INSERT 0 0` on both tables). Rows are only
-inserted or updated when a name, minor unit or mapping differs; nothing is ever deleted. Only db0
-is touched (these are global tables, docs/DATABASE.md section 2).
+## Yearly billing
 
-## The offer list vs PRD 5 (known mismatch, reported 23 Oct 2026)
+Yearly = 12 × monthly for every plan and extra seat. No discount. Same `plan_prices` rows; interval chosen at first purchase and locked for the subscription's life. Changing interval mid-subscription is rejected.
 
-PRD 5 and 8.1: the sign-up country list offers **only** countries whose currency is SOLD. Today
-`listCountries` (`server/src/auth/service.ts`) returns every `countries` row unfiltered, and sign-up
-accepts any code in the table. With this seed, 249 countries are offered while **zero** currencies
-are sold. Options and the recommendation are in the agent's report for this step; the fix (filter by
-`currencies.enabled` + complete `plan_prices`, or keep the table as a sold-only list) belongs to the
-payments phase together with the owner's Q12 answer. Until then this table is reference data for
-development, not the production offer.
+## Sources
+
+- ISO 4217: NGN = Nigerian naira, minor unit 2
+- ISO 3166-1: NG = Nigeria
+- Currency data seeded via `server/prisma/sql/071-ngn-seed.sql` (DB0 only, idempotent)
+- NGN price rows seeded via the same file (owner-supplied)
+- USD rows in `server/prisma/sql/selftest.sql` are test data only; not copied into any real seed
+
+## Account-level plan data (C2/C7)
+
+Account-level pricing and limits live in `plan_entitlements` (db0, seeded by `076-plan-entitlements.sql`),
+which supersedes the per-team `plan_prices` table for account-level billing. `plan_prices` remains as legacy
+for the per-team subscription flow. NGN only; USD is not seeded and not sold.
+
+## Adding a currency (owner decision)
+
+1. Add the currency to `currencies` with `minor_unit`, `provider_supported = true`, `enabled = true`
+2. Add the country to `countries` mapping to the currency
+3. Add `plan_prices` rows for all three plans (starter, team, business)
+4. Only then is the currency sold and its country offered at sign-up

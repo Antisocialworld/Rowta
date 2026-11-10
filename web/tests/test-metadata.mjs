@@ -80,7 +80,7 @@ check(new Set(titles.values()).size === titles.size, `all ${titles.size} titles 
 const bases = new Set();
 for (const html of htmlByKey.values()) {
   const canonical = /<link rel="canonical" href="([^"]+)">/.exec(html)?.[1] ?? '';
-    bases.add(canonical.replace(/(\/404\.html|\/privacy\/|\/terms\/|\/billing-terms\/|\/delete-account\/|\/subprocessors\/|\/data-retention\/|\/accessibility\/|\/contact\/|\/magic|\/invite\/|\/)$/, ''));
+    bases.add(canonical.replace(/(\/404\.html|\/privacy\/|\/terms\/|\/billing-terms\/|\/delete-account\/|\/subprocessors\/|\/data-retention\/|\/accessibility\/|\/contact\/|\/magic|\/invite\/|\/billing\/complete|\/)$/, ''));
 }
 check(bases.size === 1, `one canonical base across pages (found ${bases.size})`);
 const base = [...bases][0];

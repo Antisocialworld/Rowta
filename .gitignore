@@ -93,7 +93,27 @@ docs/TAX-NOTES.md
 backup-*.sql
 *-out.txt
 
-app/scripts/test-*.ts
 app/scripts/generate-feed-evidence.ts
 docs/gates/evidence-*.txt
-server/tests/
+
+scripts/test-app-tokens.mjs
+scripts/test-ui-tokens-gate.mjs
+server/scripts/test-isolation-check.ts
+docs/lighthouse-web-*.json
+docs/ui-matrix/*.png
+
+
+# Billing working notes: local only, not part of the product
+docs/AUDIT-NOTES.md
+docs/BILLING-REBUILD-LOG.md
+docs/BILLING-RULES.md
+docs/BRIEF-GAP-CHECK.md
+docs/PRORATION.md
+docs/payment-trace.md
+docs/gates/evidence-g4b-summary.md
+docs/gates/phase-6.md
+docs/gates/phase-7-progress.md
+docs/gates/phase-7.md
+
+.vercel
+.env.local

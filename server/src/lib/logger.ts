@@ -56,6 +56,7 @@ export function buildLoggerOptions(level: string): LoggerOptions {
   return {
     level,
     redact: { paths: [...REDACT_PATHS], censor: '******' },
+    serializers: { err: pino.stdSerializers.err },
     base: { service: 'rowta-server' },
     timestamp: pino.stdTimeFunctions.isoTime,
   };

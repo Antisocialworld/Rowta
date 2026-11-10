@@ -27,7 +27,7 @@ import { layout } from './src/layout.mjs';
 import { renderMarkdown, stripBanner } from './src/markdown.mjs';
 import { PAGES, SITEMAP_PAGES } from './src/pages.mjs';
 import { landingMain, loadLandingCopy } from './src/landing.mjs';
-import { magicMain, inviteMain } from './src/tokenPages.mjs';
+import { magicMain, inviteMain, billingCompleteMain } from './src/tokenPages.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -132,6 +132,9 @@ for (const page of PAGES) {
   } else if (page.special === 'invite') {
     // /invite/:token (PRD 8.2): one static page for any token; same runtime-only rule.
     main = inviteMain(downloadUrl, webAppUrl);
+  } else if (page.special === 'billing-complete') {
+    // /billing/complete (PRD 8.1, I3): static fallback after hosted checkout.
+    main = billingCompleteMain(downloadUrl, webAppUrl);
   } else if (page.special === 'notfound') {
     outputPath = '404.html';
     main = `<section class="prose">
@@ -162,11 +165,12 @@ for (const page of PAGES) {
     path: page.canonicalPath ?? (page.path === '/404.html' ? '/404.html' : page.path),
     keywords: page.keywords,
     noindex: Boolean(page.noindex),
+    referrer: page.referrer ?? (page.special === 'billing-complete' ? 'no-referrer' : undefined),
     type: page.type ?? 'article',
     themeColor,
   });
 
-  const isTokenPage = page.special === 'magic' || page.special === 'invite';
+  const isTokenPage = page.special === 'magic' || page.special === 'invite' || page.special === 'billing-complete';
   const html = layout({
     meta,
     main,
@@ -189,7 +193,20 @@ write(
   ).join('\n')}\n</urlset>\n`,
 );
 
-write('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${base}/sitemap.xml\n`);
+const AI_SEARCH_BOTS = ['OAI-SearchBot', 'ChatGPT-User', 'PerplexityBot', 'YouBot'];
+const AI_TRAINING_CRAWLERS = [
+  'GPTBot', 'ClaudeBot', 'Claude-Web', 'anthropic-ai', 'CCBot', 'Google-Extended',
+  'Bytespider', 'Amazonbot', 'Applebot-Extended', 'meta-externalagent',
+  'FacebookBot', 'cohere-ai', 'Diffbot', 'ImagesiftBot', 'Omgilibot',
+];
+
+const searchBotRules = AI_SEARCH_BOTS.map((name) => `User-agent: ${name}\nDisallow: /billing/`).join('\n\n');
+const trainingRules = AI_TRAINING_CRAWLERS.map((name) => `User-agent: ${name}\nDisallow: /`).join('\n\n');
+
+write(
+  'robots.txt',
+  `User-agent: *\nAllow: /\nDisallow: /billing/\n\n${searchBotRules}\n\n${trainingRules}\n\nSitemap: ${base}/sitemap.xml\n`,
+);
 
 write(
   'manifest.webmanifest',

@@ -187,7 +187,7 @@ export function magicLinkEmail(input: { name: string | null; magicLink: string }
   const html = htmlShell(subject, [
     escapeHtml(greetingLine),
     `Use this link to sign in to Rowta. Open it, then press the "Sign in" button:`,
-    `<p><a href="${magicLink}">${magicLink}</a></p>`,
+    `<p><a href="${magicLink}" rel="noreferrer">${magicLink}</a></p>`,
     `The link expires in ${magicMinutes} minutes and works once. If you did not ask for it, you can ignore this email.`,
     'Rowta will never ask you for your password or a code by phone, chat or email. Do not forward this email: anyone who has the link can sign in as you until it expires or is used.',
     escapeHtml(AUTO_FOOTER),
@@ -206,9 +206,9 @@ export function webHomeUrl(): string {
   return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/`;
 }
 
-/** The canonical invite link: https page with the token path (PRD 8.2; Owner Decision 3). */
+/** The canonical invite link: https page with the token in the URL FRAGMENT (A13, G7). */
 export function inviteUrl(token: string): string {
-  return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/invite/${token}`;
+  return `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/invite/#${token}`;
 }
 
 export function inviteEmail(input: {
@@ -233,7 +233,7 @@ export function inviteEmail(input: {
     'Hi,',
     `${escapeHtml(inviterText)} to join "${escapeHtml(input.teamName)}" as a ${escapeHtml(input.role)} on Rowta.`,
     `Use this link to accept the invitation:`,
-    `<p><a href="${safeUrl}">${safeUrl}</a></p>`,
+    `<p><a href="${safeUrl}" rel="noreferrer">${safeUrl}</a></p>`,
     'The invitation is valid for 7 days and can only be used once.',
     'If you did not expect this invitation, you can safely ignore this email.',
     escapeHtml(AUTO_FOOTER),
@@ -241,4 +241,282 @@ export function inviteEmail(input: {
   ]);
   return { subject, text, html };
 }
+
+// -----------------------------------------------------------------------------------
+// T17 — Billing move notices (7 Nov 2026 owner decisions).
+// Placeholders: {team}, {name}, {from}, {date}. Plain text first, same words in HTML.
+// No push tokens or secrets in payloads.
+// -----------------------------------------------------------------------------------
+
+/** T17 #1 — transfer_still_paying: the payer (registry owner), from transferTeam only when
+ *  the payer is not the new Admin. Must not touch any billing column. */
+export function transferStillPayingEmail(input: {
+  name: string | null;
+  team: string;
+  from: string;
+}): RenderedEmail {
+  const name = input.name ?? '';
+  const subject = `You still pay for ${input.team}`;
+  const greetingLine = greeting(input.name);
+  const text = textEmail([
+    greetingLine,
+    `You made ${name} the Admin of ${input.team}. Billing did not move. You keep paying for this team until you move billing to ${name}.`,
+    'Open Rowta, go to Billing, then Move billing.',
+    `${name} must accept.`,
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>You made ${escapeHtml(name)} the Admin of ${escapeHtml(input.team)}. Billing did not move. You keep paying for this team until you move billing to ${escapeHtml(name)}.</p>`,
+    '<p>Open Rowta, go to Billing, then Move billing.</p>',
+    `<p>${escapeHtml(name)} must accept.</p>`,
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** T17 #2 — billing.move_requested: the receiver. */
+export function moveRequestedEmail(input: {
+  team: string;
+  from: string;
+  date: string;
+}): RenderedEmail {
+  const subject = `${input.from} asked you to take over billing for ${input.team}`;
+  const greetingLine = greeting(null);
+  const text = textEmail([
+    greetingLine,
+    `${input.from} asked you to pay for ${input.team} from your Rowta account.`,
+    'If you accept, you are responsible for paying.',
+    'If you have no plan, you get a 14-day free trial.',
+    `If your plan does not cover the team yet, the team is read-only for everyone until you pay.`,
+    `Accept or decline in Rowta before ${input.date}.`,
+    `If you do nothing, the request ends and ${input.from} keeps paying.`,
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>${escapeHtml(input.from)} asked you to pay for ${escapeHtml(input.team)} from your Rowta account.</p>`,
+    '<p>If you accept, you are responsible for paying.</p>',
+    '<p>If you have no plan, you get a 14-day free trial.</p>',
+    `<p>If your plan does not cover the team yet, the team is read-only for everyone until you pay.</p>`,
+    `<p>Accept or decline in Rowta before ${escapeHtml(input.date)}.</p>`,
+    `<p>If you do nothing, the request ends and ${escapeHtml(input.from)} keeps paying.</p>`,
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** T17 #3 — billing.move_accepted: the previous payer. */
+export function moveAcceptedEmail(input: {
+  name: string | null;
+  team: string;
+}): RenderedEmail {
+  const name = input.name ?? '';
+  const subject = `Billing for ${input.team} has moved`;
+  const greetingLine = greeting(input.name);
+  const text = textEmail([
+    greetingLine,
+    `${name} accepted. From now on you are not billed for ${input.team}.`,
+    'What you already paid for this period is not refunded.',
+    'Your other teams are unchanged.',
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>${escapeHtml(name)} accepted. From now on you are not billed for ${escapeHtml(input.team)}.</p>`,
+    '<p>What you already paid for this period is not refunded.</p>',
+    '<p>Your other teams are unchanged.</p>',
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** T17 #4 — billing.move_declined: the previous payer. */
+export function moveDeclinedEmail(input: {
+  name: string | null;
+  team: string;
+}): RenderedEmail {
+  const name = input.name ?? '';
+  const subject = `${name} declined to take over billing for ${input.team}`;
+  const greetingLine = greeting(input.name);
+  const text = textEmail([
+    greetingLine,
+    `You still pay for ${input.team}.`,
+    'You can ask someone else, or send the request again later.',
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>You still pay for ${escapeHtml(input.team)}.</p>`,
+    '<p>You can ask someone else, or send the request again later.</p>',
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** T17 #5 — billing.move_cancelled: the receiver. */
+export function moveCancelledEmail(input: {
+  team: string;
+  from: string;
+}): RenderedEmail {
+  const subject = `Billing request for ${input.team} cancelled`;
+  const greetingLine = greeting(null);
+  const text = textEmail([
+    greetingLine,
+    `${input.from} cancelled the request. You do not need to do anything.`,
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>${escapeHtml(input.from)} cancelled the request. You do not need to do anything.</p>`,
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** T17 #6 — billing.move_expired: the previous payer. */
+export function moveExpiredEmail(input: {
+  name: string | null;
+  team: string;
+  date: string;
+}): RenderedEmail {
+  const name = input.name ?? '';
+  const subject = `Your billing request for ${input.team} ended`;
+  const greetingLine = greeting(input.name);
+  const text = textEmail([
+    greetingLine,
+    `The request ended on ${input.date} because ${name} did not answer.`,
+    `You still pay for ${input.team}.`,
+    'To try again, open Rowta, go to Billing, then Move billing.',
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>The request ended on ${escapeHtml(input.date)} because ${escapeHtml(name)} did not answer.</p>`,
+    `<p>You still pay for ${escapeHtml(input.team)}.</p>`,
+    '<p>To try again, open Rowta, go to Billing, then Move billing.</p>',
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** T17 #7 — billing.move_payment_needed: the receiver (after accept in outcome c). */
+export function movePaymentNeededEmail(input: {
+  name: string | null;
+  team: string;
+}): RenderedEmail {
+  const subject = `Pay to unlock ${input.team}`;
+  const greetingLine = greeting(input.name);
+  const text = textEmail([
+    greetingLine,
+    `You now pay for ${input.team}, but your plan does not cover it yet, so the team is read-only for everyone.`,
+    'Open Rowta, go to Billing, and add the team or subscribe.',
+    'Your data is safe.',
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>You now pay for ${escapeHtml(input.team)}, but your plan does not cover it yet, so the team is read-only for everyone.</p>`,
+    '<p>Open Rowta, go to Billing, and add the team or subscribe.</p>',
+    '<p>Your data is safe.</p>',
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** T17 #8 — billing.move_trial_started: the receiver (after accept in outcome a). */
+export function moveTrialStartedEmail(input: {
+  team: string;
+  date: string;
+}): RenderedEmail {
+  const subject = `You now pay for ${input.team}: free trial until ${input.date}`;
+  const greetingLine = greeting(null);
+  const text = textEmail([
+    greetingLine,
+    `Your 14-day free trial ends on ${input.date}.`,
+    `Subscribe before then or ${input.team} becomes read-only for everyone.`,
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>Your 14-day free trial ends on ${escapeHtml(input.date)}.</p>`,
+    `<p>Subscribe before then or ${escapeHtml(input.team)} becomes read-only for everyone.</p>`,
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** A2(a) — billing.plan_cancelled: team Admin notice when payer cancels. */
+export function planCancelledEmail(input: { date: string }): RenderedEmail {
+  const subject = 'Plan cancelled';
+  const greetingLine = greeting(null);
+  const text = textEmail([
+    greetingLine,
+    `This team's plan was cancelled. It stays fully active until ${input.date}, then becomes read-only. Nothing is deleted.`,
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    `<p>This team's plan was cancelled. It stays fully active until ${escapeHtml(input.date)}, then becomes read-only. Nothing is deleted.</p>`,
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** A2(b) — billing.plan_kept: team Admin notice when payer resumes plan. */
+export function planKeptEmail(): RenderedEmail {
+  const subject = 'Plan kept';
+  const greetingLine = greeting(null);
+  const text = textEmail([
+    greetingLine,
+    "This team's plan was kept. Nothing changes.",
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    "<p>This team's plan was kept. Nothing changes.</p>",
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
+/** A2(c) — billing.plan_ended: team Admin notice when plan ends / read-only. */
+export function planEndedEmail(): RenderedEmail {
+  const subject = 'Plan ended';
+  const greetingLine = greeting(null);
+  const text = textEmail([
+    greetingLine,
+    'This team is now read-only because its plan ended. Nothing is deleted. It unlocks when the plan is subscribed again.',
+    AUTO_FOOTER,
+    'The Rowta team',
+  ]);
+  const html = htmlShell(subject, [
+    escapeHtml(greetingLine),
+    '<p>This team is now read-only because its plan ended. Nothing is deleted. It unlocks when the plan is subscribed again.</p>',
+    escapeHtml(AUTO_FOOTER),
+    'The Rowta team',
+  ]);
+  return { subject, text, html };
+}
+
 

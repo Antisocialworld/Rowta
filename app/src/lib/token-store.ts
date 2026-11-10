@@ -19,8 +19,8 @@ export type TokenBackend = {
 
 export type TokenPair = { accessToken: string; refreshToken: string };
 
-const ACCESS_KEY = 'rowta.accessToken';
-const REFRESH_KEY = 'rowta.refreshToken';
+export const ACCESS_KEY = 'rowta.accessToken';
+export const REFRESH_KEY = 'rowta.refreshToken';
 
 /** A backend that never persists: used for the web preview and by the test scripts. */
 export function memoryBackend(): TokenBackend {
@@ -40,9 +40,11 @@ export type TokenStore = {
   read(): Promise<TokenPair | null>;
   write(tokens: TokenPair): Promise<void>;
   clear(): Promise<void>;
+  readRefreshToken?(): Promise<string | null>;
+  readonly isWeb?: boolean;
 };
 
-export function createTokenStore(backend: TokenBackend): TokenStore {
+export function createTokenStore(backend: TokenBackend, options?: { isWeb?: boolean }): TokenStore {
   return {
     async read() {
       const [accessToken, refreshToken] = await Promise.all([backend.get(ACCESS_KEY), backend.get(REFRESH_KEY)]);
@@ -59,5 +61,9 @@ export function createTokenStore(backend: TokenBackend): TokenStore {
     async clear() {
       await Promise.all([backend.remove(ACCESS_KEY), backend.remove(REFRESH_KEY)]);
     },
+    async readRefreshToken() {
+      return backend.get(REFRESH_KEY);
+    },
+    isWeb: options?.isWeb,
   };
 }

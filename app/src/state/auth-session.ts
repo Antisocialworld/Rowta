@@ -43,8 +43,12 @@ export type AuthSessionState = {
 /** Registered at boot (App.tsx imports lib/token-platform, which registers itself). */
 let store: TokenStore | null = null;
 
+/** In-memory access token; null means "read the store when needed". Never logged (S1). */
+let accessToken: string | null = null;
+
 export function setTokenStore(next: TokenStore): void {
   store = next;
+  accessToken = null;
 }
 
 function requireStore(): TokenStore {
@@ -54,9 +58,6 @@ function requireStore(): TokenStore {
   }
   return store;
 }
-
-/** In-memory access token; null means "read the store when needed". Never logged (S1). */
-let accessToken: string | null = null;
 
 function signedOut(): Pick<AuthSessionState, 'status' | 'screen'> {
   return { status: 'signedOut', screen: 'home' };
@@ -82,20 +83,38 @@ async function clearLocal(): Promise<void> {
 
 /** The one refresh run (A11 single-flight). Returns true only when a FRESH token is in place. */
 const runRefresh = async (): Promise<boolean> => {
-  let pair: { accessToken: string; refreshToken: string } | null;
+  const currentStore = requireStore();
+  let refreshToken: string | null = null;
   try {
-    pair = await requireStore().read();
+    if (currentStore.readRefreshToken) {
+      refreshToken = await currentStore.readRefreshToken();
+    }
+    if (!refreshToken) {
+      const pair = await currentStore.read();
+      refreshToken = pair?.refreshToken ?? null;
+    }
   } catch {
     return false;
   }
-  if (pair === null) return false;
+  if (!refreshToken) return false;
+
   try {
-    const next = await authApi.refresh({ refreshToken: pair.refreshToken });
-    await requireStore().write({ accessToken: next.accessToken, refreshToken: next.refreshToken });
+    const next = await authApi.refresh({ refreshToken });
+    await currentStore.write({ accessToken: next.accessToken, refreshToken: next.refreshToken });
     accessToken = next.accessToken;
     return true;
   } catch (error) {
-    if (error instanceof ApiError && (error.code === 'auth.refresh_invalid' || error.status === 401)) {
+    if (currentStore.isWeb) {
+      // Requirement 4 (web): Reuse-detection safety (server revokes the whole family if a token is presented twice):
+      // never retry a refresh with the same token. If the refresh is rejected (401/403) -> clear storage, show sign-in.
+      // If the failure is ambiguous (network error, timeout, 5xx, 429 after the request was sent) ->
+      // also clear storage and show sign-in; do NOT retry with the old token. No loops, no splash that never ends.
+      await clearLocal();
+      useAuthSession.setState(signedOut());
+      return false;
+    }
+
+    if (error instanceof ApiError && (error.code === 'auth.refresh_invalid' || error.status === 401 || error.status === 403)) {
       // Revoked/reused family (A11): end the session locally.
       await clearLocal();
       useAuthSession.setState(signedOut());
@@ -128,11 +147,35 @@ export const useAuthSession = create<AuthSessionState>((set) => ({
 
   restore: async () => {
     try {
-      const pair = await requireStore().read();
+      const currentStore = requireStore();
+
+      if (currentStore.isWeb) {
+        // Web start-up (Task W1): idempotent if already signed in
+        if (accessToken !== null) {
+          set({ status: 'signedIn', screen: 'home' });
+          return;
+        }
+
+        // If a refresh token is in sessionStorage, call refresh endpoint ONCE via single-flight guard
+        const storedRefresh = await currentStore.readRefreshToken?.();
+        if (storedRefresh) {
+          const ok = await refreshOnce();
+          if (ok) {
+            set({ status: 'signedIn', screen: 'home' });
+            return;
+          }
+        }
+        // No stored token or refresh failed (runRefresh already cleared local storage on failure)
+        set(signedOut());
+        return;
+      }
+
+      // Native start-up (unchanged): read keystore directly (no network call at boot)
+      const pair = await currentStore.read();
       accessToken = pair?.accessToken ?? null;
       set(pair === null ? signedOut() : { status: 'signedIn', screen: 'home' });
     } catch {
-      // A keystore read failure signs out rather than crashing the boot (fail closed, A11).
+      // A keystore or storage read failure signs out rather than crashing the boot (fail closed, A11).
       accessToken = null;
       set(signedOut());
     }
@@ -155,14 +198,21 @@ export const useAuthSession = create<AuthSessionState>((set) => ({
   },
 
   signOut: async () => {
-    let pair: { accessToken: string; refreshToken: string } | null;
+    const currentStore = requireStore();
+    let refreshToken: string | null = null;
     try {
-      pair = await requireStore().read();
+      if (currentStore.readRefreshToken) {
+        refreshToken = await currentStore.readRefreshToken();
+      }
+      if (!refreshToken) {
+        const pair = await currentStore.read();
+        refreshToken = pair?.refreshToken ?? null;
+      }
     } catch {
-      pair = null;
+      refreshToken = null;
     }
     try {
-      if (pair !== null) await authApi.logout({ refreshToken: pair.refreshToken });
+      if (refreshToken !== null) await authApi.logout({ refreshToken });
     } catch {
       // Best effort: a failed revoke must not trap the user signed in; the local clear follows.
     }

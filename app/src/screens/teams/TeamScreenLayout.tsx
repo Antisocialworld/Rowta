@@ -11,12 +11,14 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  useWindowDimensions,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../theme/tokens';
-import { CONTENT_MAX_WIDTH, HAIRLINE, MIN_TOUCH_TARGET } from '../../theme/layout';
+import { CONTENT_MAX_WIDTH, HAIRLINE, MIN_TOUCH_TARGET, desktopCenterStyle } from '../../theme/layout';
+import { useInlineBack } from '../../lib/use-inline-back';
 
 export type TeamScreenLayoutProps = {
   readonly children: ReactNode;
@@ -35,6 +37,9 @@ export function TeamScreenLayout({
   contentContainerStyle,
   footer,
 }: TeamScreenLayoutProps) {
+  const { width } = useWindowDimensions();
+  const inlineBack = useInlineBack(footer !== undefined);
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']} testID={testID}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -42,15 +47,17 @@ export function TeamScreenLayout({
           style={styles.flex}
           contentContainerStyle={[
             styles.scrollContent,
-            footer !== undefined ? styles.scrollContentWithFooter : null,
+            footer !== undefined && !inlineBack ? styles.scrollContentWithFooter : null,
             contentContainerStyle,
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.content, style]}>{children}</View>
+          <View style={[styles.content, desktopCenterStyle(width), style]}>
+            {children}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      {footer !== undefined ? (
+      {footer !== undefined && !inlineBack ? (
         <View style={styles.footer}>
           <View style={styles.footerContent}>{footer}</View>
         </View>
@@ -90,4 +97,3 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 });
-

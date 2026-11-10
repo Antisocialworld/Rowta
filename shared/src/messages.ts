@@ -16,6 +16,8 @@ export const AUTH_MESSAGES = {
   'auth.link.invalid': 'This link is invalid or has expired. Request a new one.',
   'auth.rateLimited': 'Too many attempts. Please wait before trying again.',
   'auth.reset.done': 'Password updated. Sign in with your new password.',
+  'auth.account_pending_deletion': 'This account is scheduled for deletion.',
+  'auth.account_restored': 'Account restored. Sign in with your password.',
   'auth.deleteOwner.blocked': 'Transfer or delete your team first.',
   'team.invite.sent': 'Invitation sent.',
   'team.seatLimit': 'Seat limit reached.',

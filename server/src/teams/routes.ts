@@ -14,6 +14,7 @@ import { globalDb } from '../db/clients.ts';
 import { registerGet, registerPost } from '../http/routes.ts';
 import { HttpError, ok } from '../middleware/error.ts';
 import * as service from './service.ts';
+import { requireBillingNotRestricted } from '../billing/restricted-guard.ts';
 
 type ZodIssue = z.ZodError['issues'][number];
 
@@ -126,6 +127,7 @@ export function createTeamsRouter(): Hono {
     const teamId = param(c, 'teamId');
     const targetUserId = param(c, 'userId');
     const body = parseWith(changeMemberRoleSchema, c.get('parsedBody'));
+    await requireBillingNotRestricted(teamId);
     const result = await service.changeMemberRole(callerId, teamId, targetUserId, body);
     return c.json(ok(result));
   });
@@ -135,6 +137,7 @@ export function createTeamsRouter(): Hono {
     const callerId = getUserId(c);
     const teamId = param(c, 'teamId');
     const targetUserId = param(c, 'userId');
+    await requireBillingNotRestricted(teamId);
     const result = await service.removeMember(callerId, teamId, targetUserId);
     return c.json(ok(result));
   });
@@ -159,6 +162,7 @@ export function createTeamsRouter(): Hono {
   registerPost(router, '/teams/:teamId/invites', { limits: ['invite.create'], auth: true }, async (c) => {
     const userId = getUserId(c);
     const teamId = param(c, 'teamId');
+    await requireBillingNotRestricted(teamId);
     const body = parseWith(inviteMemberSchema, c.get('parsedBody'));
     const result = await service.createInvite(userId, teamId, body);
     return c.json(ok(result));
@@ -178,7 +182,7 @@ export function createTeamsRouter(): Hono {
     const userId = getUserId(c);
     const body = parseWith(acceptInviteSchema, c.get('parsedBody'));
     const user = await globalDb().users.findUnique({ where: { id: userId } });
-    if (!user) {
+    if (!user || user.status === 'pending_deletion' || user.status === 'deleted') {
       throw new HttpError(401, 'auth.not_authenticated', 'Not authenticated.');
     }
     const result = await service.acceptInvite(userId, user.email, body.token);
@@ -190,6 +194,7 @@ export function createTeamsRouter(): Hono {
     const userId = getUserId(c);
     const teamId = param(c, 'teamId');
     const body = parseWith(updateTeamSettingsSchema, c.get('parsedBody'));
+    await requireBillingNotRestricted(teamId);
     const result = await service.updateTeamSettings(userId, teamId, body);
     return c.json(ok(result));
   });

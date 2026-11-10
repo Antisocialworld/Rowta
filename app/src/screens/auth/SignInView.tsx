@@ -29,6 +29,7 @@ export function SignInView() {
   const passwordRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [restoring, setRestoring] = useState(false);
   const ready = signInReady(email, password);
 
   useEffect(() => {
@@ -48,6 +49,18 @@ export function SignInView() {
     // Unverified account: the uniform prompt with the server's code timers (PRD 8.1, A9).
     setFlow({ email, codeMeta: result.meta });
     go('verifyCode', 'auth.signUp.submitted');
+  };
+
+  const handleRestore = async (): Promise<void> => {
+    setRestoring(true);
+    try {
+      await authApi.restoreAccount({ email, password });
+      await submitSignIn();
+    } catch {
+      await submitSignIn();
+    } finally {
+      setRestoring(false);
+    }
   };
 
   const handleSubmit = createSubmitTrigger({
@@ -94,6 +107,15 @@ export function SignInView() {
         onPress={handleSubmit}
       />
       {form.formError !== null ? <LiveRegion>{form.formError}</LiveRegion> : null}
+      {form.formError === 'auth.account_pending_deletion' ? (
+        <Button
+          label="action.restoreAccount"
+          variant="secondary"
+          busy={restoring}
+          onPress={() => void handleRestore()}
+          testID="sign-in-restore-account"
+        />
+      ) : null}
       {form.retryIn !== null && form.retryIn > 0 ? (
         <Text variant="body-small" tone="secondary">
           {formatRetryIn(form.retryIn)}

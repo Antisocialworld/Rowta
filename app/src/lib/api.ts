@@ -54,6 +54,16 @@ import {
   deleteTeamResponseSchema,
   type DeleteTeamInput,
   type DeleteTeamResponse,
+  deleteAccountSchema,
+  deleteAccountResponseSchema,
+  type DeleteAccountInput,
+  type DeleteAccountResponse,
+  deletePreviewResponseSchema,
+  type DeletePreviewResponse,
+  restoreAccountSchema,
+  restoreAccountResponseSchema,
+  type RestoreAccountInput,
+  type RestoreAccountResponse,
   deletedTeamItemSchema,
   deletedTeamsResponseSchema,
   restoreTeamResponseSchema,
@@ -142,6 +152,7 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'auth.link.invalid': 'auth.link.invalid',
   'auth.not_authenticated': 'generic.error',
   'auth.refresh_invalid': 'generic.error',
+  'auth.account_pending_deletion': 'auth.account_pending_deletion',
   'auth.deleteOwner.blocked': 'auth.deleteOwner.blocked',
   'team.notFound': 'team.notFound',
   'team.forbidden': 'team.forbidden',
@@ -174,6 +185,17 @@ const CODE_KEYS: Record<string, MessageKey> = {
   'idempotency.missing': 'idempotency.missing',
   'idempotency.fingerprint_mismatch': 'idempotency.fingerprint_mismatch',
   'idempotency.in_flight': 'idempotency.in_flight',
+  'billing.not_payer': 'billing.error.notPayer',
+  'billing.receiver_team_cap': 'billing.error.teamCap',
+  'billing.receiver_invalid': 'billing.error.receiverInvalid',
+  'billing.team_restricted': 'billing.error.teamRestricted',
+  'billing.account_inactive': 'billing.error.accountInactive',
+  'billing.cannot_resume': 'billing.error.cannotResume',
+  'billing.payer_cannot_leave': 'billing.error.payerCannotLeave',
+  'billing.payer_cannot_leave_self': 'billing.error.payerCannotLeaveSelf',
+  'billing.checkout_moved': 'billing.error.checkoutMoved',
+  'billing.checkout_stale': 'billing.error.checkoutStale',
+  'billing.switch_not_available_yet': 'billing.error.switchNotAvailableYet',
   'rate.limited': 'auth.rateLimited',
   'validation.failed': 'generic.error',
   'request.malformed': 'generic.error',
@@ -248,7 +270,7 @@ export function setFetchForTests(next: FetchLike | null): void {
   fetchImpl = next === null ? (input, init) => fetch(input, init) : next;
 }
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+export const DEFAULT_TIMEOUT_MS = 15_000;
 
 // ---------------------------------------------------------------------------------------------
 // The one request function
@@ -272,12 +294,22 @@ type RequestInput = {
 
 type RequestOutput = { data: unknown; meta?: unknown };
 
-async function send(input: RequestInput): Promise<RequestOutput> {
-  const { method, path, body, dataSchema, metaSchema, auth = false, timeoutMs = DEFAULT_TIMEOUT_MS } = input;
+export async function send(input: RequestInput): Promise<RequestOutput> {
+  const {
+    method,
+    path,
+    body,
+    dataSchema,
+    metaSchema,
+    auth = false,
+    headers: inputHeaders = {},
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    retried = false,
+  } = input;
 
   const headers: Record<string, string> = {
     accept: 'application/json',
-    ...(input.headers ?? {}),
+    ...inputHeaders,
   };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (auth) {
@@ -303,7 +335,7 @@ async function send(input: RequestInput): Promise<RequestOutput> {
     if (
       response.status === 401 &&
       auth &&
-      input.retried !== true &&
+      retried !== true &&
       runtime.onUnauthorized !== undefined &&
       (await runtime.onUnauthorized())
     ) {
@@ -539,6 +571,17 @@ export const authApi = {
       dataSchema: authTokensResponseSchema,
     });
     return out.data as AuthTokensResponse;
+  },
+
+  async restoreAccount(input: z.input<typeof restoreAccountSchema>): Promise<MessageResponse> {
+    restoreAccountSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: '/auth/restore-account',
+      body: input,
+      dataSchema: messageResponseSchema,
+    });
+    return out.data as MessageResponse;
   },
 };
 
@@ -937,6 +980,30 @@ export const swapsApi = {
   },
 };
 
+export const accountApi = {
+  async deletePreview(): Promise<DeletePreviewResponse> {
+    const out = await send({
+      method: 'GET',
+      path: '/account/delete-preview',
+      auth: true,
+      dataSchema: deletePreviewResponseSchema,
+    });
+    return out.data as DeletePreviewResponse;
+  },
+
+  async deleteAccount(input: z.input<typeof deleteAccountSchema>): Promise<DeleteAccountResponse> {
+    deleteAccountSchema.parse(input);
+    const out = await send({
+      method: 'POST',
+      path: '/account/delete',
+      body: input,
+      auth: true,
+      dataSchema: deleteAccountResponseSchema,
+    });
+    return out.data as DeleteAccountResponse;
+  },
+};
+
 export const devicesApi = {
   async registerDevice(
     input: z.input<typeof registerDeviceSchema>,
@@ -963,6 +1030,16 @@ export {
   deleteTeamResponseSchema,
   type DeleteTeamInput,
   type DeleteTeamResponse,
+  deleteAccountSchema,
+  deleteAccountResponseSchema,
+  type DeleteAccountInput,
+  type DeleteAccountResponse,
+  deletePreviewResponseSchema,
+  type DeletePreviewResponse,
+  restoreAccountSchema,
+  restoreAccountResponseSchema,
+  type RestoreAccountInput,
+  type RestoreAccountResponse,
   deletedTeamItemSchema,
   deletedTeamsResponseSchema,
   restoreTeamResponseSchema,

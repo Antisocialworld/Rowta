@@ -203,6 +203,66 @@ function getNotificationContent(
         title: 'Shift cancelled',
         body: typeof payload?.label === 'string' ? payload.label : 'A shift has been cancelled.',
       };
+    // T17 billing move notices — push titles (<=40 chars) and bodies (<=90 chars).
+    // Push payloads carry NO team or person names (P2-5); emails keep names.
+    case 'billing.transfer_still_paying':
+      return {
+        title: 'You still pay for a team',
+        body: 'Open Rowta to move billing.',
+      };
+    case 'billing.move_requested':
+      return {
+        title: 'Billing request',
+        body: 'Open Rowta to accept or decline.',
+      };
+    case 'billing.move_accepted':
+      return {
+        title: 'Billing moved',
+        body: 'You will not be billed for it again.',
+      };
+    case 'billing.move_declined':
+      return {
+        title: 'Billing request declined',
+        body: 'You still pay for the team.',
+      };
+    case 'billing.move_cancelled':
+      return {
+        title: 'Billing request cancelled',
+        body: 'You do not need to do anything.',
+      };
+    case 'billing.move_expired':
+      return {
+        title: 'Billing request ended',
+        body: 'You still pay for the team.',
+      };
+    case 'billing.move_payment_needed':
+      return {
+        title: 'Payment needed',
+        body: 'A team is read-only until you pay.',
+      };
+    case 'billing.move_trial_started':
+      return {
+        title: 'Your free trial started',
+        body: 'Open Rowta to see when it ends.',
+      };
+    // A2 Admin notices when payer's plan changes
+    case 'billing.plan_cancelled': {
+      const date = typeof payload?.date === 'string' ? payload.date : 'period end';
+      return {
+        title: 'Plan cancelled',
+        body: `Active until ${date}, then read-only. Nothing is deleted.`,
+      };
+    }
+    case 'billing.plan_kept':
+      return {
+        title: 'Plan kept',
+        body: "This team's plan was kept. Nothing changes.",
+      };
+    case 'billing.plan_ended':
+      return {
+        title: 'Plan ended',
+        body: 'This team is now read-only because its plan ended. Nothing is deleted.',
+      };
     default:
       return { title: 'Notification', body: 'You have a new update.' };
   }

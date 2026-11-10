@@ -13,7 +13,7 @@ Draft written 20 October 2026. Rowta is not launched yet. This page lists the ou
 | SMTP provider (chosen by the owner) | Sending sign-in codes, links, invites and notices | Your email address and the message we send | Active in code (nodemailer in `server/package.json`); the provider itself is [OWNER: choose before launch]; development uses a local mail catcher that sends nothing |
 | Expo push service | Delivering push notifications | Push token, notification text and routing data | Planned — the app includes push registration; sending ships in a later phase |
 | PostgreSQL and Redis hosts | Storing product data, queues and rate-limit counters | All Rowta product data | Active on the operator's own machine (local containers); the production host is undecided |
-| Sentry (error tracking) | Would show crash reports | Scrubbed error events — no passwords, codes or tokens, no request bodies | Not in use — the environment has a place for a key, but no error-tracking software is installed; adding it is an owner decision before launch |
+| Sentry (error tracking) | Not in use — no error-tracking software is installed; adding it is an owner decision before launch | Not applicable |
 
 ## What Rowta does not use
 

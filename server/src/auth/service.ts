@@ -26,11 +26,14 @@ import {
   type ResetNewPasswordInput,
   type MagicRequestInput,
   type MagicConsumeInput,
+  type RestoreAccountInput,
+  normaliseEmail,
 } from '@rowta/shared';
 import { globalDb } from '../db/clients.ts';
 import { isUniqueViolation } from '../db/errors.ts';
 import { HttpError } from '../middleware/error.ts';
 import { getDummyHash, hashSecret, needsRehash, verifySecret } from '../security/argon2.ts';
+import { clearUserRefused } from './deletion-cache.ts';
 import { signAccessToken } from '../security/access-token.ts';
 import { cooldownSeconds, startCooldown } from '../security/rate-limit.ts';
 import { createTokenParts, formatToken, splitToken } from '../security/tokens.ts';
@@ -216,13 +219,13 @@ export async function verifyCode(input: VerifyCodeInput): Promise<TokensData> {
   let refreshToken = '';
   try {
     await db.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw<Array<{ id: string; email_verified_at: Date | null }>>`
-        SELECT id, email_verified_at FROM users WHERE email = ${input.email} FOR UPDATE`;
+      const locked = await tx.$queryRaw<Array<{ id: string; email_verified_at: Date | null; status: string }>>`
+        SELECT id, email_verified_at, status FROM users WHERE email = ${input.email} FOR UPDATE`;
       const existing = locked[0];
       if (existing !== undefined) {
         // The account row exists (for example an unverified account re-verifying). A VERIFIED
         // row means someone else owns this email: the same generic failure, no explanation (A6).
-        if (existing.email_verified_at !== null) throw codeInvalid();
+        if (existing.email_verified_at !== null || existing.status === 'pending_deletion' || existing.status === 'deleted') throw codeInvalid();
         await tx.users.update({
           where: { id: existing.id },
           data: {
@@ -277,6 +280,15 @@ export async function signIn(input: SignInInput): Promise<SignInResult> {
   const passwordOk = await verifySecret(user?.password_hash ?? (await getDummyHash()), input.password);
   if (user === null || !passwordOk) throw authFailed();
 
+  if (user.status === 'deleted') {
+    throw authFailed();
+  }
+
+  // After a CORRECT password on a pending_deletion account, return a dedicated catalog error (A5, PRD 8.10)
+  if (user.status === 'pending_deletion') {
+    throw new HttpError(403, 'auth.account_pending_deletion', AUTH_MESSAGES['auth.account_pending_deletion']);
+  }
+
   if (user.email_verified_at === null) {
     // Correct password, unverified email: re-send the code and answer with the uniform prompt
     // (PRD 8.1). The pending row reuses the user's own password hash — never a payload (J3).
@@ -312,7 +324,6 @@ export async function signIn(input: SignInInput): Promise<SignInResult> {
 
   const accessToken = await signAccessToken(user.id);
   const tokens: TokensData = { accessToken, refreshToken: refresh.token, userId: user.id };
-  if (user.status === 'pending_deletion') tokens.accountStatus = 'pending_deletion';
   return { tokens };
 }
 
@@ -329,6 +340,8 @@ export async function refresh(input: RefreshInput): Promise<TokensData> {
   const verifierOk = await verifySecret(row?.verifier_hash ?? (await getDummyHash()), parts.verifier);
   if (row === null || !verifierOk) throw refreshInvalid();
   if (row.revoked_at !== null || row.expires_at.getTime() <= Date.now()) throw refreshInvalid();
+  const user = await db.users.findUnique({ where: { id: row.user_id } });
+  if (user === null || user.status === 'pending_deletion' || user.status === 'deleted') throw refreshInvalid();
   if (row.used_at !== null) {
     // Reuse detected: revoke the whole family; the newest token of the family dies too (A11).
     await revokeFamily(row.family_id);
@@ -373,8 +386,10 @@ export async function refresh(input: RefreshInput): Promise<TokensData> {
  *  same generic 401 as any other authentication problem (A5). */
 export async function me(userId: string): Promise<{ userId: string; displayName: string }> {
   const db = globalDb();
-  const user = await db.users.findUnique({ where: { id: userId }, select: { id: true, display_name: true } });
-  if (user === null) throw new HttpError(401, 'auth.not_authenticated', 'Not authenticated.');
+  const user = await db.users.findUnique({ where: { id: userId }, select: { id: true, display_name: true, status: true } });
+  if (user === null || user.status === 'pending_deletion' || user.status === 'deleted') {
+    throw new HttpError(401, 'auth.not_authenticated', 'Not authenticated.');
+  }
   return { userId: user.id, displayName: user.display_name };
 }
 
@@ -525,6 +540,11 @@ export async function resetNewPassword(input: ResetNewPasswordInput): Promise<Me
     throw linkInvalid();
   }
 
+  const user = await db.users.findUnique({ where: { id: row.user_id } });
+  if (user === null || user.status === 'pending_deletion' || user.status === 'deleted') {
+    throw linkInvalid();
+  }
+
   // Argon2 runs before the transaction so no long CPU work happens while rows are locked (C6).
   const newPasswordHash = await hashSecret(input.newPassword);
 
@@ -581,6 +601,11 @@ export async function magicConsume(input: MagicConsumeInput): Promise<TokensData
     throw linkInvalid();
   }
 
+  const user = await db.users.findUnique({ where: { id: row.user_id } });
+  if (user === null || user.status === 'pending_deletion' || user.status === 'deleted') {
+    throw linkInvalid();
+  }
+
   // Session material prepared before the transaction (C6).
   const child = await prepareRefresh(row.user_id, randomUUID(), null);
 
@@ -600,9 +625,47 @@ export async function magicConsume(input: MagicConsumeInput): Promise<TokensData
     throw err;
   }
 
-  const user = await db.users.findUnique({ where: { id: row.user_id } });
   const accessToken = await signAccessToken(row.user_id);
   const tokens: TokensData = { accessToken, refreshToken: child.token, userId: row.user_id };
-  if (user !== null && user.status === 'pending_deletion') tokens.accountStatus = 'pending_deletion';
   return tokens;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Restore account (Task D2; PRD 8.10)
+// ---------------------------------------------------------------------------------------------
+
+const RESTORE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+export async function restoreAccount(input: RestoreAccountInput): Promise<MessageData> {
+  const db = globalDb();
+  const normEmail = normaliseEmail(input.email);
+  const user = await db.users.findUnique({ where: { email: normEmail } });
+
+  const dummy = await getDummyHash();
+  const passwordOk = await verifySecret(user?.password_hash ?? dummy, input.password);
+  if (user === null || !passwordOk) {
+    throw authFailed();
+  }
+
+  const isPending = user.status === 'pending_deletion';
+  const withinWindow =
+    user.deletion_requested_at !== null &&
+    Date.now() - user.deletion_requested_at.getTime() <= RESTORE_WINDOW_MS;
+
+  if (!isPending || !withinWindow) {
+    throw authFailed();
+  }
+
+  await db.users.update({
+    where: { id: user.id },
+    data: {
+      status: 'active',
+      deletion_requested_at: null,
+    },
+  });
+
+  // Task D2b: Remove refusal key in Redis so immediate subsequent requests are accepted
+  await clearUserRefused(user.id);
+
+  return { message: AUTH_MESSAGES['auth.account_restored'] };
 }

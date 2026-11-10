@@ -10,11 +10,13 @@ export const POPPINS = {
   '400': 'Poppins_400Regular',
   '500': 'Poppins_500Medium',
   '600': 'Poppins_600SemiBold',
+  '700': 'Poppins_700Bold',
 } as const;
 
 export type TypeStyleName = keyof typeof typeStyles;
 
 export function familyForWeight(weight: string): string {
+  if (weight === '700') return POPPINS['700'];
   if (weight === '600') return POPPINS['600'];
   if (weight === '500') return POPPINS['500'];
   return POPPINS['400'];

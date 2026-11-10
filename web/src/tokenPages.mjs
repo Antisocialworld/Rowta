@@ -1,4 +1,4 @@
-// tokenPages — the two token fallback pages: /magic (PRD 8.1) and /invite/:token (PRD 8.2).
+// tokenPages — the two token fallback pages: /magic (PRD 8.1) and /invite (PRD 8.2).
 // Static content only: no token is ever written into the HTML (the runtime script builds the
 // rowta:// deep link from the fragment / path segment), and nothing here makes a network request.
 // Wording never says whether an email has an account (A5, A6) and never leaks a token (W2).
@@ -9,6 +9,9 @@ export const MAGIC_MISSING_MESSAGE =
 
 export const INVITE_MISSING_MESSAGE =
   'This invitation link is incomplete or has expired. Ask the person who invited you to send a new invitation.';
+
+export const BILLING_COMPLETE_MESSAGE =
+  'If you paid, Rowta will update in a moment.';
 
 /** The DEV-ONLY "Open in the web app" link (owner decision 28 Oct 2026): present in the markup only
  *  when the build ran with WEB_APP_URL set; hidden until the runtime script finds a valid token. The
@@ -41,5 +44,14 @@ export function inviteMain(downloadUrl, webAppUrl = '') {
     <a id="open-app" class="button" hidden>Open in the app</a>${webAppLink(webAppUrl)}
     <p>Rowta is an Android app.</p>
     ${cta}
+  </section>`;
+}
+
+/** /billing/complete — static fallback page after hosted checkout (PRD 8.1, I3). */
+export function billingCompleteMain(_downloadUrl, webAppUrl = '') {
+  return `<section class="prose token-page">
+    <h1 id="token-heading" tabindex="-1">Billing return</h1>
+    <p id="token-message">${BILLING_COMPLETE_MESSAGE}</p>
+    <a id="open-app" class="button" href="rowta://billing/complete">Open in the app</a>${webAppLink(webAppUrl)}
   </section>`;
 }

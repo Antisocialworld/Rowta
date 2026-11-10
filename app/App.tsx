@@ -6,7 +6,7 @@
 // client is module-level so the provider never remounts the app.
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, StyleSheet, View } from 'react-native';
-import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, useFonts } from '@expo-google-fonts/poppins';
+import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, useFonts } from '@expo-google-fonts/poppins';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,10 +16,15 @@ import './src/lib/token-platform';
 import { hideNativePasswordReveal } from './src/platform/web-native-reveal';
 import { parseDeepLink } from './src/lib/deep-links';
 import { stripTokenFromAddress } from './src/lib/web-address';
+import { handleLaunchDecision } from './src/lib/welcome-logic';
+import { welcomeStore } from './src/lib/welcome-platform';
 import { useAuthFlow } from './src/state/auth-context';
 import { useAuthSession } from './src/state/auth-session';
 import { AUTH_ENTRY, useAuthViewStore } from './src/state/auth-view';
 import { useTeams } from './src/state/teams';
+import { useTeamsView } from './src/state/teams-view';
+import { useShiftNav } from './src/state/shift-nav';
+import { billingApi } from './src/api/billing';
 import { setTeamNotFoundHandler } from './src/lib/team-lifecycle';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -38,13 +43,18 @@ function handleDeepLink(url: string): void {
   if (target.kind === 'magic') {
     useAuthFlow.getState().setFlow({ magicToken: target.token });
     useAuthViewStore.getState().enter(AUTH_ENTRY.magicToken);
-  } else {
+  } else if (target.kind === 'invite') {
     useAuthFlow.getState().setFlow({ inviteToken: target.token });
     if (useAuthSession.getState().status === 'signedIn') {
       void useTeams.getState().consumeInviteToken(target.token);
     } else {
       useAuthViewStore.getState().enter(AUTH_ENTRY.invite);
     }
+  } else if (target.kind === 'billing_complete') {
+    useShiftNav.getState().reset();
+    useTeamsView.getState().go('billing');
+    void queryClient.invalidateQueries({ queryKey: ['billing', 'account'] });
+    void billingApi.accountStatus().catch(() => undefined);
   }
   // Web only, and ONLY after the token above is in memory (parse first, strip second; owner
   // request 28 Oct 2026): remove it from the address bar. Native behaviour never changes.
@@ -69,16 +79,35 @@ export default function App() {
     Poppins_400Regular,
     Poppins_500Medium,
     Poppins_600SemiBold,
+    Poppins_700Bold,
   });
   const ready = fontsLoaded || fontError !== null;
   const status = useAuthSession((state) => state.status);
   const restore = useAuthSession((state) => state.restore);
   const [restoringStarted, setRestoringStarted] = useState(false);
+  const [welcomeState, setWelcomeState] = useState<'pending' | 'show' | 'skip'>('pending');
 
   useEffect(() => {
     if (restoringStarted) return;
     setRestoringStarted(true);
-    void restore();
+
+    void Promise.all([
+      restore(),
+      Linking.getInitialURL().catch(() => null),
+      welcomeStore.hasSeenWelcome().catch(() => false),
+    ]).then(([_, initialUrl, hasSeen]) => {
+      const isDeepLink =
+        initialUrl !== null && initialUrl !== undefined && parseDeepLink(initialUrl) !== null;
+      const decision = handleLaunchDecision({
+        hasSeenWelcome: hasSeen,
+        isDeepLinkLaunch: isDeepLink,
+        isSignedIn: useAuthSession.getState().status === 'signedIn',
+      });
+      if (decision.markSeen) {
+        void welcomeStore.markSeen();
+      }
+      setWelcomeState(decision.showWelcome ? 'show' : 'skip');
+    });
   }, [restore, restoringStarted]);
 
   useEffect(() => {
@@ -92,7 +121,7 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
-  const splashHidden = ready && status !== 'restoring';
+  const splashHidden = ready && status !== 'restoring' && welcomeState !== 'pending';
   const onLayoutRootView = useCallback(() => {
     if (splashHidden) {
       void SplashScreen.hideAsync().catch(() => undefined);
@@ -105,13 +134,16 @@ export default function App() {
     if (splashHidden) void SplashScreen.hideAsync().catch(() => undefined);
   }, [splashHidden]);
 
-  if (!ready) return null;
+  if (!ready || welcomeState === 'pending') return null;
 
   return (
     <View style={styles.fill} onLayout={onLayoutRootView}>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
-          <Root />
+          <Root
+            welcomeVisible={welcomeState === 'show'}
+            onWelcomeFinish={() => setWelcomeState('skip')}
+          />
         </SafeAreaProvider>
       </QueryClientProvider>
     </View>

@@ -184,6 +184,15 @@ export const magicConsumeSchema = z.strictObject({
   token: tokenField,
 });
 
+export const deleteAccountSchema = z.strictObject({
+  password: z.string().min(1),
+});
+
+export const restoreAccountSchema = z.strictObject({
+  email: emailField,
+  password: z.string().min(1),
+});
+
 // ---------------------------------------------------------------------------------------------
 // Response schemas (for the app and for tests; the server builds these shapes)
 // ---------------------------------------------------------------------------------------------
@@ -253,12 +262,36 @@ export const countryListResponseSchema = z.array(countryItemSchema);
 
 export type CountryItem = z.infer<typeof countryItemSchema>;
 
+export const deletePreviewResponseSchema = z.strictObject({
+  adminTeamsWithOthers: z.array(
+    z.strictObject({
+      id: z.string(),
+      name: z.string(),
+      otherMembers: z.number(),
+    }),
+  ),
+  soleMemberTeams: z.number(),
+  paysForTeams: z.number(),
+  hasActiveSubscription: z.boolean(),
+});
+
+export const deleteAccountResponseSchema = z.strictObject({
+  deleted: z.boolean(),
+});
+
+export const restoreAccountResponseSchema = z.strictObject({
+  message: z.string(),
+});
+
 // Response types (inferred ONCE here so the app's API client never imports zod itself, V1).
 export type AuthTokensResponse = z.infer<typeof authTokensResponseSchema>;
 export type MessageResponse = z.infer<typeof messageResponseSchema>;
 export type ResetGrantResponse = z.infer<typeof resetGrantResponseSchema>;
 export type CodeTimerMeta = z.infer<typeof codeTimerMetaSchema>;
 export type GrantTimerMeta = z.infer<typeof grantTimerMetaSchema>;
+export type DeletePreviewResponse = z.infer<typeof deletePreviewResponseSchema>;
+export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
+export type RestoreAccountResponse = z.infer<typeof restoreAccountResponseSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Input types (inferred ONCE from the schemas above; the server service functions use these)
@@ -276,3 +309,5 @@ export type ResetNewPasswordInput = z.infer<typeof resetNewPasswordSchema>;
 export type MagicRequestInput = z.infer<typeof magicRequestSchema>;
 export type MagicConsumeInput = z.infer<typeof magicConsumeSchema>;
 export type MeResponse = z.infer<typeof meResponseSchema>;
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;
+export type RestoreAccountInput = z.infer<typeof restoreAccountSchema>;

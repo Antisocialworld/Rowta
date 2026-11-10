@@ -6,6 +6,10 @@
 import type { MiddlewareHandler } from 'hono';
 import { HttpError } from '../middleware/error.ts';
 import { verifyAccessToken } from '../security/access-token.ts';
+import { isUserRefused } from './deletion-cache.ts';
+import { logger } from '../lib/logger.ts';
+
+const log = logger.child({ module: 'auth-middleware' });
 
 const BEARER_PATTERN = /^Bearer\s+(\S+)$/;
 
@@ -20,6 +24,17 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
 
   const claims = await verifyAccessToken(match[1]);
   if (claims === null) throw notAuthenticated();
+
+  // Task D2b: Reject access tokens for users whose account deletion is pending.
+  // One fast Redis lookup for the refusal key (no database query per request).
+  // Fail-open on Redis errors: backup gate; refresh tokens are already revoked and the key TTL is 360s.
+  try {
+    const refused = await isUserRefused(claims.sub);
+    if (refused) throw notAuthenticated();
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    log.warn({ err }, 'redis check failed in requireAuth; failing open');
+  }
 
   c.set('userId', claims.sub);
   await next();

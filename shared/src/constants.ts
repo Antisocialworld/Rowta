@@ -23,3 +23,13 @@ export const INVITE_TTL_SECONDS = 7 * 24 * 3_600; // 7 days (PRD 8.2, skill rowt
 export const STARTER_SEAT_CAP = 5; // Starter includes up to 5 non-owner seats (PRD 5, Owner Decision 1)
 export const TEAM_NAME_MIN_LENGTH = 1;
 export const TEAM_NAME_MAX_LENGTH = 80;
+
+// AI crawler tokens blocked from the API (P2-2, owner decision 7 Nov 2026).
+// Exact token match, case-insensitive. Rowta app user agents (React Native/Expo)
+// are never blocked.
+export const AI_CRAWLER_TOKENS = [
+  'GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'ClaudeBot', 'Claude-Web',
+  'anthropic-ai', 'CCBot', 'Google-Extended', 'PerplexityBot', 'Bytespider',
+  'Amazonbot', 'Applebot-Extended', 'meta-externalagent', 'FacebookBot',
+  'cohere-ai', 'Diffbot', 'ImagesiftBot', 'Omgilibot', 'YouBot',
+] as const;
