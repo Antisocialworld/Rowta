@@ -117,3 +117,6 @@ docs/gates/evidence-g4b-summary.md
 docs/gates/phase-6.md
 docs/gates/phase-7-progress.md
 docs/gates/phase-7.md
+
+.vercel
+.env.local
