@@ -18,22 +18,15 @@ import { useAuthSession } from '../state/auth-session';
 import { useAuthViewStore } from '../state/auth-view';
 import { useTeamsView } from '../state/teams-view';
 import { spacing } from '../theme/tokens';
+import { canProceedToStep2, isDeleteConfirmationReady } from '../lib/delete-account-logic';
+
+export { canProceedToStep2, isDeleteConfirmationReady };
 
 export type DeleteAccountModalProps = {
   readonly visible: boolean;
   readonly onClose: () => void;
   readonly testID?: string;
 };
-
-/** Pure rule: can only proceed to confirmation step when user does not admin teams with other active members. */
-export function canProceedToStep2(adminTeamsWithOthersCount: number): boolean {
-  return adminTeamsWithOthersCount === 0;
-}
-
-/** Pure rule: confirmation is ready only when password is provided and confirmText is exactly 'DELETE'. */
-export function isDeleteConfirmationReady(password: string, confirmText: string): boolean {
-  return password.length > 0 && confirmText === 'DELETE';
-}
 
 export function DeleteAccountModal({
   visible,
