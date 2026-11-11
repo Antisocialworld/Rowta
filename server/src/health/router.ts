@@ -12,6 +12,25 @@ import type { AppLogger } from '../lib/logger.ts';
 
 import { checkWorkerLiveness } from '../worker/liveness.ts';
 
+/**
+ * Races `promise` against a timer. Returns the promise's boolean result if it settles within
+ * `ms` milliseconds, or `false` if it times out or throws. The timer is always cleared so the
+ * event loop is never held open by a stale timeout.
+ */
+export async function withTimeout(promise: Promise<boolean>, ms = 4000): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface DependencyReport {
   name: string;
   pass: boolean;
@@ -45,10 +64,10 @@ export async function checkDependencies(deps: {
   redis: { ping(): Promise<string>; exists?(key: string): Promise<number> };
 }): Promise<DeepHealth> {
   const [redisOk, db0Ok, db1Ok, workerOk] = await Promise.all([
-    pingRedis(deps.redis),
-    pingDatabase(globalDb()),
-    pingDatabase(writeDb(1)),
-    checkWorkerLiveness(deps.redis),
+    withTimeout(pingRedis(deps.redis)),
+    withTimeout(pingDatabase(globalDb())),
+    withTimeout(pingDatabase(writeDb(1))),
+    withTimeout(checkWorkerLiveness(deps.redis)),
   ]);
   const dependencies: DependencyReport[] = [
     { name: 'redis', pass: redisOk },
