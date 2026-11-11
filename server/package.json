@@ -18,7 +18,7 @@
     "db:pull:db1": "node ../scripts/prisma-pull.mjs db1",
     "db:pull": "node ../scripts/prisma-pull.mjs",
     "generate": "prisma generate --config prisma/db0/prisma.config.ts && prisma generate --config prisma/db1/prisma.config.ts",
-    "bundle": "esbuild src/vercel.ts --bundle --platform=node --format=esm --target=node20 --external:@node-rs/argon2 --outfile=api/index.js",
+    "bundle": "esbuild src/vercel.ts --bundle --platform=node --format=esm --target=node20 --external:@node-rs/argon2 --outfile=dist/vercel.mjs",
     "build:vercel": "npm run generate && npm run bundle"
   },
   "dependencies": {

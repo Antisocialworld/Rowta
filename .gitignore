@@ -28,7 +28,6 @@ coverage/
 android/
 ios/
 .turbo/
-server/api/index.js
 .cache/
 *.tsbuildinfo
 
