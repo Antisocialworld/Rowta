@@ -2,9 +2,9 @@
 // Builds the Hono app with createApp and exports the serverless handler via hono/vercel handle.
 import { handle } from 'hono/vercel';
 import type { Redis } from 'ioredis';
-import { createApp } from '../src/index.ts';
-import { logger } from '../src/lib/logger.ts';
-import { createRedisConnection } from '../src/jobs/queues.ts';
+import { createApp } from './index.ts';
+import { logger } from './lib/logger.ts';
+import { createRedisConnection } from './jobs/queues.ts';
 
 let redisInstance: Redis | null = null;
 

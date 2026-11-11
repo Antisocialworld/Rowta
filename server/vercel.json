@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run generate",
+  "buildCommand": "npm run generate && npm run bundle",
   "rewrites": [
     {
       "source": "/(.*)",
