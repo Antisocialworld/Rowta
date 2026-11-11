@@ -16,6 +16,7 @@
     "db:studio:db1": "node scripts/db-studio.mjs db1",
     "db:psql": "node scripts/db-psql.mjs db0",
     "db:psql:db1": "node scripts/db-psql.mjs db1",
+    "db:apply:remote": "node scripts/db-apply-remote.mjs",
     "db:tables": "node scripts/db-tables.mjs",
     "db:clean-test": "node scripts/db-clean-test-data.mjs",
     "sweep:expired-moves": "npm exec --workspace @rowta/server -- tsx ../scripts/sweep-expired-moves.mjs",
