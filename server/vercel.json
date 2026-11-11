@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run generate",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ]
+}
+
